@@ -1859,7 +1859,7 @@ details h3 {
   }
 }
 /* Compact, bounded spreadsheet surface. Horizontal scrolling stays inside the sheet. */
-.client-tabs { display:flex; gap:8px; border-bottom:1px solid var(--border, #dfe5df); margin-bottom:20px; overflow-x:auto; }
+.client-tabs { display:flex; flex-direction:row; gap:8px; border-bottom:1px solid var(--border, #dfe5df); margin:0 0 20px; overflow-x:auto; }
 .client-tabs a { padding:10px 14px; white-space:nowrap; border-bottom:2px solid transparent; }
 .client-tabs a.active { border-bottom-color:#245440; font-weight:650; color:#245440; }
 .sheet-toolbar { display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }

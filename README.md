@@ -42,7 +42,7 @@ The migration is `supabase/migrations/20260908021539_leadscope.sql`. It is **alr
 ```sh
 npx supabase login
 npx supabase link --project-ref dwoersrcbxievideuads
-npx supabase migration repair 20260908021539 20260908045049 --status applied --linked
+npx supabase migration repair 20260908021539 20260908045049 20260908052822 --status applied --linked
 npx supabase migration list --linked
 ```
 
@@ -89,7 +89,8 @@ References: [Supabase SSR authentication](https://supabase.com/docs/guides/auth/
 3. Click **Start search** once. The app generates queries when needed, saves the campaign and atomically checks the current revision, cooldown and request limit. There is no separate preview/confirmation screen. The upper request limit is visible beside Start; the database may reduce it for skipped queries. Campaigns can also be saved for later with no criteria or queries. A search itself needs at least one enabled useful query.
 4. Leads save automatically. Up to three runs process concurrently in any visible LeadScope workspace; you can create or edit another campaign while searches run. Each run has its own persisted budget and lease. Hidden tabs stop dispatches, and closing all workspace tabs stops further processing; in-flight requests may finish. Opening the workspace again continues running searches. Pause/Cancel affects a run for all operators. No closed-tab background worker is provided.
 5. Review the original source and exact evidence spans. Blank criteria are not required; with no positive criteria at all, imported leads go to Review. A rule match never automatically becomes Accepted. Client notes are shared across campaigns; fit and decisions are campaign-specific.
-6. Export Accepted leads to CSV or copy TSV into Google Sheets. Suppressed and stale candidates are excluded server-side at export time; URLs are deduplicated within the selected scope.
+6. Open the client’s **Prospect sheet** tab for one row per accepted LinkedIn URL across all campaigns. Edit **Prospect contacted** (Not contacted, Contacted, Replied, Follow up, Not interested) and notes inline; changes save automatically. Title, URL, snippet, latest source query/campaign, and first-seen date are included. Search and contact filters run before server pagination (50 rows); **Export CSV** and **Copy for Sheets** include all matching pages.
+7. The review screen also exports Accepted leads to CSV or TSV. Suppressed and stale candidates are excluded server-side at export time; URLs are deduplicated within the selected scope.
 
 Campaign names are generated when left blank. More options contains request limits, country/language, exclusions, review rules and repeat-search settings. New campaigns default to four generated queries, one page each and at most four requests, reduced by the server cap. Existing campaign settings are preserved. Recent searches are skipped by default; to repeat them, use **More options → Search these queries again** on the saved campaign.
 
@@ -186,3 +187,9 @@ Before migration or release, make and verify a database backup using the selecte
 See `VALIDATION.md` for exact checks and remaining integration gaps. Live acceptance is intentionally unverified until an explicit live-test request budget is supplied. With authorization for **at most two requests**, run two real queries, one page each; reload to verify persistence; run a cooldown-skipped repeat using no credits; review/export a result if any exist. Do not add fictional records when a query has no results. Additional requests need remaining authorized budget.
 
 Deferred: client-facing memberships, enrichment/emails, direct Google Sheets sync, scheduling, queues/workers, LLMs, outreach, billing, CRM, and marketing pages.
+
+## Client prospect sheet update
+
+Migration `20260908052822_client_prospect_sheet.sql` is installed on the selected project. It adds client-scoped contact status, an RLS-preserving deduplicated accepted view, narrow contact-write/export RPCs, and a client/prospect index. Existing notes, decisions and discovery history are preserved. For a forward fix, replace the view/RPC definitions while retaining the contact column and its data; do not drop prospect records.
+
+Workspace reads now run concurrently after client scope is resolved. Status counts use one RPC rather than five requests. Search progress refreshes are throttled to ten seconds (or completion), and inline sheet edits do not reload the workspace. The sheet is horizontally scrollable within a bounded panel on smaller screens.
