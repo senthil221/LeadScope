@@ -45,6 +45,17 @@ export default async function Page({
     clients: checked(await db.from("clients").select("*").order("name")),
     campaigns: [],
     live: env.live,
+    serverCap: env.serverCap,
+    activeRuns: checked(
+      await db
+        .from("campaign_runs")
+        .select(
+          "id,client_id,campaign_id,status,reserved,budget,new_candidates",
+        )
+        .in("status", ["running", "paused"])
+        .order("created_at")
+        .limit(100),
+    ),
     email: user.email ?? "Agency operator",
   };
   try {

@@ -39,7 +39,7 @@ import {
   X,
 } from "lucide-react";
 import { defaults, type CampaignConfig, type Query } from "@/lib/domain";
-import type { Client, PageData, Preflight, Run } from "@/lib/types";
+import type { Client, PageData, Run } from "@/lib/types";
 
 async function act<T = { id: string }>(
   action: string,
@@ -161,6 +161,128 @@ function Notice({ children }: { children: ReactNode }) {
   );
 }
 
+function WorkspaceSearches({ data }: { data: PageData }) {
+  const router = useRouter();
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [retry, setRetry] = useState(0);
+  const guard = useRef(false);
+  const ids = (data.activeRuns ?? [])
+    .filter((r) => r.status === "running")
+    .map((r) => r.id)
+    .join(",");
+  useEffect(() => {
+    if (!data.live || !ids) return;
+    let cancelled = false;
+    let timeout: ReturnType<typeof setTimeout>;
+    const blocked = new Set<string>();
+    const nextAt = new Map<string, number>();
+    const queue = ids.split(",");
+    let cursor = 0;
+    async function tick() {
+      if (cancelled) return;
+      if (document.hidden || guard.current) {
+        timeout = setTimeout(tick, 1000);
+        return;
+      }
+      const ready = queue.filter(
+        (id) => !blocked.has(id) && (nextAt.get(id) ?? 0) <= Date.now(),
+      );
+      const batch = Array.from(
+        { length: Math.min(3, ready.length) },
+        (_, i) => ready[(cursor + i) % ready.length],
+      );
+      cursor += batch.length;
+      guard.current = true;
+      try {
+        await Promise.all(
+          batch.map(async (id) => {
+            try {
+              const result = await act<{ state: string; nextRetryAt?: string }>(
+                "process",
+                { runId: id },
+              );
+              if (
+                ["completed", "cancelled", "failed", "paused"].includes(
+                  result.state,
+                )
+              )
+                blocked.add(id);
+              if (result.nextRetryAt)
+                nextAt.set(id, new Date(result.nextRetryAt).getTime());
+            } catch (e) {
+              blocked.add(id);
+              if (!cancelled)
+                setErrors((old) => ({ ...old, [id]: (e as Error).message }));
+            }
+          }),
+        );
+        if (!cancelled && batch.length) router.refresh();
+      } finally {
+        guard.current = false;
+      }
+      if (!cancelled) timeout = setTimeout(tick, 1500);
+    }
+    void tick();
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [ids, data.live, router, retry]);
+  if (!data.activeRuns?.length) return null;
+  return (
+    <details
+      className="workspace-searches"
+      open={Object.keys(errors).length > 0 ? true : undefined}
+    >
+      <summary>
+        <span className="row">
+          <Search size={15} />
+          {data.activeRuns.filter((r) => r.status === "running").length} running
+          · {data.activeRuns.filter((r) => r.status === "paused").length} paused
+        </span>
+        <span>Searches continue while this workspace is open</span>
+      </summary>
+      <div className="active-search-grid">
+        {data.activeRuns.map((r) => (
+          <div className="active-search" key={r.id}>
+            <Link className="strong" href={"/runs/" + r.id}>
+              {data.campaigns.find((c) => c.id === r.campaign_id)?.name ??
+                data.clients.find((c) => c.id === r.client_id)?.name ??
+                "Campaign search"}
+            </Link>
+            <Badge status={r.status} />
+            <small>
+              {r.new_candidates} leads · {r.reserved}/{r.budget} requests
+              reserved
+            </small>
+            {errors[r.id] && (
+              <>
+                <span role="alert" className="error">
+                  {errors[r.id]}
+                </span>
+                <button
+                  className="small"
+                  onClick={() => {
+                    setErrors({});
+                    setRetry((v) => v + 1);
+                  }}
+                >
+                  Retry connection
+                </button>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+      <small>
+        Up to 3 campaigns process together. Hidden or closed tabs stop new
+        requests; in-flight requests may finish. Each search keeps its own
+        limit.
+      </small>
+    </details>
+  );
+}
+
 export function Workspace({ data }: { data: PageData }) {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -260,7 +382,7 @@ export function Workspace({ data }: { data: PageData }) {
                 href={`/settings?client=${client.id}`}
               >
                 <Settings size={18} />
-                Suppressions & setup
+                Settings
               </Link>
             </>
           )}
@@ -303,10 +425,11 @@ export function Workspace({ data }: { data: PageData }) {
           </span>
           <span className="live-indicator">
             <i className={data.live ? "on" : ""} />
-            {data.live ? "Live search enabled" : "Live search disabled"}
+            {data.live ? "Search connected" : "Search setup needed"}
           </span>
         </div>
         <div className="page-body">
+          <WorkspaceSearches data={data} />
           {error && (
             <div className="toast error" role="alert">
               {error}
@@ -419,7 +542,7 @@ export function Workspace({ data }: { data: PageData }) {
                 title={client.name}
                 description={
                   client.notes ||
-                  "Define an audience. Discover references. Review the evidence."
+                  "Run multiple campaigns here. Leads stay organized by campaign."
                 }
                 actions={
                   <>
@@ -513,15 +636,23 @@ export function Workspace({ data }: { data: PageData }) {
                               </Link>
                             </td>
                             <td>
-                              {c.config.locations.slice(0, 2).join(", ")}
+                              {c.config.locations.slice(0, 2).join(", ") ||
+                                "Any location"}
                               <small>
-                                {c.config.roles.slice(0, 2).join(", ")}
+                                {c.config.roles.slice(0, 2).join(", ") ||
+                                  "Any role"}
                               </small>
                             </td>
                             <td>Up to {c.config.budget} / run</td>
                             <td>
                               <Badge
-                                status={c.archived ? "Archived" : "Active"}
+                                status={
+                                  c.archived
+                                    ? "Archived"
+                                    : (data.activeRuns?.find(
+                                        (r) => r.campaign_id === c.id,
+                                      )?.status ?? "Ready")
+                                }
                               />
                             </td>
                             <td>
@@ -644,7 +775,7 @@ function History({ runs }: { runs: Run[] }) {
       <div className="card">
         {!runs.length ? (
           <Empty icon={<Search size={24} />} title="No searches yet">
-            <p>Preview your queries and request budget before starting.</p>
+            <p>Start a search to add leads here automatically.</p>
           </Empty>
         ) : (
           <div className="table-wrap">
@@ -695,420 +826,516 @@ function History({ runs }: { runs: Run[] }) {
     </>
   );
 }
-function Builder({ data, run, busy, setError }: { data: PageData } & Actions) {
+function SearchSetupNotice({ clientId }: { clientId: string }) {
+  return (
+    <Notice>
+      Search is not connected yet. You can save campaigns now.{" "}
+      <Link className="strong" href={"/settings?client=" + clientId}>
+        Open setup
+      </Link>
+    </Notice>
+  );
+}
+function Builder({ data, setError }: { data: PageData } & Actions) {
   const router = useRouter();
   const c = data.campaign;
   const [name, setName] = useState(c?.name ?? "");
-  const [config, setConfig] = useState<CampaignConfig>(c?.config ?? defaults);
+  const [config, setConfig] = useState<CampaignConfig>(
+    c?.config ?? {
+      ...defaults,
+      queryCap: 4,
+      pageCap: 1,
+      budget: Math.min(4, data.serverCap ?? 50),
+    },
+  );
   const [queries, setQueries] = useState<Query[]>(data.queries ?? []);
+  const [mode, setMode] = useState<"build" | "paste">(
+    data.queries?.some((q) => q.strategy === "custom") ? "paste" : "build",
+  );
   const [dirty, setDirty] = useState(false);
   const [reset, setReset] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const saved = useRef({ id: c?.id, revision: c?.revision, fingerprint: "" });
+  const token = useRef(crypto.randomUUID());
+  const guard = useRef(false);
   useEffect(() => {
-    const guard = (e: BeforeUnloadEvent) => {
+    const warn = (e: BeforeUnloadEvent) => {
       if (dirty) e.preventDefault();
     };
-    window.addEventListener("beforeunload", guard);
-    return () => window.removeEventListener("beforeunload", guard);
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
+  const cleanConfig = () => ({
+    ...config,
+    ...Object.fromEntries(
+      [
+        "locations",
+        "roles",
+        "skills",
+        "requiredKeywords",
+        "queryExclusions",
+        "leadExclusions",
+      ].map((k) => [
+        k,
+        (config[k as keyof CampaignConfig] as string[])
+          .map((v) => v.trim())
+          .filter(Boolean),
+      ]),
+    ),
+  });
   function update<K extends keyof CampaignConfig>(
     key: K,
     value: CampaignConfig[K],
   ) {
     setConfig((old) => ({ ...old, [key]: value }));
     setDirty(true);
+    if (
+      [
+        "locations",
+        "roles",
+        "skills",
+        "requiredKeywords",
+        "includeRequired",
+        "queryExclusions",
+        "queryCap",
+      ].includes(key) &&
+      mode === "build"
+    )
+      setQueries((old) => old.filter((q) => q.strategy === "custom"));
+  }
+  async function generated() {
+    const result = await act<{ queries: Query[]; warnings: string[] }>(
+      "generate",
+      cleanConfig(),
+    );
+    setQueries(result.queries);
+    setWarnings(result.warnings);
+    setDirty(true);
+    return result.queries;
   }
   async function generate() {
-    setGenerating(true);
+    if (guard.current) return;
+    guard.current = true;
+    setBusy(true);
     setError("");
     try {
-      const result = await act<{ queries: Query[]; warnings: string[] }>(
-        "generate",
-        config,
-      );
-      setQueries(result.queries);
-      setWarnings(result.warnings);
-      setDirty(true);
+      await generated();
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setGenerating(false);
+      guard.current = false;
+      setBusy(false);
     }
   }
-  const listFields: {
-    key: keyof CampaignConfig;
-    label: string;
-    hint: string;
-    required?: boolean;
-  }[] = [
-    {
-      key: "locations",
-      label: "Location aliases",
-      hint: "One per line · up to 20",
-      required: true,
-    },
-    {
-      key: "roles",
-      label: "Target roles",
-      hint: "One per line · up to 30",
-      required: true,
-    },
-    {
-      key: "skills",
-      label: "Skills",
-      hint: "Any one skill can qualify · up to 30",
-    },
-    {
-      key: "requiredKeywords",
-      label: "Required keywords",
-      hint: "Every keyword needs evidence · up to 15",
-    },
-    {
-      key: "queryExclusions",
-      label: "Search exclusions",
-      hint: "Optional words to exclude from Google queries · up to 20",
-    },
-    {
-      key: "leadExclusions",
-      label: "Excluded current roles",
-      hint: "Only clear current-role evidence rejects a lead · up to 20",
-    },
-  ];
+  async function save(start: boolean) {
+    if (guard.current) return;
+    guard.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      let next = queries.filter(
+        (q) => q.text.trim() && q.text.trim() !== "site:linkedin.com/in/",
+      );
+      if (!next.length && mode === "build") next = await generated();
+      next = next.map((q) => ({
+        ...q,
+        text: /site:/i.test(q.text)
+          ? q.text
+          : "site:linkedin.com/in/ " + q.text,
+      }));
+      if (start && !next.some((q) => q.enabled))
+        throw new Error("Add any search detail or paste a query to start.");
+      const cleaned = cleanConfig();
+      const title =
+        name.trim() ||
+        [
+          ...cleaned.locations,
+          ...cleaned.roles,
+          ...cleaned.skills,
+          ...cleaned.requiredKeywords,
+        ]
+          .slice(0, 3)
+          .join(" · ")
+          .slice(0, 120) ||
+        "New campaign";
+      const fingerprint = JSON.stringify({
+        name: title,
+        config: cleaned,
+        queries: next,
+        reset,
+      });
+      if (!saved.current.id || saved.current.fingerprint !== fingerprint) {
+        const result = await act<{ id: string }>("campaign", {
+          id: saved.current.id,
+          clientId: data.client!.id,
+          name: title,
+          config: cleaned,
+          queries: next,
+          reset,
+          expectedRevision: saved.current.revision,
+        });
+        saved.current = {
+          id: result.id,
+          revision: (saved.current.revision ?? 0) + 1,
+          fingerprint,
+        };
+        token.current = crypto.randomUUID();
+        setDirty(false);
+        setName(title);
+        setQueries(next);
+      }
+      if (start) {
+        const cap = Math.min(
+          cleaned.budget,
+          data.serverCap ?? 50,
+          next.filter((q) => q.enabled).length * cleaned.pageCap,
+        );
+        const result = await act<{ runId: string }>("start", {
+          campaignId: saved.current.id,
+          token: token.current,
+          cap,
+          revision: saved.current.revision,
+        });
+        router.push("/runs/" + result.runId);
+      } else router.push("/campaigns/" + saved.current.id);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      guard.current = false;
+      setBusy(false);
+    }
+  }
+  const fields = [
+    { key: "locations", label: "Location", placeholder: "Any location" },
+    { key: "roles", label: "Job titles", placeholder: "Any role" },
+    { key: "skills", label: "Skills", placeholder: "Any skill" },
+    { key: "requiredKeywords", label: "Keywords", placeholder: "Any keyword" },
+  ] as const;
+  const cap = Math.min(
+    config.budget,
+    data.serverCap ?? 50,
+    (queries.filter((q) => q.enabled).length || config.queryCap) *
+      config.pageCap,
+  );
   return (
     <form
-      onSubmit={async (e) => {
+      className="simple-builder"
+      onSubmit={(e) => {
         e.preventDefault();
-        const result = await run(
-          "campaign",
-          {
-            id: c?.id,
-            clientId: data.client!.id,
-            name,
-            config,
-            queries,
-            reset,
-            expectedRevision: c?.revision,
-          },
-          "Campaign saved.",
-        );
-        if (result) {
-          setDirty(false);
-          router.push(`/campaigns/${result.id}`);
-        }
+        void save(true);
       }}
     >
       <Header
         eyebrow={data.client!.name}
-        title={c ? "Edit campaign" : "Build your campaign"}
-        description="Make the audience explicit. Let the evidence guide the review."
+        title={c ? "Edit campaign" : "New campaign"}
+        description="Add whatever you know, or paste a search query. Everything else is optional."
         actions={
-          <>
-            <span className={`save-state ${dirty ? "unsaved" : ""}`}>
-              {dirty
-                ? "Unsaved changes"
-                : c
-                  ? "All changes saved"
-                  : "New campaign"}
-            </span>
-            <button
-              className="primary"
-              disabled={busy || generating || !queries.length}
-            >
-              {busy ? "Saving…" : "Save campaign"}
-              <Check size={16} />
-            </button>
-          </>
+          <Link className="button" href={"/clients/" + data.client!.id}>
+            All campaigns
+          </Link>
         }
       />
-      <div className="builder-grid">
-        <div>
-          <section className="card form-card">
-            <div className="card-heading">
-              <span className="step">1</span>
-              <div>
-                <h2>Audience & evidence</h2>
-                <p className="muted">
-                  Profile references must support each configured criterion.
-                </p>
-              </div>
-            </div>
-            <label>
-              Campaign name
-              <input
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  setDirty(true);
-                }}
-                required
-                maxLength={120}
-                placeholder="Name this audience"
-              />
-            </label>
+      <section className="card compact-form">
+        <div
+          className="search-mode"
+          role="group"
+          aria-label="Query input method"
+        >
+          <button
+            type="button"
+            aria-pressed={mode === "build"}
+            className={mode === "build" ? "selected" : ""}
+            onClick={() => setMode("build")}
+          >
+            Build a query
+          </button>
+          <button
+            type="button"
+            aria-pressed={mode === "paste"}
+            className={mode === "paste" ? "selected" : ""}
+            onClick={() => {
+              setMode("paste");
+              if (!queries.length)
+                setQueries([{ text: "", strategy: "custom", enabled: true }]);
+            }}
+          >
+            Paste a query
+          </button>
+        </div>
+        {mode === "build" ? (
+          <>
             <div className="form-grid">
-              {listFields.map((field) => (
+              {fields.map((field) => (
                 <label key={field.key}>
                   {field.label}
-                  {!field.required && (
-                    <span className="optional">optional</span>
-                  )}
                   <textarea
-                    rows={3}
-                    value={(config[field.key] as string[]).join("\n")}
+                    rows={2}
+                    placeholder={field.placeholder}
+                    value={config[field.key].join("\n")}
                     onChange={(e) =>
                       update(field.key, e.target.value.split("\n"))
                     }
-                    onBlur={() =>
-                      update(
-                        field.key,
-                        (config[field.key] as string[])
-                          .map((s) => s.trim())
-                          .filter(Boolean),
-                      )
-                    }
-                    required={field.required}
                   />
-                  <small>{field.hint}</small>
+                  <small>Optional · one per line</small>
                 </label>
               ))}
             </div>
-            <label className="check-label">
-              <input
-                type="checkbox"
-                checked={config.includeRequired}
-                onChange={(e) => update("includeRequired", e.target.checked)}
-              />
-              Include required keywords in focused searches
-            </label>
-          </section>
-          <section className="card form-card">
-            <div className="card-heading">
-              <span className="step">2</span>
-              <div>
-                <h2>Search boundaries</h2>
-                <p className="muted">
-                  The request budget includes failed attempts and retries.
-                </p>
-              </div>
-            </div>
-            <div className="form-grid three">
-              <label>
-                Country code
-                <input
-                  value={config.country}
-                  maxLength={2}
-                  pattern="[a-z]{2}"
-                  onChange={(e) =>
-                    update("country", e.target.value.toLowerCase())
-                  }
-                />
-                <small>Two-letter Google country code</small>
-              </label>
-              <label>
-                Language code
-                <input
-                  value={config.language}
-                  maxLength={2}
-                  pattern="[a-z]{2}"
-                  onChange={(e) =>
-                    update("language", e.target.value.toLowerCase())
-                  }
-                />
-              </label>
-              {(
-                [
-                  {
-                    key: "queryCap",
-                    label: "Generated query cap",
-                    min: 2,
-                    max: 20,
-                  },
-                  { key: "pageCap", label: "Pages per query", min: 1, max: 5 },
-                  { key: "budget", label: "Request budget", min: 1, max: 50 },
-                  {
-                    key: "target",
-                    label: "Target new rule matches",
-                    min: 1,
-                    max: 1000,
-                  },
-                  {
-                    key: "cooldownDays",
-                    label: "Cooldown days",
-                    min: 0,
-                    max: 365,
-                  },
-                ] as const
-              ).map((f) => (
-                <label key={f.key}>
-                  {f.label}
-                  <input
-                    type="number"
-                    min={f.min}
-                    max={f.max}
-                    required
-                    value={config[f.key]}
-                    onChange={(e) => update(f.key, Number(e.target.value))}
-                  />
-                </label>
-              ))}
-            </div>
-            <Notice>
-              The target is best effort. Search results never guarantee a number
-              of qualified leads.
-            </Notice>
-            {c && (
-              <label className="check-label reset-check">
-                <input
-                  type="checkbox"
-                  checked={reset}
-                  onChange={(e) => setReset(e.target.checked)}
-                />
-                If criteria changed, reset existing candidates to Review.
-                Previous decisions remain in history.
-              </label>
-            )}
-          </section>
-        </div>
-        <aside className="builder-aside card">
-          <SlidersHorizontal size={23} />
-          <h3>
-            Keep the search focused.
-            <br />
-            Keep the review honest.
-          </h3>
-          <p>
-            <strong>Focused searches</strong> include a location, roles, and
-            skills when configured.
+            <button type="button" onClick={generate} disabled={busy}>
+              <RefreshCw size={15} />
+              {busy
+                ? "Working…"
+                : queries.length
+                  ? "Regenerate queries"
+                  : "Generate query"}
+            </button>
+          </>
+        ) : (
+          <p className="muted">
+            Paste your query below. We add the LinkedIn profile restriction if
+            needed. No job title or location is required.
           </p>
-          <p>
-            <strong>Broader searches</strong> omit skills to catch profiles with
-            less detail. Qualification still checks every requirement.
-          </p>
-          <hr />
-          <p>
-            Required keywords are assessed after retrieval unless you choose to
-            add them to focused searches.
-          </p>
-          <p>New rule matches always need human review before export.</p>
-        </aside>
-      </div>
-      <section className="card form-card">
-        <div className="card-heading query-heading">
-          <div className="row">
-            <span className="step">3</span>
-            <div>
-              <h2>
-                Query preview <span className="count">{queries.length}</span>
-              </h2>
-              <p className="muted">
-                Edit, disable, or add a query. Previewing uses no search
-                credits.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={generate}
-            disabled={generating || busy}
-          >
-            <RefreshCw size={16} className={generating ? "spin" : ""} />
-            {queries.length ? "Regenerate queries" : "Generate queries"}
-          </button>
-        </div>
+        )}
         {warnings.map((w) => (
-          <p className="warning" key={w}>
+          <p key={w} className="warning">
             {w}
           </p>
         ))}
-        {!queries.length && (
-          <Empty title="Preview before you search">
-            <p>Add a location and target role, then generate your queries.</p>
-          </Empty>
-        )}
-        {queries.map((query, index) => (
-          <div className="query-editor" key={index}>
-            <label className="check-label">
-              <input
-                aria-label={`Enable query ${index + 1}`}
-                type="checkbox"
-                checked={query.enabled}
-                onChange={(e) => {
-                  setQueries((old) =>
-                    old.map((q, i) =>
-                      i === index ? { ...q, enabled: e.target.checked } : q,
-                    ),
-                  );
-                  setDirty(true);
-                }}
-              />
-              <span className="query-number">
-                {String(index + 1).padStart(2, "0")}
-              </span>
-            </label>
-            <div>
-              <span className={`strategy ${query.strategy}`}>
-                {query.strategy}
-              </span>
-              <textarea
-                aria-label={`Query ${index + 1}`}
-                value={query.text}
-                maxLength={500}
-                rows={2}
-                onChange={(e) => {
-                  setQueries((old) =>
-                    old.map((q, i) =>
-                      i === index ? { ...q, text: e.target.value } : q,
-                    ),
-                  );
-                  setDirty(true);
-                }}
-              />
-              <small>{query.text.length} / 500 characters</small>
-            </div>
+        {(queries.length > 0 || mode === "paste") && (
+          <div className="simple-queries">
+            {queries.map((query, i) => (
+              <div className="simple-query" key={i}>
+                <input
+                  type="checkbox"
+                  aria-label={"Enable query " + (i + 1)}
+                  checked={query.enabled}
+                  onChange={(e) => {
+                    setQueries((old) =>
+                      old.map((q, n) =>
+                        n === i ? { ...q, enabled: e.target.checked } : q,
+                      ),
+                    );
+                    setDirty(true);
+                  }}
+                />
+                <textarea
+                  rows={2}
+                  aria-label={"Query " + (i + 1)}
+                  placeholder='("cold email" OR "cold call") "B2B" "Chennai"'
+                  maxLength={500}
+                  value={query.text}
+                  onChange={(e) => {
+                    setQueries((old) =>
+                      old.map((q, n) =>
+                        n === i
+                          ? { ...q, text: e.target.value, strategy: "custom" }
+                          : q,
+                      ),
+                    );
+                    setDirty(true);
+                  }}
+                />
+                <button
+                  type="button"
+                  className="text-button"
+                  aria-label={"Remove query " + (i + 1)}
+                  onClick={() => {
+                    setQueries((old) => old.filter((_, n) => n !== i));
+                    setDirty(true);
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ))}
             <button
               type="button"
-              aria-label={`Remove query ${index + 1}`}
+              className="text-button"
+              disabled={
+                queries.filter((q) => q.strategy === "custom").length >= 20
+              }
               onClick={() => {
-                setQueries((old) => old.filter((_, i) => i !== index));
+                setQueries((old) => [
+                  ...old,
+                  { text: "", strategy: "custom", enabled: true },
+                ]);
                 setDirty(true);
               }}
             >
-              <X size={16} />
+              <Plus size={15} />
+              Add query
             </button>
           </div>
-        ))}
-        <button
-          type="button"
-          disabled={queries.filter((q) => q.strategy === "custom").length >= 20}
-          onClick={() => {
-            setQueries((old) => [
-              ...old,
+        )}
+        <details className="more-options">
+          <summary>
+            More options <span>Campaign name, limits & review rules</span>
+          </summary>
+          <label>
+            Campaign name
+            <input
+              maxLength={120}
+              placeholder="Named automatically if left blank"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                setDirty(true);
+              }}
+            />
+          </label>
+          {mode === "paste" && (
+            <div className="form-grid">
+              {fields.map((field) => (
+                <label key={field.key}>
+                  {field.label}
+                  <textarea
+                    rows={2}
+                    placeholder={field.placeholder}
+                    value={config[field.key].join("\n")}
+                    onChange={(e) =>
+                      update(field.key, e.target.value.split("\n"))
+                    }
+                  />
+                  <small>
+                    Optional review rule; does not change your pasted query.
+                  </small>
+                </label>
+              ))}
+            </div>
+          )}
+          <div className="form-grid three">
+            {[
+              { key: "budget", label: "Maximum requests", max: 50 },
+              { key: "pageCap", label: "Pages per query", max: 5 },
+              { key: "queryCap", label: "Generated queries", max: 20 },
+              { key: "target", label: "Target matches", max: 1000 },
               {
-                text: "site:linkedin.com/in/ ",
-                strategy: "custom",
-                enabled: true,
+                key: "cooldownDays",
+                label: "Skip recent searches (days)",
+                max: 365,
               },
-            ]);
-            setDirty(true);
-          }}
-        >
-          <Plus size={16} />
-          Add custom query
-        </button>
+            ].map((f) => (
+              <label key={f.key}>
+                {f.label}
+                <input
+                  type="number"
+                  min={
+                    f.key === "cooldownDays" ? 0 : f.key === "queryCap" ? 2 : 1
+                  }
+                  max={f.max}
+                  value={config[f.key as keyof CampaignConfig] as number}
+                  onChange={(e) =>
+                    update(
+                      f.key as keyof CampaignConfig,
+                      e.target.value === ""
+                        ? defaults[f.key as keyof CampaignConfig]
+                        : Number(e.target.value),
+                    )
+                  }
+                />
+              </label>
+            ))}
+            <label>
+              Country
+              <select
+                value={config.country}
+                onChange={(e) => update("country", e.target.value)}
+              >
+                <option value="in">India</option>
+                <option value="us">United States</option>
+                <option value="gb">United Kingdom</option>
+                {!["in", "us", "gb"].includes(config.country) && (
+                  <option value={config.country}>{config.country}</option>
+                )}
+              </select>
+            </label>
+            <label>
+              Country code
+              <input
+                maxLength={2}
+                value={config.country}
+                onChange={(e) =>
+                  update("country", e.target.value.toLowerCase())
+                }
+                onBlur={() => {
+                  if (!config.country) update("country", "in");
+                }}
+              />
+            </label>
+            <label>
+              Language code
+              <input
+                maxLength={2}
+                value={config.language}
+                onChange={(e) =>
+                  update("language", e.target.value.toLowerCase())
+                }
+                onBlur={() => {
+                  if (!config.language) update("language", "en");
+                }}
+              />
+            </label>
+          </div>
+          <div className="form-grid">
+            {[
+              { key: "queryExclusions", label: "Exclude search terms" },
+              { key: "leadExclusions", label: "Exclude current roles" },
+            ].map((f) => (
+              <label key={f.key}>
+                {f.label}
+                <textarea
+                  rows={2}
+                  value={(
+                    config[f.key as keyof CampaignConfig] as string[]
+                  ).join("\n")}
+                  onChange={(e) =>
+                    update(
+                      f.key as keyof CampaignConfig,
+                      e.target.value.split("\n"),
+                    )
+                  }
+                />
+                <small>Optional · one per line</small>
+              </label>
+            ))}
+          </div>
+          <label className="check-label">
+            <input
+              type="checkbox"
+              checked={config.includeRequired}
+              onChange={(e) => update("includeRequired", e.target.checked)}
+            />
+            Include keywords in generated searches
+          </label>
+          {c && (
+            <label className="check-label reset-check">
+              <input
+                type="checkbox"
+                checked={reset}
+                onChange={(e) => setReset(e.target.checked)}
+              />
+              If review rules changed, return existing leads to Review. Previous
+              decisions stay in history.
+            </label>
+          )}
+        </details>
+        {!data.live && <SearchSetupNotice clientId={data.client!.id} />}
+        <div className="search-footer">
+          <span className="muted">
+            Up to {cap} request{cap === 1 ? "" : "s"} · results save
+            automatically
+          </span>
+          <div className="row">
+            <button type="button" onClick={() => save(false)} disabled={busy}>
+              Save for later
+            </button>
+            <button className="primary" disabled={busy || !data.live}>
+              <Play size={15} />
+              {busy ? "Working…" : "Start search"}
+            </button>
+          </div>
+        </div>
       </section>
-      <div className="bottom-actions">
-        <span className="muted">
-          Saving a campaign never dispatches a search.
-        </span>
-        <button
-          className="primary"
-          disabled={busy || generating || !queries.length}
-        >
-          {busy ? "Saving…" : "Save campaign"}
-          <ArrowRight size={16} />
-        </button>
-      </div>
     </form>
   );
 }
@@ -1119,46 +1346,36 @@ function CampaignPage({
   setError,
 }: { data: PageData } & Actions) {
   const c = data.campaign!;
-  const [preflight, setPreflight] = useState<Preflight | null>(null);
-  const [force, setForce] = useState<string[]>([]);
-  const [checking, setChecking] = useState(false);
-  const [starting, setStarting] = useState(false);
-  const token = useRef<string | null>(null);
   const router = useRouter();
-  async function preview(forced = force) {
-    setChecking(true);
-    setError("");
-    try {
-      token.current ??= crypto.randomUUID();
-      setPreflight(
-        await act<Preflight>("preflight", {
-          campaignId: c.id,
-          force: forced,
-          token: token.current,
-        }),
-      );
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setChecking(false);
-    }
-  }
+  const [starting, setStarting] = useState(false);
+  const [repeat, setRepeat] = useState(false);
+  const guard = useRef(false);
+  const token = useRef(crypto.randomUUID());
+  const enabled = data.queries?.filter((q) => q.enabled) ?? [];
+  const cap = Math.min(
+    c.config.budget,
+    data.serverCap ?? 50,
+    enabled.length * c.config.pageCap,
+  );
+  const active = data.activeRuns?.filter((r) => r.campaign_id === c.id) ?? [];
   async function start() {
-    if (starting) return;
+    if (guard.current) return;
+    guard.current = true;
     setStarting(true);
     setError("");
     try {
-      token.current ??= crypto.randomUUID();
-      const r = await act<{ runId: string }>("start", {
+      const result = await act<{ runId: string }>("start", {
         campaignId: c.id,
-        force,
         token: token.current,
-        cap: preflight?.cap,
-        revision: preflight?.revision,
+        cap,
+        revision: c.revision,
+        force: repeat ? enabled.map((q) => q.id) : [],
       });
-      router.push(`/runs/${r.runId}?start=1`);
+      router.push("/runs/" + result.runId);
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      guard.current = false;
       setStarting(false);
     }
   }
@@ -1167,9 +1384,99 @@ function CampaignPage({
       <Header
         eyebrow={data.client!.name}
         title={c.name}
-        description={`${c.config.locations.join(" · ")} / ${c.config.roles.join(" · ")}`}
+        description={
+          [...c.config.locations, ...c.config.roles].join(" · ") ||
+          "Custom audience"
+        }
         actions={
           <>
+            <Link
+              className="button"
+              href={"/campaigns/new?client=" + c.client_id}
+            >
+              <Plus size={16} />
+              New campaign
+            </Link>
+            <Link className="button" href={"/campaigns/" + c.id + "/edit"}>
+              <SlidersHorizontal size={16} />
+              Edit
+            </Link>
+            <Link
+              className="button primary"
+              href={"/leads?client=" + c.client_id + "&campaign=" + c.id}
+            >
+              View leads <ArrowRight size={16} />
+            </Link>
+          </>
+        }
+      />
+      <Metrics data={data} />
+      <section className="card compact-form">
+        <div className="section-heading">
+          <div>
+            <h2>Search</h2>
+            <span className="muted">
+              {enabled.length} {enabled.length === 1 ? "query" : "queries"} · up
+              to {cap} requests · leads save automatically
+            </span>
+          </div>
+          <button
+            className="primary"
+            disabled={
+              starting ||
+              !data.live ||
+              !cap ||
+              c.archived ||
+              data.client!.archived
+            }
+            onClick={start}
+          >
+            <Play size={15} />
+            {starting ? "Starting…" : "Start search"}
+          </button>
+        </div>
+        {!data.live && <SearchSetupNotice clientId={c.client_id} />}
+        {!enabled.length && (
+          <p>
+            Add a query to get started.{" "}
+            <Link className="strong" href={"/campaigns/" + c.id + "/edit"}>
+              Edit campaign
+            </Link>
+          </p>
+        )}
+        <div className="saved-queries">
+          {enabled.map((q) => (
+            <code key={q.id}>{q.text}</code>
+          ))}
+        </div>
+        {active.map((r) => (
+          <p className="row" key={r.id}>
+            <Badge status={r.status} />
+            {r.new_candidates} leads added{" "}
+            <Link className="strong" href={"/runs/" + r.id}>
+              Open search
+            </Link>
+          </p>
+        ))}
+        <details className="more-options">
+          <summary>
+            More options <span>Repeat search, duplicate or archive</span>
+          </summary>
+          <label className="check-label">
+            <input
+              type="checkbox"
+              checked={repeat}
+              onChange={(e) => {
+                setRepeat(e.target.checked);
+                token.current = crypto.randomUUID();
+              }}
+            />
+            Search these queries again, including recent results
+          </label>
+          <p className="muted">
+            Recent searches are skipped by default to save credits.
+          </p>
+          <div className="row">
             <button
               disabled={busy}
               onClick={() =>
@@ -1181,8 +1488,8 @@ function CampaignPage({
                 )
               }
             >
-              <Copy size={16} />
-              Duplicate
+              <Copy size={15} />
+              Duplicate campaign
             </button>
             <button
               disabled={busy}
@@ -1194,217 +1501,36 @@ function CampaignPage({
                 )
               }
             >
-              <Archive size={16} />
+              <Archive size={15} />
               {c.archived ? "Restore" : "Archive"}
             </button>
-            <Link className="button" href={`/campaigns/${c.id}/edit`}>
-              <SlidersHorizontal size={16} />
-              Edit campaign
-            </Link>
-          </>
-        }
-      />
-      <Metrics data={data} />
-      <section className="card form-card">
-        <div className="section-heading">
-          <div>
-            <h2>Ready when you are</h2>
-            <p className="muted">
-              {data.queries?.filter((q) => q.enabled).length} enabled queries ·
-              up to {c.config.pageCap} pages each · target {c.config.target} new
-              rule matches
-            </p>
           </div>
-          <button
-            className="primary"
-            disabled={checking || c.archived || data.client!.archived}
-            onClick={() => preview()}
-          >
-            <Search size={16} />
-            {checking ? "Checking…" : "Preview search"}
-          </button>
-        </div>
-        {!data.live && (
-          <Notice>
-            Live search is disabled. Configure the server integration key,
-            Serper API key, and live-search setting in the setup instructions.
-            Query editing remains available.
-          </Notice>
-        )}
-        <div className="query-preview-list">
-          {data.queries?.map((q, i) => (
-            <div key={q.id} className={!q.enabled ? "disabled-query" : ""}>
-              <span>{String(i + 1).padStart(2, "0")}</span>
-              <span className={`strategy ${q.strategy}`}>{q.strategy}</span>
-              <code>{q.text}</code>
-              {!q.enabled && <small>Disabled</small>}
-            </div>
-          ))}
-        </div>
-        {preflight && (
-          <div className="preflight">
-            <div className="section-heading">
-              <h3>Review this search</h3>
-              <span className="pill">
-                {preflight.eligible} eligible /{" "}
-                {preflight.queries.length - preflight.eligible} skipped
-              </span>
-            </div>
-            <p>
-              {
-                preflight.queries.filter(
-                  (q) => !q.skipped && q.strategy === "focused",
-                ).length
-              }{" "}
-              focused ·{" "}
-              {
-                preflight.queries.filter(
-                  (q) => !q.skipped && q.strategy === "broader",
-                ).length
-              }{" "}
-              broader · {preflight.pages} pages per query · target{" "}
-              {preflight.target}
-            </p>
-            {preflight.queries.map((q) => (
-              <div key={q.id} className="preflight-query">
-                <div>
-                  <code>{q.text}</code>
-                  <small>
-                    Last successful search: {date(q.lastSuccess)} · Previous
-                    pages: {q.priorPages.join(", ") || "none"}
-                    {q.skipped ? " · Skipped by cooldown" : " · Eligible"}
-                  </small>
-                </div>
-                <label className="check-label">
-                  <input
-                    type="checkbox"
-                    checked={force.includes(q.id)}
-                    disabled={checking}
-                    onChange={(e) => {
-                      const next = e.target.checked
-                        ? [...force, q.id]
-                        : force.filter((id) => id !== q.id);
-                      setForce(next);
-                      void preview(next);
-                    }}
-                  />
-                  Force rerun
-                </label>
-              </div>
-            ))}
-            <Notice>
-              Only the open run page processes searches. Closing the tab stops
-              subsequent requests; an in-flight request may still finish. The
-              cap includes retries and may leave pages unsearched.
-            </Notice>
-            <button
-              className="primary"
-              disabled={!data.live || !preflight.cap || starting || checking}
-              onClick={start}
-            >
-              <Play size={16} />
-              {starting
-                ? "Starting…"
-                : `Start search — up to ${preflight.cap} requests`}
-            </button>
-            {!preflight.cap && (
-              <p className="warning">
-                All queries are skipped. Force a query to rerun, or wait for the
-                cooldown.
-              </p>
-            )}
-          </div>
-        )}
+        </details>
       </section>
-      <div className="section-heading">
-        <Link
-          className="button"
-          href={`/leads?client=${c.client_id}&campaign=${c.id}`}
-        >
-          Review campaign leads <ArrowRight size={16} />
-        </Link>
-      </div>
       <History runs={data.runs ?? []} />
     </>
   );
 }
-function RunPage({
-  data,
-  run: action,
-  busy,
-  setError,
-}: { data: PageData } & Actions) {
+function RunPage({ data, run: action, busy }: { data: PageData } & Actions) {
   const r = data.run!;
-  const router = useRouter();
-  const params = useSearchParams();
-  const [processing, setProcessing] = useState(
-    params.get("start") === "1" && r.status === "running",
-  );
-  const [waiting, setWaiting] = useState<string | null>(null);
-  const [inflight, setInflight] = useState(false);
-  const guard = useRef(false);
-  useEffect(() => {
-    if (!processing) return;
-    let cancelled = false;
-    let timeout: ReturnType<typeof setTimeout>;
-    async function next() {
-      if (cancelled) return;
-      if (guard.current) {
-        timeout = setTimeout(next, 500);
-        return;
-      }
-      if (document.hidden) {
-        timeout = setTimeout(next, 1000);
-        return;
-      }
-      guard.current = true;
-      setInflight(true);
-      try {
-        const result = await act<{ state: string; nextRetryAt?: string }>(
-          "process",
-          { runId: r.id },
-        );
-        router.refresh();
-        if (
-          ["completed", "cancelled", "failed", "paused"].includes(result.state)
-        ) {
-          setProcessing(false);
-          return;
-        }
-        setWaiting(result.nextRetryAt ?? null);
-        const delay = result.nextRetryAt
-          ? Math.max(
-              1000,
-              Math.min(
-                60000,
-                new Date(result.nextRetryAt).getTime() - Date.now(),
-              ),
-            )
-          : 1000;
-        if (!cancelled) timeout = setTimeout(next, delay);
-      } catch (e) {
-        setError((e as Error).message);
-        setProcessing(false);
-      } finally {
-        guard.current = false;
-        setInflight(false);
-      }
-    }
-    void next();
-    return () => {
-      cancelled = true;
-      clearTimeout(timeout);
-    };
-  }, [processing, r.id, router, setError]);
+  const processing = r.status === "running" && data.live;
+  const waiting = data.jobs?.find((j) => j.status === "retry_wait")?.retry_at;
   const finished = ["completed", "cancelled", "failed"].includes(r.status);
   return (
     <>
       <Header
         eyebrow={data.campaign!.name}
-        title="Search run"
-        description={`Started ${date(r.created_at)} · Snapshot saved at start`}
+        title="Search progress"
+        description={`Started ${date(r.created_at)} · leads save as they are found`}
         actions={
           <>
+            <Link
+              className="button"
+              href={"/campaigns/new?client=" + r.client_id}
+            >
+              <Plus size={15} />
+              New campaign
+            </Link>
             <Badge status={r.status} />
             {!finished && (
               <>
@@ -1412,7 +1538,6 @@ function RunPage({
                   <button
                     disabled={busy}
                     onClick={async () => {
-                      setProcessing(false);
                       await action(
                         "control",
                         { runId: r.id, action: "pause" },
@@ -1428,22 +1553,20 @@ function RunPage({
                     className="primary"
                     disabled={busy || !data.live}
                     onClick={async () => {
-                      const ok = await action(
+                      await action(
                         "control",
                         { runId: r.id, action: "resume" },
-                        "Processing resumed while this page is open.",
+                        "Search resumed. You can work in other campaigns.",
                       );
-                      if (ok) setProcessing(true);
                     }}
                   >
                     <Play size={16} />
-                    Resume processing
+                    Resume search
                   </button>
                 )}
                 <button
                   disabled={busy}
                   onClick={async () => {
-                    setProcessing(false);
                     await action(
                       "control",
                       { runId: r.id, action: "cancel" },
@@ -1460,14 +1583,13 @@ function RunPage({
         }
       />
       <Notice>
-        Keep this page open to process searches. Hidden tabs pause dispatch.
-        Closing it stops subsequent requests; a request already in flight may
-        finish and consume a slot. There is no background worker.
+        Leads save automatically. You can work on other campaigns while this
+        search runs. Keep a LeadScope workspace tab open and visible.
       </Notice>
       <section className="card run-progress">
         <div className="section-heading">
           <div className="row">
-            {inflight ? (
+            {processing ? (
               <LoaderCircle size={20} className="spin" />
             ) : (
               <Search size={20} />
@@ -1483,28 +1605,21 @@ function RunPage({
             </h2>
           </div>
           <span>
-            {r.reserved} / {r.budget} slots reserved
+            {r.reserved} / {r.budget} requests reserved
           </span>
         </div>
         <progress max={r.budget} value={r.reserved} />
         <p className="muted">
-          {r.dispatched} dispatch attempts recorded · target {r.rule_matches} /{" "}
-          {r.target} new rule matches
+          {r.new_candidates} leads added · {r.dispatched} search requests sent
           {r.stop_reason ? ` · ${r.stop_reason.replaceAll("_", " ")}` : ""}
         </p>
-        <small>
-          Reserved slots are a conservative application budget, not a statement
-          of provider billing.
-        </small>
       </section>
-      <div className="metrics six">
+      <div className="metrics">
         {[
-          ["New client profiles", r.new_client_profiles],
-          ["New campaign candidates", r.new_candidates],
+          ["Leads added", r.new_candidates],
           ["Rule matches", r.rule_matches],
           ["Review candidates", r.reviews],
-          ["Duplicate occurrences", r.duplicates],
-          ["Request errors", r.errors],
+          ["Search errors", r.errors],
         ].map(([label, count]) => (
           <div className="metric" key={label}>
             <span>{label}</span>
@@ -1513,7 +1628,7 @@ function RunPage({
         ))}
       </div>
       <div className="section-heading">
-        <h2>Query & page coverage</h2>
+        <h2>Your leads</h2>
         <Link
           className="button primary"
           href={`/leads?client=${r.client_id}&campaign=${r.campaign_id}`}
@@ -1521,100 +1636,112 @@ function RunPage({
           Review results <ArrowRight size={16} />
         </Link>
       </div>
-      <section className="card">
-        {data.runQueries?.map((q) => (
-          <div className="run-query" key={q.id}>
-            <div className="row">
-              <span className={`strategy ${q.strategy}`}>{q.strategy}</span>
-              {q.skipped && <Badge status="skipped" />}
-            </div>
-            <code>{q.text}</code>
-            {q.skipped ? (
-              <p className="muted">
-                Cooldown · last successful {date(q.last_success_at)} · previous
-                pages {q.prior_pages.join(", ")}
-              </p>
-            ) : (
-              <div className="page-jobs">
-                {data.jobs
-                  ?.filter((j) => j.run_query_id === q.id)
-                  .map((j) => (
-                    <div className="page-job" key={j.id}>
-                      <strong>Page {j.page_number}</strong>
-                      <Badge status={j.status} />
-                      <small>{j.attempts} reserved attempts</small>
-                      {j.metrics.newCandidates !== undefined && (
-                        <small>
-                          {j.metrics.newCandidates} new candidates ·{" "}
-                          {j.metrics.ruleMatches} rule matches
-                        </small>
-                      )}
-                      {j.failure_code && (
-                        <small className="warning">
-                          {j.failure_code.replaceAll("_", " ")}
-                          {j.retry_at ? ` · ${date(j.retry_at)}` : ""}
-                        </small>
-                      )}
-                    </div>
-                  ))}
-              </div>
-            )}
-          </div>
-        ))}
-      </section>
-      <section className="card form-card">
-        <h2>Yield by search strategy</h2>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Strategy</th>
-                <th>Dispatched attempts</th>
-                <th>New candidates</th>
-                <th>Rule matches</th>
-              </tr>
-            </thead>
-            <tbody>
-              {["focused", "broader", "custom"].map((strategy) => {
-                const ids =
-                  data.runQueries
-                    ?.filter((q) => q.strategy === strategy)
-                    .map((q) => q.id) ?? [];
-                const jobs =
-                  data.jobs?.filter((j) => ids.includes(j.run_query_id)) ?? [];
-                return (
-                  <tr key={strategy}>
-                    <td className="capitalize">{strategy}</td>
-                    <td>
-                      {jobs.reduce(
-                        (n, j) => n + Number(j.metrics.dispatchedAttempts ?? 0),
-                        0,
-                      )}
-                    </td>
-                    <td>
-                      {jobs.reduce(
-                        (n, j) => n + Number(j.metrics.newCandidates ?? 0),
-                        0,
-                      )}
-                    </td>
-                    <td>
-                      {jobs.reduce(
-                        (n, j) => n + Number(j.metrics.ruleMatches ?? 0),
-                        0,
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      <details className="more-options">
+        <summary>
+          Search details <span>Queries, retries & duplicate counts</span>
+        </summary>
         <p className="muted">
-          Automatic counts describe this run’s observations. Current human
-          decisions are shown in Leads & review. Counts overlap and should not
-          be added together.
+          {r.duplicates} duplicate occurrences · target {r.rule_matches}/
+          {r.target} new rule matches. Request reservations include retries and
+          uncertain outcomes.
         </p>
-      </section>
+        <section className="card">
+          {data.runQueries?.map((q) => (
+            <div className="run-query" key={q.id}>
+              <div className="row">
+                <span className={`strategy ${q.strategy}`}>{q.strategy}</span>
+                {q.skipped && <Badge status="skipped" />}
+              </div>
+              <code>{q.text}</code>
+              {q.skipped ? (
+                <p className="muted">
+                  Cooldown · last successful {date(q.last_success_at)} ·
+                  previous pages {q.prior_pages.join(", ")}
+                </p>
+              ) : (
+                <div className="page-jobs">
+                  {data.jobs
+                    ?.filter((j) => j.run_query_id === q.id)
+                    .map((j) => (
+                      <div className="page-job" key={j.id}>
+                        <strong>Page {j.page_number}</strong>
+                        <Badge status={j.status} />
+                        <small>{j.attempts} reserved attempts</small>
+                        {j.metrics.newCandidates !== undefined && (
+                          <small>
+                            {j.metrics.newCandidates} new candidates ·{" "}
+                            {j.metrics.ruleMatches} rule matches
+                          </small>
+                        )}
+                        {j.failure_code && (
+                          <small className="warning">
+                            {j.failure_code.replaceAll("_", " ")}
+                            {j.retry_at ? ` · ${date(j.retry_at)}` : ""}
+                          </small>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </section>
+        <section className="card form-card">
+          <h2>Yield by search strategy</h2>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Strategy</th>
+                  <th>Dispatched attempts</th>
+                  <th>New candidates</th>
+                  <th>Rule matches</th>
+                </tr>
+              </thead>
+              <tbody>
+                {["focused", "broader", "custom"].map((strategy) => {
+                  const ids =
+                    data.runQueries
+                      ?.filter((q) => q.strategy === strategy)
+                      .map((q) => q.id) ?? [];
+                  const jobs =
+                    data.jobs?.filter((j) => ids.includes(j.run_query_id)) ??
+                    [];
+                  return (
+                    <tr key={strategy}>
+                      <td className="capitalize">{strategy}</td>
+                      <td>
+                        {jobs.reduce(
+                          (n, j) =>
+                            n + Number(j.metrics.dispatchedAttempts ?? 0),
+                          0,
+                        )}
+                      </td>
+                      <td>
+                        {jobs.reduce(
+                          (n, j) => n + Number(j.metrics.newCandidates ?? 0),
+                          0,
+                        )}
+                      </td>
+                      <td>
+                        {jobs.reduce(
+                          (n, j) => n + Number(j.metrics.ruleMatches ?? 0),
+                          0,
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="muted">
+            Automatic counts describe this run’s observations. Current human
+            decisions are shown in Leads & review. Counts overlap and should not
+            be added together.
+          </p>
+        </section>
+      </details>
     </>
   );
 }
@@ -2258,7 +2385,7 @@ function SettingsPage({ data, run, busy }: { data: PageData } & Actions) {
     <>
       <Header
         eyebrow={data.client!.name}
-        title="Suppressions & setup"
+        title="Settings"
         description="Keep client-wide exclusions deliberate and visible."
         actions={
           <button className="primary" onClick={() => setShowAdd(!showAdd)}>

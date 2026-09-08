@@ -160,6 +160,17 @@ export type PageData = {
   counts?: Record<string, number>;
   checks?: Record<string, boolean>;
   live: boolean;
+  serverCap?: number;
+  activeRuns?: Pick<
+    Run,
+    | "id"
+    | "client_id"
+    | "campaign_id"
+    | "status"
+    | "reserved"
+    | "budget"
+    | "new_candidates"
+  >[];
   email: string;
   reviewSeconds?: number;
   precision?: { accepted: number; adjudicated: number };

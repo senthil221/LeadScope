@@ -9,7 +9,10 @@ const chunks = (items: string[]) =>
     items.slice(i * 3, i * 3 + 3),
   );
 export function normalizeQuery(raw: string): string {
-  const text = raw.trim().replace(/\s+/g, " ");
+  const text = raw
+    .replace(/&#(?:x20|32);/gi, " ")
+    .trim()
+    .replace(/\s+/g, " ");
   if (text.length > 500 || /[\u0000-\u001f]/u.test(text))
     throw new Error("Queries must be one line and at most 500 characters.");
   const sites = [...text.matchAll(/(?:-?site:)\S+/gi)].map((m) =>
@@ -56,29 +59,41 @@ export function generateQueries(config: CampaignConfig): {
   const queries: Query[] = [],
     warnings: string[] = [],
     seen = new Set<string>();
-  const locations = unique(config.locations),
+  if (
+    ![
+      config.locations,
+      config.roles,
+      config.skills,
+      config.requiredKeywords,
+    ].some((items) => items.length)
+  )
+    return {
+      queries: [],
+      warnings: [
+        "Add any location, role, skill or keyword, or paste your own query.",
+      ],
+    };
+  const locations = config.locations.length ? unique(config.locations) : [""],
     roles = chunks(unique(config.roles)),
     skills = chunks(unique(config.skills));
   const rounds = Math.max(roles.length, skills.length, 1);
-  if (
-    !skills.length &&
-    (!config.includeRequired || !config.requiredKeywords.length)
-  )
-    warnings.push(
-      "Focused and broader queries are equivalent without extra focused terms; equivalent queries are searched only once.",
-    );
   for (let round = 0; round < rounds; round++)
     for (const location of locations)
       for (const strategy of ["focused", "broader"] as const) {
-        const parts = [
-          "site:linkedin.com/in/",
-          quote(location),
-          group(roles[round % roles.length]),
-        ];
-        if (strategy === "focused" && skills.length)
+        const parts = ["site:linkedin.com/in/"];
+        if (location) parts.push(quote(location));
+        if (roles.length) parts.push(group(roles[round % roles.length]));
+        if (
+          (strategy === "focused" || (!location && !roles.length)) &&
+          skills.length
+        )
           parts.push(group(skills[round % skills.length]));
-        if (strategy === "focused" && config.includeRequired)
+        if (
+          (strategy === "focused" && config.includeRequired) ||
+          parts.length === 1
+        )
           parts.push(...config.requiredKeywords.map(quote));
+        if (parts.length === 1) continue;
         parts.push(...config.queryExclusions.map((s) => `-${quote(s)}`));
         const text = parts.join(" ");
         if (text.length > 500) {

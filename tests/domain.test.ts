@@ -63,10 +63,39 @@ describe("query construction and signatures", () => {
     expect(() => normalizeQuery("site:linkedin.com/in/ SDR OR AE")).toThrow();
     expect(() => normalizeQuery("-site:linkedin.com/in/ SDR")).toThrow();
   });
-  it("rejects missing roles and unsafe budgets", () => {
-    expect(configSchema.safeParse({ ...defaults }).success).toBe(false);
+  it("allows optional criteria while rejecting unsafe budgets", () => {
+    expect(configSchema.safeParse({ ...defaults }).success).toBe(true);
     expect(configSchema.safeParse({ ...config, budget: 51 }).success).toBe(
       false,
+    );
+  });
+  it("generates useful queries with only skills, keywords, location or role", () => {
+    for (const partial of [
+      { skills: ["cold email", "cold call"] },
+      { requiredKeywords: ["B2B"] },
+      { locations: ["Chennai"] },
+      { roles: ["SDR"] },
+    ]) {
+      const result = generateQueries({ ...defaults, ...partial });
+      expect(result.queries.length).toBeGreaterThan(0);
+      expect(
+        result.queries.every(
+          (q) => q.text.length > "site:linkedin.com/in/".length,
+        ),
+      ).toBe(true);
+    }
+    expect(generateQueries(defaults).queries).toEqual([]);
+    expect(
+      generateQueries({ ...defaults, queryExclusions: ["jobs"] }).queries,
+    ).toEqual([]);
+  });
+  it("accepts the pasted query's HTML space without changing Boolean order", () => {
+    expect(
+      normalizeQuery(
+        'site:linkedin.com/in/ ("cold email" OR "cold call") "B2B" "Chennai"&#x20;',
+      ),
+    ).toBe(
+      'site:linkedin.com/in/ ("cold email" OR "cold call") "B2B" "Chennai"',
     );
   });
 });
@@ -93,6 +122,24 @@ describe("LinkedIn URL canonicalization", () => {
   ])("rejects %s", (url) => expect(canonicalLinkedIn(url)).toBeNull());
 });
 describe("deterministic evidence", () => {
+  it("skips omitted criteria, retains exclusions and requires review with no positive rules", () => {
+    const empty = qualify("Person - SDR", "Location: Mumbai.", defaults);
+    expect(empty.status).toBe("review");
+    expect(empty.criteria.location.reason).toBe("location_not_required");
+    expect(empty.criteria.role.reason).toBe("role_not_required");
+    expect(
+      qualify("Person", "Location: Mumbai. cold email", {
+        ...defaults,
+        skills: ["cold email"],
+      }).status,
+    ).toBe("rule_match");
+    expect(
+      qualify("Person - Recruiter", "Location: Mumbai.", {
+        ...defaults,
+        leadExclusions: ["Recruiter"],
+      }).status,
+    ).toBe("rejected");
+  });
   const title = "Asha Example - SDR at Example";
   const snippet = "Location: Chennai. Prospecting for SaaS teams.";
   it("passes explicit supporting evidence with exact source spans", () => {

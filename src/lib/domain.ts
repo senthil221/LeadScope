@@ -15,8 +15,8 @@ export const unique = (values: string[]) => [
 ];
 const list = (max: number) => z.array(value).max(max).transform(unique);
 export const configSchema = z.object({
-  locations: list(20).refine((a) => a.length > 0, "Add a location"),
-  roles: list(30).refine((a) => a.length > 0, "Add a role"),
+  locations: list(20).default([]),
+  roles: list(30).default([]),
   skills: list(30).default([]),
   requiredKeywords: list(15).default([]),
   queryExclusions: list(20).default([]),
@@ -54,7 +54,7 @@ export const campaignSchema = z.object({
   clientId: uuid,
   name: z.string().trim().min(1).max(120),
   config: configSchema,
-  queries: z.array(querySchema).min(1).max(40),
+  queries: z.array(querySchema).max(40),
   reset: z.boolean().default(false),
   expectedRevision: z.number().int().min(1).optional(),
 });

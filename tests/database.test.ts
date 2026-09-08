@@ -185,6 +185,76 @@ afterAll(async () => {
 }, 30000);
 
 describe("actual migration, RLS and transactional RPCs", () => {
+  it("saves a draft with every audience field and query omitted", async () => {
+    const cid = await client();
+    const id = await asUser(actor, () =>
+      rpc("save_campaign", [
+        null,
+        cid,
+        "Draft",
+        JSON.stringify(defaults),
+        "[]",
+        false,
+        null,
+      ]),
+    );
+    expect(
+      (await sql("select config from public.campaigns where id=$1", [id]))
+        .rows[0].config.roles,
+    ).toEqual([]);
+    await expect(start(id)).rejects.toThrow("No eligible queries");
+    const skillsOnly = await campaign(cid, {
+      ...defaults,
+      skills: ["cold email"],
+    });
+    expect((await start(skillsOnly)).runId).toBeTruthy();
+  });
+  it("runs two campaigns for one client concurrently with independent budgets and cancellation", async () => {
+    const cid = await client();
+    const first = await campaign(cid, { ...config, budget: 1 });
+    const second = await campaign(cid, { ...config, budget: 2 });
+    const a = await start(first),
+      b = await start(second);
+    const connection = new PgClient({ connectionString });
+    await connection.connect();
+    try {
+      const [ca, cb] = await Promise.all([
+        claim(a.runId),
+        connection
+          .query("select public.claim_job($1,$2) as result", [actor, b.runId])
+          .then((r) => r.rows[0].result),
+      ]);
+      expect(ca.state).toBe("dispatch");
+      expect(cb.state).toBe("dispatch");
+      await asUser(actor, () => rpc("control_run", [a.runId, "cancel"]));
+      await ingest(cb, [item("concurrent-campaign")]);
+      const rows = (
+        await sql(
+          "select id,status,reserved,budget from public.campaign_runs where id=any($1::uuid[])",
+          [[a.runId, b.runId]],
+        )
+      ).rows;
+      expect(rows.find((r) => r.id === a.runId)).toMatchObject({
+        status: "cancelled",
+        reserved: 1,
+        budget: 1,
+      });
+      expect(rows.find((r) => r.id === b.runId)).toMatchObject({
+        reserved: 1,
+        budget: 2,
+      });
+      expect(
+        (
+          await sql(
+            "select count(*)::int as n from public.campaign_profiles where campaign_id=$1",
+            [second],
+          )
+        ).rows[0].n,
+      ).toBe(1);
+    } finally {
+      await connection.end();
+    }
+  });
   it("enables RLS on every public table and keeps privileged implementations private", async () => {
     expect(
       (

@@ -128,12 +128,12 @@ export async function POST(request: Request) {
           .parse(payload);
         if (action === "start" && !setup().live)
           throw new AppError(
-            "Configure Serper and set SERPER_LIVE_ENABLED=true before starting a search.",
+            "Search is not connected yet. Ask your workspace administrator to finish search setup in Settings.",
             503,
           );
         if (action === "start" && (!p.cap || !p.revision))
           throw new AppError(
-            "Preview and confirm the request cap before starting.",
+            "Reload the campaign to use its latest search limit.",
           );
         result = checked(
           await integrationDb().rpc("prepare_run", {

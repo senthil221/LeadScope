@@ -33,6 +33,8 @@ Keep `.env.local` out of version control. Set public Supabase variables before b
 
 ## Apply the database migration
 
+The update `20260908045049_simplify_campaign_criteria.sql` permits optional role/location filters and empty campaign drafts. It only replaces the private save function; existing rows, authorization and query histories are preserved. It has been applied to the selected project; apply it to any other existing installation before deploying the simplified UI. A forward fix can replace this function without dropping tables.
+
 Use a dedicated LeadScope project. The migration creates application tables, RLS, authorization helpers, signup provisioning, and transactional RPCs; it must not be applied to an unrelated production database.
 
 The migration is `supabase/migrations/20260908021539_leadscope.sql`. It is **already applied** to the selected project. Do not execute it again. The SQL editor does not record CLI migration history; after authenticating the CLI with this project's owning account, record the existing installation before any future `db push`:
@@ -40,7 +42,7 @@ The migration is `supabase/migrations/20260908021539_leadscope.sql`. It is **alr
 ```sh
 npx supabase login
 npx supabase link --project-ref dwoersrcbxievideuads
-npx supabase migration repair 20260908021539 --status applied --linked
+npx supabase migration repair 20260908021539 20260908045049 --status applied --linked
 npx supabase migration list --linked
 ```
 
@@ -82,12 +84,14 @@ References: [Supabase SSR authentication](https://supabase.com/docs/guides/auth/
 
 ## Daily workflow
 
-1. Create a client. Add a campaign with location aliases, target roles, and optional skills/required keywords/exclusions.
-2. Generate and edit queries. Previewing, saving, and setup checks use no Serper credits. Equivalent queries are deduplicated; without focused-only terms, focused and broader searches can be equivalent.
-3. Preview a search. It shows query eligibility, cooldown history, previously successful page coverage, strategies, target, and the effective request cap. Force rerun applies only to explicitly selected queries. The single Start button confirms an upper request limit. Run creation itself performs no HTTP search.
-4. The run page processes one job per authenticated POST. Keep it open. Pause, cancel, or return later to resume. Hidden tabs stop new dispatches. Closing the tab is not a durable cancellation: in-flight work may finish and another operator’s open tab can continue the same run. Use Pause/Cancel to affect all operators.
-5. Review the original source and exact evidence spans. A rule match is automatic evidence, never automatic acceptance. Bulk decisions revalidate the explicit selected IDs. Client notes are shared across campaigns; fit and manual decisions are campaign-specific.
-6. Export Accepted leads to CSV or copy TSV into Google Sheets. Suppressed and stale candidates are excluded server-side at export time, and URLs are deduplicated within the chosen scope.
+1. Create a client and choose **New campaign**. Each client can have multiple independent campaigns.
+2. Choose **Build a query** and fill any optional location, job title, skill or keyword, or choose **Paste a query**. Pasted queries do not require audience fields; the profile site restriction is added automatically when missing. Use **Generate query** to inspect or edit generated text if desired.
+3. Click **Start search** once. The app generates queries when needed, saves the campaign and atomically checks the current revision, cooldown and request limit. There is no separate preview/confirmation screen. The upper request limit is visible beside Start; the database may reduce it for skipped queries. Campaigns can also be saved for later with no criteria or queries. A search itself needs at least one enabled useful query.
+4. Leads save automatically. Up to three runs process concurrently in any visible LeadScope workspace; you can create or edit another campaign while searches run. Each run has its own persisted budget and lease. Hidden tabs stop dispatches, and closing all workspace tabs stops further processing; in-flight requests may finish. Opening the workspace again continues running searches. Pause/Cancel affects a run for all operators. No closed-tab background worker is provided.
+5. Review the original source and exact evidence spans. Blank criteria are not required; with no positive criteria at all, imported leads go to Review. A rule match never automatically becomes Accepted. Client notes are shared across campaigns; fit and decisions are campaign-specific.
+6. Export Accepted leads to CSV or copy TSV into Google Sheets. Suppressed and stale candidates are excluded server-side at export time; URLs are deduplicated within the selected scope.
+
+Campaign names are generated when left blank. More options contains request limits, country/language, exclusions, review rules and repeat-search settings. New campaigns default to four generated queries, one page each and at most four requests, reduced by the server cap. Existing campaign settings are preserved. Recent searches are skipped by default; to repeat them, use **More options → Search these queries again** on the saved campaign.
 
 Changing qualification criteria requires an explicit reset when candidates exist, and unfinished runs must first be cancelled. The reset returns candidates to Review and prevents stale exports. Open a stale candidate and select **Requalify stored evidence** to apply the current criteria to up to its latest 100 stored discoveries. It does not make a provider call. Conflicting evidence remains Review; manual decisions are never silently restored or overwritten by rediscovery.
 
@@ -95,14 +99,14 @@ Clients and campaigns can be archived/restored; history is retained. Client supp
 
 ## Request safety and recovery
 
-- The cap is `min(campaign budget, server cap, eligible queries × page cap, confirmed cap)`. It includes all reserved retry attempts. The Start token prevents duplicate runs on double-click or request retries; changed campaign revisions require a new preview.
+- The cap is `min(campaign budget, server cap, eligible queries × page cap, confirmed cap)`. It includes all reserved retry attempts. The Start token prevents duplicate runs on double-click or request retries; changed campaign revisions require reloading the campaign.
 - A transaction locks the run and claims at most one active job, reserves one slot, and assigns a 60-second lease/token before HTTP. Lower pages precede deeper pages. The Serper endpoint is fixed on the server and the HTTP/body timeout is 18 seconds.
 - Dispatch attempts are recorded immediately before HTTP. The reserved count is deliberately conservative: a crash between reservation and dispatch, or an uncertain network outcome, remains charged against the **application budget**. These counters do not claim to reproduce provider billing.
 - Network/timeout, 429, and 5xx errors use persisted bounded backoff (10, then 20 seconds) with at most three reserved attempts per job, subject to the total cap. No internal retry loop makes additional HTTP requests. 400/401/403 stop the run with an actionable code.
 - Provider responses are durably saved before ingestion. Expired jobs with saved responses recover ingestion without another HTTP request or reservation. Commit atomically persists discoveries, campaign membership, metrics, page continuation, and completion. A replay returns the original job metrics.
 - A page continues only when it produces a new, unsuppressed Rule match or Review candidate for that campaign. Empty/invalid/repeated/duplicate-only pages stop that query. The target counts unique automatic rule matches among candidates first added to the campaign in that run; a later observation in the same run may improve a new Review candidate into a match.
 - A future retry or active lease keeps the run unfinished. Cancel skips unstarted work and stops further dispatch; an already dispatched response can still be committed without scheduling additional pages.
-- There is no external HTTP exactly-once guarantee and no background processing after all run tabs close. Unknown outcomes can cost provider credits again after a permitted retry.
+- There is no external HTTP exactly-once guarantee and no background processing after all workspace tabs close. Unknown outcomes can cost provider credits again after a permitted retry.
 
 ## Evidence, metrics, and exports
 
@@ -169,11 +173,11 @@ npm run start
 
 Set `PORT` if your host requires it. Configure all environment variables and the production email confirmation callback before testing. Use Node 22+, HTTPS, and a host that allows a request to run for at least 60 seconds. Run one operator-driven job at a time per run; horizontal instances coordinate through Postgres. No paid queue or additional API is required.
 
-Choose hosting and Supabase quotas appropriate to the agency’s usage. Do not assume a hobby plan permits commercial/agency work or promises permanently free hosting. No public deployment has been performed because a deployment destination and its access have not been supplied.
+Choose hosting and Supabase quotas appropriate to the agency’s usage. Do not assume a hobby plan permits commercial/agency work or promises permanently free hosting. The user connected this repository to Vercel; pushes to main trigger that deployment. Keep production environment values and Supabase redirects configured for the final domain.
 
 ## Retention, backup, and restore
 
-An approved operator can clean up completed raw responses older than 30 days from Suppressions & setup. Parsed discoveries, original text, history, and decisions remain. Raw responses for unfinished ingestion are retained for recovery.
+An approved operator can clean up completed raw responses older than 30 days from Settings. Parsed discoveries, original text, history, and decisions remain. Raw responses for unfinished ingestion are retained for recovery.
 
 Before migration or release, make and verify a database backup using the selected Supabase plan’s supported procedure or a logical export. Availability and retention of managed backups/PITR depend on the plan; free-tier automatic backups are not promised. Follow [Supabase backup guidance](https://supabase.com/docs/guides/platform/backups) and [restore guidance](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore). Include application schemas, auth records and relevant grants, protect exports as agency data, and keep Auth/API secrets separately. Restore into a separate test project first, run migrations in order as appropriate, check account approval and row counts, and exercise exports before switching traffic. The safe rollback for a failed release is restoring the verified backup or a reviewed forward-fix; dropping tables would destroy history.
 

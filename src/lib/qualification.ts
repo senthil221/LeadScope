@@ -76,8 +76,9 @@ export function qualify(
       text: match[0],
     });
   }
-  const location =
-    target && other
+  const location = !c.locations.length
+    ? result("pass", "location_not_required")
+    : target && other
       ? result("review", "conflicting_current_locations", locationSpans)
       : target
         ? result("pass", "explicit_profile_location", locationSpans)
@@ -108,9 +109,11 @@ export function qualify(
         ])
       : excluded.length
         ? result("fail", "excluded_current_role", excluded)
-        : roleHits.length
-          ? result("pass", "direct_current_role", roleHits)
-          : result("review", "current_role_not_established", spans(c.roles));
+        : !c.roles.length
+          ? result("pass", "role_not_required")
+          : roleHits.length
+            ? result("pass", "direct_current_role", roleHits)
+            : result("review", "current_role_not_established", spans(c.roles));
   const affirmative = (
     items: string[],
     all: boolean,
@@ -150,7 +153,9 @@ export function qualify(
   return {
     status: states.includes("fail")
       ? "rejected"
-      : states.every((s) => s === "pass")
+      : [c.locations, c.roles, c.skills, c.requiredKeywords].some(
+            (items) => items.length,
+          ) && states.every((s) => s === "pass")
         ? "rule_match"
         : "review",
     criteria,

@@ -72,9 +72,14 @@ export function checked<T>(result: {
 }): NonNullable<T> {
   if (result.error) {
     const message = result.error.message;
-    const safe = /^(LS:)/.test(message)
+    let safe = /^(LS:)/.test(message)
       ? message.slice(3).trim()
       : "The database could not complete this action. Check configuration and try again.";
+    if (safe.startsWith("No eligible queries"))
+      safe =
+        "No new searches are available. Enable a query, or open More options and choose to search recent queries again.";
+    if (safe.startsWith("Campaign changed. Preview"))
+      safe = "This campaign changed. Reload it before starting the search.";
     console.error(
       JSON.stringify({
         event: "database_error",
