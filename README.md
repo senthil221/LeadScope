@@ -136,7 +136,7 @@ Before deployment, also exercise the configured email/password sign-in and datab
 
 ### Vercel
 
-1. Import `senthil221/Leadflow` into Vercel and select the `main` branch. Use the Next.js framework preset, repository root, `npm ci` install command, and `npm run build` build command. Keep the default Next.js output settings. Select Node.js 22 or later.
+1. Import `senthil221/LeadScope` into Vercel and select the `main` branch. GitHub redirects the original `Leadflow` repository URL to this name. Use the Next.js framework preset, repository root, `npm ci` install command, and `npm run build` build command. Keep the default Next.js output settings. Select Node.js 22 or later.
 2. Add the environment variables below to the Production environment before deploying. Copy keys from your local `.env.local` into Vercel's environment-variable settings; never upload that file or put secrets in GitHub.
 
 | Variable | Production value |
