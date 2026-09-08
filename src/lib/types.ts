@@ -1,0 +1,167 @@
+import type { Assessment, CampaignConfig, Query } from "./domain";
+export type Client = {
+  id: string;
+  name: string;
+  notes: string;
+  archived: boolean;
+  created_at: string;
+};
+export type Campaign = {
+  id: string;
+  client_id: string;
+  name: string;
+  config: CampaignConfig;
+  revision: number;
+  criteria_version: number;
+  archived: boolean;
+  created_at: string;
+};
+export type SavedQuery = Query & {
+  id: string;
+  ordinal: number;
+  revision: number;
+};
+export type Run = {
+  id: string;
+  campaign_id: string;
+  client_id: string;
+  snapshot: CampaignConfig;
+  status: string;
+  budget: number;
+  target: number;
+  reserved: number;
+  dispatched: number;
+  new_client_profiles: number;
+  new_candidates: number;
+  rule_matches: number;
+  reviews: number;
+  rejected: number;
+  suppressed: number;
+  duplicates: number;
+  errors: number;
+  stop_reason: string | null;
+  created_at: string;
+};
+export type Job = {
+  id: string;
+  run_query_id: string;
+  page_number: number;
+  attempts: number;
+  status: string;
+  retry_at: string | null;
+  failure_code: string | null;
+  metrics: Record<string, number | boolean>;
+};
+export type RunQuery = {
+  id: string;
+  text: string;
+  strategy: string;
+  skipped: boolean;
+  skip_reason: string | null;
+  prior_pages: number[];
+  last_success_at: string | null;
+};
+export type Lead = {
+  id: string;
+  client_id: string;
+  campaign_id: string;
+  client_profile_id: string;
+  canonical_url: string;
+  title: string;
+  snippet: string;
+  campaign_name: string;
+  status: string;
+  automatic_status: string;
+  manual_decision: string | null;
+  decision_note: string;
+  decided_at: string | null;
+  notes: string;
+  first_seen: string;
+  last_seen: string;
+  assessment: Assessment;
+  prior_assessment: Assessment | null;
+  current_version: number;
+  criteria_version: number;
+  suppressed: boolean;
+  decision_was_rule_match: boolean | null;
+};
+export type Discovery = {
+  id: string;
+  title: string;
+  snippet: string;
+  original_url: string;
+  position: number;
+  observed_at: string;
+  assessment: Assessment;
+  search_jobs: {
+    page_number: number;
+    run_queries: { text: string; strategy: string };
+  };
+};
+export type Suppression = {
+  id: string;
+  canonical_url: string;
+  reason: string;
+  note: string;
+  active: boolean;
+  updated_at: string;
+};
+export type ReviewEvent = {
+  id: string;
+  actor: string;
+  decision: string;
+  note: string;
+  was_rule_match: boolean;
+  created_at: string;
+};
+export type SuppressionEvent = {
+  id: string;
+  actor: string;
+  canonical_url: string;
+  reason: string;
+  note: string;
+  active: boolean;
+  created_at: string;
+};
+export type Preflight = {
+  revision: number;
+  queries: {
+    id: string;
+    text: string;
+    strategy: string;
+    skipped: boolean;
+    lastSuccess: string | null;
+    priorPages: number[];
+  }[];
+  eligible: number;
+  cap: number;
+  pages: number;
+  target: number;
+};
+export type PageData = {
+  reviewEvents?: ReviewEvent[];
+  suppressionEvents?: SuppressionEvent[];
+  view: string;
+  clients: Client[];
+  campaigns: Campaign[];
+  client?: Client;
+  campaign?: Campaign;
+  queries?: SavedQuery[];
+  runs?: Run[];
+  run?: Run;
+  jobs?: Job[];
+  runQueries?: RunQuery[];
+  leads?: Lead[];
+  lead?: Lead;
+  discoveries?: Discovery[];
+  suppressions?: Suppression[];
+  total?: number;
+  page?: number;
+  counts?: Record<string, number>;
+  checks?: Record<string, boolean>;
+  live: boolean;
+  email: string;
+  reviewSeconds?: number;
+  precision?: { accepted: number; adjudicated: number };
+  dispatched?: number;
+};
