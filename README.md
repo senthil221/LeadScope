@@ -134,6 +134,31 @@ Before deployment, also exercise the configured email/password sign-in and datab
 
 ## Deployment
 
+### Vercel
+
+1. Import `senthil221/Leadflow` into Vercel and select the `main` branch. Use the Next.js framework preset, repository root, `npm ci` install command, and `npm run build` build command. Keep the default Next.js output settings. Select Node.js 22 or later.
+2. Add the environment variables below to the Production environment before deploying. Copy keys from your local `.env.local` into Vercel's environment-variable settings; never upload that file or put secrets in GitHub.
+
+| Variable | Production value |
+| --- | --- |
+| `APP_URL` | Your exact final HTTPS origin, such as `https://YOUR_PROJECT.vercel.app`, without a trailing slash. |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://dwoersrcbxievideuads.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | The selected project's publishable key. |
+| `SUPABASE_SECRET_KEY` | The selected project's server secret key. |
+| `SERPER_API_KEY` | Your Serper key. |
+| `SERPER_LIVE_ENABLED` | `false` initially; enable deliberately when ready to spend search credits. |
+| `SERPER_MAX_REQUESTS_PER_RUN` | `50`, or a lower agency limit. |
+
+Leave `TEST_DATABASE_URL` unset on Vercel. The action route already declares the Node runtime and a 60-second maximum duration. Vercel hosts the server routes; static export is not supported by this authenticated application.
+
+3. In Supabase Authentication → URL Configuration, set Site URL to the same production origin and add `https://YOUR_PROJECT.vercel.app/auth/callback` to Redirect URLs. Keep the localhost callback if continuing local development. Email/password sign-in uses the existing approved accounts and installed database; do not reapply the initial migration.
+4. If the deployment URL is assigned only after the first deployment, update `APP_URL` and the Supabase URLs, then redeploy. Environment changes need a new deployment. Production and preview URLs need their own exact `APP_URL`; mutations from another origin are intentionally rejected.
+5. Confirm email delivery, sign in, and verify client/campaign persistence on the hosted app. Live-provider acceptance remains pending its explicitly approved budget. No deployment has been created by the GitHub push itself.
+
+References: [Next.js on Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs), [environment variables](https://vercel.com/docs/environment-variables), [function duration](https://vercel.com/docs/functions/configuring-functions/duration).
+
+### Other Node hosts
+
 Portable to a standard Node host with outbound HTTPS access to Supabase and Serper:
 
 ```sh
