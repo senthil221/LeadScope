@@ -45,8 +45,25 @@ export async function POST(request: Request) {
       );
     }
     const { error } = await db.auth.signInWithPassword({ email, password });
+    const errorKind =
+      error?.code === "email_not_confirmed"
+        ? "unconfirmed"
+        : error &&
+            (error.status === 0 ||
+              (error.status ?? 0) >= 500 ||
+              error.name === "AuthRetryableFetchError")
+          ? "connection"
+          : "credentials";
+    if (error)
+      console.error(
+        JSON.stringify({
+          event: "sign_in_failed",
+          code: error.code ?? error.name,
+          status: error.status,
+        }),
+      );
     return Response.redirect(
-      new URL(error ? "/login?error=credentials" : "/clients", request.url),
+      new URL(error ? `/login?error=${errorKind}` : "/clients", request.url),
       303,
     );
   } catch (error) {

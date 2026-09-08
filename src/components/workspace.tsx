@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { defaults, type CampaignConfig, type Query } from "@/lib/domain";
 import type { Client, PageData, Run } from "@/lib/types";
+import { ProspectSheet } from "./prospect-sheet";
 
 async function act<T = { id: string }>(
   action: string,
@@ -178,6 +179,7 @@ function WorkspaceSearches({ data }: { data: PageData }) {
     const nextAt = new Map<string, number>();
     const queue = ids.split(",");
     let cursor = 0;
+    let lastRefresh = 0;
     async function tick() {
       if (cancelled) return;
       if (document.hidden || guard.current) {
@@ -216,7 +218,14 @@ function WorkspaceSearches({ data }: { data: PageData }) {
             }
           }),
         );
-        if (!cancelled && batch.length) router.refresh();
+        if (
+          !cancelled &&
+          batch.length &&
+          (Date.now() - lastRefresh > 10000 || blocked.size === queue.length)
+        ) {
+          lastRefresh = Date.now();
+          router.refresh();
+        }
       } finally {
         guard.current = false;
       }
@@ -384,6 +393,13 @@ export function Workspace({ data }: { data: PageData }) {
                 <Settings size={18} />
                 Settings
               </Link>
+              <Link
+                className={data.view === "prospects" ? "active" : ""}
+                href={`/clients/${client.id}/prospects`}
+              >
+                <CheckCheck size={18} />
+                Prospect sheet
+              </Link>
             </>
           )}
         </nav>
@@ -429,6 +445,34 @@ export function Workspace({ data }: { data: PageData }) {
           </span>
         </div>
         <div className="page-body">
+          {client && (
+            <nav className="client-tabs" aria-label="Client tabs">
+              <Link
+                className={
+                  ["client", "campaign", "builder", "runs"].includes(data.view)
+                    ? "active"
+                    : ""
+                }
+                href={`/clients/${client.id}`}
+              >
+                Campaigns
+              </Link>
+              <Link
+                className={
+                  ["leads", "lead"].includes(data.view) ? "active" : ""
+                }
+                href={`/leads?client=${client.id}`}
+              >
+                Leads & review
+              </Link>
+              <Link
+                className={data.view === "prospects" ? "active" : ""}
+                href={`/clients/${client.id}/prospects`}
+              >
+                Prospect sheet
+              </Link>
+            </nav>
+          )}
           <WorkspaceSearches data={data} />
           {error && (
             <div className="toast error" role="alert">
@@ -679,6 +723,15 @@ export function Workspace({ data }: { data: PageData }) {
           )}
           {data.view === "runs" && <RunPage data={data} {...actions} />}
           {data.view === "leads" && <LeadsPage data={data} {...actions} />}
+          {data.view === "prospects" && client && (
+            <ProspectSheet
+              rows={data.prospects ?? []}
+              total={data.total ?? 0}
+              page={data.page ?? 1}
+              clientId={client.id}
+              clientName={client.name}
+            />
+          )}
           {data.view === "lead" && <LeadDetail data={data} {...actions} />}
           {data.view === "settings" && (
             <SettingsPage data={data} {...actions} />

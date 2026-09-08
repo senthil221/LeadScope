@@ -1858,3 +1858,37 @@ details h3 {
     flex: 1;
   }
 }
+/* Compact, bounded spreadsheet surface. Horizontal scrolling stays inside the sheet. */
+.client-tabs { display:flex; gap:8px; border-bottom:1px solid var(--border, #dfe5df); margin-bottom:20px; overflow-x:auto; }
+.client-tabs a { padding:10px 14px; white-space:nowrap; border-bottom:2px solid transparent; }
+.client-tabs a.active { border-bottom-color:#245440; font-weight:650; color:#245440; }
+.sheet-toolbar { display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+.sheet-toolbar input { flex:1; min-width:200px; }
+.sheet-toolbar select { width:auto; }
+.sheet-wrap { overflow:auto; max-height:65vh; }
+.prospect-sheet { width:100%; min-width:1500px; table-layout:fixed; border-collapse:separate; border-spacing:0; font-size:12px; }
+.prospect-sheet th { position:sticky; top:0; z-index:2; background:#edf3ec; }
+.prospect-sheet td,.prospect-sheet th { padding:8px 10px; border-right:1px solid #e1e7e1; border-bottom:1px solid #e1e7e1; vertical-align:top; }
+.prospect-sheet th:nth-child(1) { width:44px; }
+.prospect-sheet th:nth-child(2) { width:235px; }
+.prospect-sheet th:nth-child(3) { width:230px; }
+.prospect-sheet th:nth-child(4) { width:300px; }
+.prospect-sheet th:nth-child(5) { width:160px; }
+.prospect-sheet th:nth-child(6) { width:235px; }
+.prospect-sheet th:nth-child(7) { width:280px; }
+.prospect-sheet th:nth-child(8) { width:120px; }
+.sheet-number { color:#78867b; text-align:center; background:#f6f8f5; }
+.sheet-text { max-height:120px; overflow:auto; white-space:normal; overflow-wrap:anywhere; line-height:1.5; }
+.sheet-title { font-weight:600; }
+.sheet-url { display:block; overflow-wrap:anywhere; color:#226750; text-decoration:underline; }
+.prospect-sheet select,.prospect-sheet textarea { font-size:12px; width:100%; margin:0; padding:6px 8px; min-height:32px; }
+.prospect-sheet textarea { resize:vertical; min-height:54px; }
+.sheet-save { font-size:11px; min-height:18px; color:#245440; }
+.sheet-save [role=alert] { color:#a52b2b; }
+.sheet-save button { padding:2px 6px; min-height:20px; font-size:11px; }
+.sheet-footer { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-top:12px; font-size:12px; color:#64756a; }
+.workspace-loading { margin:8vh auto; padding:24px; max-width:1100px; }
+.loading-line { height:25px; background:#eaf0e8; border-radius:6px; margin-bottom:18px; width:50%; }
+.loading-line.short { width:30%; height:15px; }
+.loading-table { background:#f3f6f1; padding:48px 24px; border-radius:8px; color:#65786a; }
+@media(max-width:600px) { .sheet-toolbar input,.sheet-toolbar select { width:100%; flex-basis:100%; } .client-tabs a { padding:8px; font-size:12px; } }

@@ -54,6 +54,20 @@ describe("email/password authentication", () => {
     );
     expect(await result.text()).not.toContain("private provider details");
   });
+  it("distinguishes unavailable auth service from invalid credentials", async () => {
+    auth.signInWithPassword.mockResolvedValueOnce({
+      error: { name: "AuthRetryableFetchError", status: 0 },
+    });
+    expect((await POST(request())).headers.get("location")).toContain(
+      "error=connection",
+    );
+    auth.signInWithPassword.mockResolvedValueOnce({
+      error: { code: "email_not_confirmed", status: 400 },
+    });
+    expect((await POST(request())).headers.get("location")).toContain(
+      "error=unconfirmed",
+    );
+  });
   it("uses the configured confirmation callback and waits for confirmation", async () => {
     auth.signUp.mockResolvedValue({ data: { session: null }, error: null });
     expect(

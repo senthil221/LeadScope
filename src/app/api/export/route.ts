@@ -4,6 +4,12 @@ import { failure } from "@/lib/server/http";
 import { uuid } from "@/lib/domain";
 import { serializeExport } from "@/lib/export";
 import type { Lead } from "@/lib/types";
+import {
+  prospectFilters,
+  prospectCells,
+  prospectColumns,
+  type Prospect,
+} from "@/lib/prospects";
 export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
@@ -14,6 +20,29 @@ export async function GET(request: Request) {
       ? uuid.parse(params.get("campaign"))
       : undefined;
     const format = z.enum(["csv", "tsv"]).parse(params.get("format") ?? "csv");
+    if (params.get("sheet") === "1") {
+      const filters = prospectFilters(params);
+      const rows = checked(
+        await db.rpc("export_prospects", {
+          p_client: clientId,
+          p_contact: filters.contact,
+          p_search: filters.q,
+        }),
+      ) as Prospect[];
+      return new Response(
+        serializeExport(rows.map(prospectCells), format, prospectColumns),
+        {
+          headers: {
+            "Content-Type":
+              format === "csv"
+                ? "text/csv; charset=utf-8"
+                : "text/tab-separated-values; charset=utf-8",
+            "Content-Disposition": `attachment; filename="leadscope-prospects.${format}"`,
+            "Cache-Control": "private, no-store",
+          },
+        },
+      );
+    }
     // One database statement returns a consistent, permission-checked export snapshot.
     const leads = checked(
       await db.rpc("export_accepted", {

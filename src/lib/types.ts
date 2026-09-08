@@ -139,6 +139,7 @@ export type Preflight = {
   target: number;
 };
 export type PageData = {
+  prospects?: import("./prospects").Prospect[];
   reviewEvents?: ReviewEvent[];
   suppressionEvents?: SuppressionEvent[];
   view: string;

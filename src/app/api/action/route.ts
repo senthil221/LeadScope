@@ -211,6 +211,29 @@ export async function POST(request: Request) {
         );
         break;
       }
+      case "contact": {
+        const p = z
+          .object({
+            clientId: uuid,
+            profileId: uuid,
+            status: z.enum([
+              "not_contacted",
+              "contacted",
+              "replied",
+              "follow_up",
+              "not_interested",
+            ]),
+          })
+          .parse(payload);
+        checked(
+          await db.rpc("save_contact_status", {
+            p_client: p.clientId,
+            p_profile: p.profileId,
+            p_status: p.status,
+          }),
+        );
+        break;
+      }
       case "note": {
         const p = z
           .object({ clientId: uuid, profileId: uuid, note })

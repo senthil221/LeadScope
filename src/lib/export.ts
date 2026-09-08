@@ -21,8 +21,9 @@ export function safeCell(value: unknown): string {
 export function serializeExport(
   rows: unknown[][],
   format: "csv" | "tsv",
+  columns = exportColumns,
 ): string {
-  return [exportColumns, ...rows]
+  return [columns, ...rows]
     .map((row) =>
       row
         .map((cell) => {

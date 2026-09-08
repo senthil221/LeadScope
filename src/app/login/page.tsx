@@ -29,11 +29,15 @@ export default async function Login({
         </p>
         {params.error && (
           <p role="alert" className="error">
-            {params.error === "signup"
-              ? "Account creation did not complete. Check the email and password, or ask your agency administrator to create your account."
-              : params.error === "invalid"
-                ? "Enter a valid email and a password with at least 8 characters."
-                : "Sign-in did not complete. Check your email and password and confirm your email if required."}
+            {params.error === "connection"
+              ? "Cannot reach the sign-in service right now. Please try again shortly."
+              : params.error === "unconfirmed"
+                ? "Confirm your email using the link in your inbox, then sign in."
+                : params.error === "signup"
+                  ? "Account creation did not complete. Check the email and password, or ask your agency administrator to create your account."
+                  : params.error === "invalid"
+                    ? "Enter a valid email and a password with at least 8 characters."
+                    : "Sign-in did not complete. Check your email and password and confirm your email if required."}
           </p>
         )}
         {params.message === "confirm" && (

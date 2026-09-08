@@ -255,6 +255,130 @@ describe("actual migration, RLS and transactional RPCs", () => {
       await connection.end();
     }
   });
+  it("deduplicates accepted sheet memberships and isolates contact tracking by client", async () => {
+    const cid = await client(),
+      other = await client();
+    const a = await campaign(cid),
+      b = await campaign(cid),
+      c = await campaign(other);
+    for (const id of [a, b, c]) {
+      const run = await start(id);
+      await ingest(await claim(run.runId), [item("sheet-person")]);
+    }
+    const ids = (
+      await sql("select id from public.campaign_profiles where client_id=$1", [
+        cid,
+      ])
+    ).rows.map((r) => r.id);
+    await asUser(actor, () => rpc("review_leads", [cid, ids, "accepted", ""]));
+    const sheet = await asUser(actor, () =>
+      sql("select * from public.accepted_prospect_rows where client_id=$1", [
+        cid,
+      ]),
+    );
+    expect(sheet.rows).toHaveLength(1);
+    const profile = sheet.rows[0].id;
+    expect(sheet.rows[0].source_query).toContain("site:linkedin.com/in/");
+    await asUser(actor, () =>
+      rpc("save_contact_status", [cid, profile, "contacted"]),
+    );
+    await asUser(actor, () =>
+      rpc("save_profile_note", [cid, profile, "Follow up 100%_exact"]),
+    );
+    const exported = await asUser(actor, () =>
+      rpc("export_prospects", [cid, "contacted", "100%_exact"]),
+    );
+    expect(exported).toHaveLength(1);
+    expect(exported[0]).toMatchObject({
+      contact_status: "contacted",
+      notes: "Follow up 100%_exact",
+    });
+    expect(
+      await asUser(actor, () => rpc("export_prospects", [cid, "replied", ""])),
+    ).toEqual([]);
+    expect(
+      (
+        await sql(
+          "select contact_status,notes from public.client_profiles where client_id=$1",
+          [other],
+        )
+      ).rows[0],
+    ).toMatchObject({ contact_status: "not_contacted", notes: "" });
+    await expect(
+      asUser(actor, () =>
+        rpc("save_contact_status", [other, profile, "replied"]),
+      ),
+    ).rejects.toThrow("Profile not found");
+    await expect(
+      asUser(actor, () =>
+        rpc("save_contact_status", [cid, profile, "invalid"]),
+      ),
+    ).rejects.toThrow("valid contact status");
+    await expect(
+      asUser(outsider, () =>
+        rpc("save_contact_status", [cid, profile, "replied"]),
+      ),
+    ).rejects.toThrow("Agency access");
+    expect(
+      (
+        await asUser(outsider, () =>
+          sql("select * from public.accepted_prospect_rows"),
+        )
+      ).rows,
+    ).toHaveLength(0);
+    await asUser(actor, () => rpc("review_leads", [cid, ids, "review", ""]));
+    expect(
+      await asUser(actor, () => rpc("export_prospects", [cid, "", ""])),
+    ).toEqual([]);
+    await asUser(actor, () => rpc("review_leads", [cid, ids, "accepted", ""]));
+    await asUser(actor, () =>
+      rpc("set_suppression", [
+        cid,
+        "https://www.linkedin.com/in/sheet-person",
+        "Requested",
+        "",
+        true,
+      ]),
+    );
+    expect(
+      await asUser(actor, () => rpc("export_prospects", [cid, "", ""])),
+    ).toEqual([]);
+  });
+  it("filters and exports the full accepted sheet beyond the first page", async () => {
+    const cid = await client(),
+      camp = await campaign(cid);
+    await sql(
+      `with profiles as (
+      insert into public.client_profiles(client_id,canonical_url,contact_status)
+      select $1,'https://www.linkedin.com/in/sheet-page-'||n,case when n=61 then 'replied' else 'not_contacted' end
+      from generate_series(1,61) n returning id,client_id
+    ) insert into public.campaign_profiles(client_id,campaign_id,client_profile_id,criteria_version,assessment,automatic_status,manual_decision,rule_version)
+      select client_id,$2,id,1,'{"title":"Pagination test","snippet":"Evidence"}'::jsonb,'review','accepted','test' from profiles`,
+      [cid, camp],
+    );
+    const result = await asUser(actor, () =>
+      sql(
+        "select id from public.accepted_prospect_rows where client_id=$1 order by date_added desc,id offset 50 limit 50",
+        [cid],
+      ),
+    );
+    expect(result.rows).toHaveLength(11);
+    expect(
+      await asUser(actor, () => rpc("export_prospects", [cid, "", ""])),
+    ).toHaveLength(61);
+    expect(
+      await asUser(actor, () => rpc("export_prospects", [cid, "replied", ""])),
+    ).toHaveLength(1);
+    expect(
+      await asUser(actor, () => rpc("lead_counts", [cid, null])),
+    ).toMatchObject({ accepted: 61 });
+    await sql("begin");
+    await sql("set local role anon");
+    await expect(
+      sql("select * from public.accepted_prospect_rows"),
+    ).rejects.toThrow();
+    await sql("rollback");
+  });
   it("enables RLS on every public table and keeps privileged implementations private", async () => {
     expect(
       (
