@@ -6,8 +6,8 @@ Verified on 2026-09-08 against the committed application source and pinned depen
 
 - `npm run lint`: passed.
 - `npm run typecheck`: passed.
-- `npm test`: 45 tests passed in 5 files, including optional criteria, query generation with partial inputs, one-action start with server budget clamping, authentication and confirmation handling.
-- `npm run test:db`: 24 tests passed against isolated real PostgreSQL 18, applying all three production SQL migrations unchanged. Includes simultaneous campaigns for the same client, independent cancellation/budgets and drafts without criteria.
+- `npm test`: 48 tests passed in 6 files, including optional criteria, query generation with partial inputs, one-action start with server budget clamping, authentication and confirmation handling.
+- `npm run test:db`: 25 tests passed against isolated real PostgreSQL 18, applying all four production SQL migrations unchanged. Includes simultaneous campaigns for the same client, independent cancellation/budgets and drafts without criteria.
 - `npm run build`: passed with all application routes built successfully.
 
 Tests do not load the workspace's real provider credentials or buy Serper searches. No synthetic records are inserted in the hosted application.
@@ -48,3 +48,9 @@ These results establish the automated checks and hosted schema updates, not comp
 - Navigation optimization is verified structurally (parallel reads, five status queries reduced to one, no full refresh on inline edits). No reliable before/after production latency percentage has been established.
 
 - Commit cb10dff deployed successfully to https://lead-scope-delta.vercel.app/. Authenticated browser verification: client tab opens the 10-row accepted sheet; contact status and notes persist across a filter navigation; the Follow up filter returned exactly the edited row; Copy for Sheets produced the header plus one row, including status and note. Temporary status/note changes were restored and confirmed through a database read. Desktop 1440, tablet 768, and mobile 390 layouts keep horizontal scrolling inside the sheet. A desktop tab-stacking issue was fixed with an explicit horizontal flex direction.
+
+## Bulk exclusion update
+
+- 48 unit and 25 isolated PostgreSQL tests passed; lint, type checking and production build passed.
+- Tests cover normalized paste/deduplication, invalid entries, idempotent imports/history, current accepted sheet and both exports, subsequent campaign ingestion, other-client isolation, invalid-batch rollback, unauthorized actors, and removal/re-review behavior.
+- The bulk exclusion migration was installed successfully through the selected project SQL editor. No customer URLs were added to the blocklist during installation.

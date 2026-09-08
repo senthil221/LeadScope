@@ -379,6 +379,102 @@ describe("actual migration, RLS and transactional RPCs", () => {
     ).rejects.toThrow();
     await sql("rollback");
   });
+  it("bulk excludes old profiles from current sheets, exports and future campaigns idempotently", async () => {
+    const cid = await client(),
+      other = await client();
+    const camp = await campaign(cid),
+      outside = await campaign(other);
+    const url = "https://www.linkedin.com/in/previous-prospect";
+    for (const id of [camp, outside]) {
+      const run = await start(id);
+      await ingest(await claim(run.runId), [item("previous-prospect")]);
+    }
+    for (const id of [cid, other]) {
+      const ids = (
+        await sql(
+          "select id from public.campaign_profiles where client_id=$1",
+          [id],
+        )
+      ).rows.map((r) => r.id);
+      await asUser(actor, () =>
+        rpc("review_leads", [id, ids, "accepted", "Keep decision history"]),
+      );
+    }
+    expect(
+      await asUser(actor, () => rpc("exclude_profiles", [cid, [url, url]])),
+    ).toEqual({ added: 1, alreadyExcluded: 0 });
+    expect(
+      await asUser(actor, () => rpc("exclude_profiles", [cid, [url]])),
+    ).toEqual({ added: 0, alreadyExcluded: 1 });
+    expect(
+      (
+        await sql(
+          "select count(*)::int as n from public.suppression_events where client_id=$1",
+          [cid],
+        )
+      ).rows[0].n,
+    ).toBe(1);
+    expect(
+      await asUser(actor, () => rpc("export_prospects", [cid, "", ""])),
+    ).toEqual([]);
+    expect(
+      await asUser(actor, () => rpc("export_accepted", [cid, null])),
+    ).toEqual([]);
+    expect(
+      await asUser(actor, () => rpc("export_prospects", [other, "", ""])),
+    ).toHaveLength(1);
+    expect(
+      (
+        await sql(
+          "select manual_decision from public.campaign_profiles where client_id=$1",
+          [cid],
+        )
+      ).rows[0].manual_decision,
+    ).toBe("accepted");
+    const future = await campaign(cid);
+    const run = await start(future);
+    await ingest(await claim(run.runId), [item("previous-prospect")]);
+    expect(
+      (
+        await asUser(actor, () =>
+          sql("select status from public.lead_rows where campaign_id=$1", [
+            future,
+          ]),
+        )
+      ).rows[0].status,
+    ).toBe("suppressed");
+    await expect(
+      asUser(outsider, () => rpc("exclude_profiles", [cid, [url]])),
+    ).rejects.toThrow("Agency access");
+    await expect(
+      asUser(actor, () => rpc("exclude_profiles", [randomUUID(), [url]])),
+    ).rejects.toThrow("Client not found");
+    await expect(
+      asUser(actor, () =>
+        rpc("exclude_profiles", [
+          cid,
+          ["https://www.linkedin.com/in/valid-new", "invalid"],
+        ]),
+      ),
+    ).rejects.toThrow("valid LinkedIn");
+    expect(
+      (
+        await sql(
+          "select count(*)::int as n from public.suppressions where client_id=$1",
+          [cid],
+        )
+      ).rows[0].n,
+    ).toBe(1);
+    await asUser(actor, () =>
+      rpc("set_suppression", [cid, url, "Imported blocklist", "", false]),
+    );
+    expect(
+      await asUser(actor, () => rpc("export_prospects", [cid, "", ""])),
+    ).toEqual([]);
+    expect(
+      await asUser(actor, () => rpc("exclude_profiles", [cid, [url]])),
+    ).toEqual({ added: 1, alreadyExcluded: 0 });
+  });
   it("enables RLS on every public table and keeps privileged implementations private", async () => {
     expect(
       (

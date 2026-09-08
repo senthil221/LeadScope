@@ -42,7 +42,7 @@ The migration is `supabase/migrations/20260908021539_leadscope.sql`. It is **alr
 ```sh
 npx supabase login
 npx supabase link --project-ref dwoersrcbxievideuads
-npx supabase migration repair 20260908021539 20260908045049 20260908052822 --status applied --linked
+npx supabase migration repair 20260908021539 20260908045049 20260908052822 20260908071804 --status applied --linked
 npx supabase migration list --linked
 ```
 
@@ -193,3 +193,11 @@ Deferred: client-facing memberships, enrichment/emails, direct Google Sheets syn
 Migration `20260908052822_client_prospect_sheet.sql` is installed on the selected project. It adds client-scoped contact status, an RLS-preserving deduplicated accepted view, narrow contact-write/export RPCs, and a client/prospect index. Existing notes, decisions and discovery history are preserved. For a forward fix, replace the view/RPC definitions while retaining the contact column and its data; do not drop prospect records.
 
 Workspace reads now run concurrently after client scope is resolved. Status counts use one RPC rather than five requests. Search progress refreshes are throttled to ten seconds (or completion), and inline sheet edits do not reload the workspace. The sheet is horizontally scrollable within a bounded panel on smaller screens.
+
+## Excluded LinkedIn profiles
+
+Open a client → **Excluded**, paste a LinkedIn URL column (up to 500 unique URLs per paste), and choose **Add to Excluded**. Country subdomains, tracking parameters, fragments and trailing slashes use the same canonicalization as search results. Duplicate entries and already-active exclusions are skipped. Invalid entries must be corrected before submission. The client-specific list is searchable and paginated.
+
+The list reuses suppressions: matching current accepted profiles disappear from the Prospect sheet and exports, future discoveries remain suppressed, and other clients are unaffected. No source or review history is deleted. Removing an exclusion returns existing campaign memberships to Review; they must be accepted again.
+
+Migration `20260908071804_bulk_client_exclusions.sql` is installed in the selected project. It adds one atomic, permission-checked import RPC using the existing client lock, unique constraint and suppression history. It creates no tables or new data access roles. A forward fix can replace the private implementation without removing blocklist records.

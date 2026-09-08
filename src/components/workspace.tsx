@@ -41,6 +41,7 @@ import {
 import { defaults, type CampaignConfig, type Query } from "@/lib/domain";
 import type { Client, PageData, Run } from "@/lib/types";
 import { ProspectSheet } from "./prospect-sheet";
+import { ExcludedProfiles } from "./excluded-profiles";
 
 async function act<T = { id: string }>(
   action: string,
@@ -400,6 +401,13 @@ export function Workspace({ data }: { data: PageData }) {
                 <CheckCheck size={18} />
                 Prospect sheet
               </Link>
+              <Link
+                className={data.view === "excluded" ? "active" : ""}
+                href={`/clients/${client.id}/excluded`}
+              >
+                <ShieldCheck size={18} />
+                Excluded
+              </Link>
             </>
           )}
         </nav>
@@ -470,6 +478,12 @@ export function Workspace({ data }: { data: PageData }) {
                 href={`/clients/${client.id}/prospects`}
               >
                 Prospect sheet
+              </Link>
+              <Link
+                className={data.view === "excluded" ? "active" : ""}
+                href={`/clients/${client.id}/excluded`}
+              >
+                Excluded
               </Link>
             </nav>
           )}
@@ -723,6 +737,7 @@ export function Workspace({ data }: { data: PageData }) {
           )}
           {data.view === "runs" && <RunPage data={data} {...actions} />}
           {data.view === "leads" && <LeadsPage data={data} {...actions} />}
+          {data.view === "excluded" && <ExcludedProfiles data={data} />}
           {data.view === "prospects" && client && (
             <ProspectSheet
               rows={data.prospects ?? []}

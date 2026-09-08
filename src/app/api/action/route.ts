@@ -5,6 +5,7 @@ import { setup } from "@/lib/server/config";
 import { campaignSchema, configSchema, uuid } from "@/lib/domain";
 import { generateQueries, normalizeQuery, signature } from "@/lib/queries";
 import { canonicalLinkedIn } from "@/lib/urls";
+import { parseExcludedUrls } from "@/lib/exclusions";
 import { processNext } from "@/lib/server/process";
 import { qualify, mergeAssessment } from "@/lib/qualification";
 export const runtime = "nodejs";
@@ -183,6 +184,27 @@ export async function POST(request: Request) {
             p_ids: [...new Set(p.ids)],
             p_decision: p.decision,
             p_note: p.note,
+          }),
+        );
+        break;
+      }
+      case "exclude": {
+        const p = z
+          .object({ clientId: uuid, text: z.string().min(1).max(50000) })
+          .parse(payload);
+        const parsed = parseExcludedUrls(p.text);
+        if (parsed.invalid.length)
+          throw new AppError(
+            `Fix ${parsed.invalid.length} invalid entries before adding exclusions.`,
+          );
+        if (!parsed.urls.length || parsed.urls.length > 500)
+          throw new AppError(
+            "Paste between 1 and 500 LinkedIn profile URLs at a time.",
+          );
+        result = checked(
+          await db.rpc("exclude_profiles", {
+            p_client: p.clientId,
+            p_urls: parsed.urls,
           }),
         );
         break;

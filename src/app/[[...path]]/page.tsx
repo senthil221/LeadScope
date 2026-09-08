@@ -68,7 +68,12 @@ export default async function Page({
     let clientId = filter.client;
     if (path[0] === "clients" && path[1]) {
       clientId = uuid.parse(path[1]);
-      data.view = path[2] === "prospects" ? "prospects" : "client";
+      data.view =
+        path[2] === "excluded"
+          ? "excluded"
+          : path[2] === "prospects"
+            ? "prospects"
+            : "client";
     }
     if (path[0] === "campaigns") {
       data.view =
@@ -179,9 +184,14 @@ export default async function Page({
       });
     }
     if (
-      ["leads", "settings", "client", "builder", "prospects"].includes(
-        data.view,
-      ) &&
+      [
+        "leads",
+        "settings",
+        "client",
+        "builder",
+        "prospects",
+        "excluded",
+      ].includes(data.view) &&
       !clientId
     )
       redirect("/clients");
@@ -272,6 +282,35 @@ export default async function Page({
         data.total = result.count ?? 0;
       });
     }
+    if (data.view === "excluded") {
+      loads.push(async () => {
+        data.page = Math.max(
+          1,
+          Math.min(100000, Math.floor(Number(filter.page) || 1)),
+        );
+        let query = db
+          .from("suppressions")
+          .select("id,canonical_url,reason,note,active,updated_at", {
+            count: "exact",
+          })
+          .eq("client_id", clientId!)
+          .eq("active", true);
+        if (filter.q?.trim())
+          query = query.ilike(
+            "canonical_url",
+            `%${filter.q
+              .trim()
+              .slice(0, 200)
+              .replace(/[\\%_]/g, "\\$&")}%`,
+          );
+        const result = await query
+          .order("updated_at", { ascending: false })
+          .order("id")
+          .range((data.page - 1) * 50, data.page * 50 - 1);
+        data.suppressions = checked(result);
+        data.total = result.count ?? 0;
+      });
+    }
     if (data.view === "settings") {
       data.checks = env.checks;
       data.suppressions = checked(
@@ -294,6 +333,7 @@ export default async function Page({
     if (
       ![
         "prospects",
+        "excluded",
         "clients",
         "client",
         "builder",
