@@ -13,30 +13,23 @@ import {
   ArrowLeft,
   ArrowRight,
   Archive,
-  Briefcase,
   Check,
   CheckCheck,
-  ChevronDown,
   CircleHelp,
   Clipboard,
   Copy,
-  Crosshair,
   ExternalLink,
   FileSearch,
   FolderOpen,
-  Layers,
   LoaderCircle,
-  LogOut,
   Pause,
   Play,
   Plus,
   RefreshCw,
   Search,
-  Settings,
   ShieldCheck,
   SlidersHorizontal,
   Square,
-  Users,
   X,
 } from "lucide-react";
 import { defaults, type CampaignConfig, type Query } from "@/lib/domain";
@@ -45,6 +38,7 @@ import { ProspectSheet } from "./prospect-sheet";
 import { ExcludedProfiles } from "./excluded-profiles";
 import { RolesPage } from "./recruiting/roles";
 import { RolePipeline } from "./recruiting/role-pipeline";
+import { AppShell } from "./shell/AppShell";
 
 async function act<T = { id: string }>(
   action: string,
@@ -329,185 +323,9 @@ export function Workspace({ data }: { data: PageData }) {
     }
   }
   const actions = { run, busy, setError, setMessage };
-  const clientLink = client ? `/clients/${client.id}` : "/clients";
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <Link href="/clients" className="brand">
-          <Crosshair size={27} />
-          <span>LeadScope</span>
-          <span className="beta">BETA</span>
-        </Link>
-        <div className="workspace-label">AGENCY WORKSPACE</div>
-        <label className="client-switch">
-          <FolderOpen size={17} />
-          <select
-            aria-label="Switch client"
-            value={client?.id ?? ""}
-            onChange={(e) =>
-              router.push(
-                e.target.value ? `/clients/${e.target.value}` : "/clients",
-              )
-            }
-          >
-            <option value="">All clients</option>
-            {data.clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-                {c.archived ? " (archived)" : ""}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={14} />
-        </label>
-        <nav>
-          <Link
-            className={data.view === "clients" ? "active" : ""}
-            href="/clients"
-          >
-            <Users size={18} />
-            Clients
-          </Link>
-          {client && (
-            <>
-              <Link
-                className={
-                  ["client", "builder", "campaign", "runs"].includes(data.view)
-                    ? "active"
-                    : ""
-                }
-                href={clientLink}
-              >
-                <Layers size={18} />
-                Campaigns
-              </Link>
-              <Link
-                className={
-                  ["leads", "lead"].includes(data.view) ? "active" : ""
-                }
-                href={`/leads?client=${client.id}`}
-              >
-                <FileSearch size={18} />
-                Leads & review
-              </Link>
-              <Link
-                className={
-                  ["roles", "role"].includes(data.view) ? "active" : ""
-                }
-                href={`/clients/${client.id}/roles`}
-              >
-                <Briefcase size={18} />
-                Roles
-              </Link>
-              <Link
-                className={data.view === "settings" ? "active" : ""}
-                href={`/settings?client=${client.id}`}
-              >
-                <Settings size={18} />
-                Settings
-              </Link>
-              <Link
-                className={data.view === "prospects" ? "active" : ""}
-                href={`/clients/${client.id}/prospects`}
-              >
-                <CheckCheck size={18} />
-                Prospect sheet
-              </Link>
-              <Link
-                className={data.view === "excluded" ? "active" : ""}
-                href={`/clients/${client.id}/excluded`}
-              >
-                <ShieldCheck size={18} />
-                Excluded
-              </Link>
-            </>
-          )}
-        </nav>
-        <div className="sidebar-bottom">
-          <div className="sidebar-note">
-            <ShieldCheck size={19} />
-            <span>
-              Public search references.
-              <br />
-              Always human reviewed.
-            </span>
-          </div>
-          <div className="operator">
-            <span className="avatar">{data.email[0].toUpperCase()}</span>
-            <div>
-              <strong>Agency operator</strong>
-              <small title={data.email}>{data.email}</small>
-            </div>
-            <form action="/auth/logout" method="post">
-              <button aria-label="Sign out" title="Sign out">
-                <LogOut size={16} />
-              </button>
-            </form>
-          </div>
-        </div>
-      </aside>
-      <main className="main">
-        <div className="topbar">
-          <span>
-            {client ? (
-              <>
-                <Link href="/clients">Clients</Link>
-                <span className="slash">/</span>
-                {client.name}
-              </>
-            ) : (
-              "Agency workspace"
-            )}
-          </span>
-          <span className="live-indicator">
-            <i className={data.live ? "on" : ""} />
-            {data.live ? "Search connected" : "Search setup needed"}
-          </span>
-        </div>
-        <div className="page-body">
-          {client && (
-            <nav className="client-tabs" aria-label="Client tabs">
-              <Link
-                className={
-                  ["client", "campaign", "builder", "runs"].includes(data.view)
-                    ? "active"
-                    : ""
-                }
-                href={`/clients/${client.id}`}
-              >
-                Campaigns
-              </Link>
-              <Link
-                className={
-                  ["leads", "lead"].includes(data.view) ? "active" : ""
-                }
-                href={`/leads?client=${client.id}`}
-              >
-                Leads & review
-              </Link>
-              <Link
-                className={
-                  ["roles", "role"].includes(data.view) ? "active" : ""
-                }
-                href={`/clients/${client.id}/roles`}
-              >
-                Roles
-              </Link>
-              <Link
-                className={data.view === "prospects" ? "active" : ""}
-                href={`/clients/${client.id}/prospects`}
-              >
-                Prospect sheet
-              </Link>
-              <Link
-                className={data.view === "excluded" ? "active" : ""}
-                href={`/clients/${client.id}/excluded`}
-              >
-                Excluded
-              </Link>
-            </nav>
-          )}
-          <WorkspaceSearches data={data} />
+    <AppShell data={data}>
+      <WorkspaceSearches data={data} />
           {error && (
             <div className="toast error" role="alert">
               {error}
@@ -788,8 +606,6 @@ export function Workspace({ data }: { data: PageData }) {
           {data.view === "settings" && (
             <SettingsPage data={data} {...actions} />
           )}
-        </div>
-      </main>
       {clientForm && (
         <dialog open className="modal">
           <div className="modal-heading">
@@ -842,7 +658,7 @@ export function Workspace({ data }: { data: PageData }) {
           </form>
         </dialog>
       )}
-    </div>
+    </AppShell>
   );
 }
 type Actions = {
