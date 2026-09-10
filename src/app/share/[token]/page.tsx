@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { integrationDb } from "@/lib/server/db";
 import { setup } from "@/lib/server/config";
 import { stageLabels, isStage } from "@/lib/recruiting/stages";
+import { SharedFieldCell } from "@/components/recruiting/shared-field-cell";
 
 // Never cached, never statically generated: every request re-checks the
 // token against the database, so a revoked or expired link stops working
@@ -31,10 +32,22 @@ type SharedStage = {
   roleName: string;
   stage: string;
   visibleColumns: string[];
+  editableColumns: string[];
   fields: SharedField[];
   rows: SharedRow[];
   lastViewedAt: string | null;
 };
+// interview_at and client_notes are the only static columns that can ever be
+// editable (create_share_link enforces this); everything else editable is a
+// custom field, whose kind/options come from data.fields instead.
+const staticEditableKinds: Record<string, "text" | "date"> = {
+  client_notes: "text",
+  interview_at: "date",
+};
+function dateOnly(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  return value.slice(0, 10);
+}
 
 const staticLabels: Record<string, string> = {
   stage_entered_at: "Date added",
@@ -157,6 +170,9 @@ export default async function SharePage({
     .filter((k) => data.visibleColumns.includes(k))
     .concat(data.fields.map((f) => f.key));
   const stageName = isStage(data.stage) ? stageLabels[data.stage] : data.stage;
+  const editableLabels = data.editableColumns.map(
+    (key) => staticLabels[key] ?? data.fields.find((f) => f.key === key)?.label ?? key,
+  );
 
   return (
     <div style={{ minHeight: "100vh", background: "#f7f9f6", padding: 20 }}>
@@ -180,7 +196,11 @@ export default async function SharePage({
                 {data.rows.length} candidate{data.rows.length === 1 ? "" : "s"}
               </p>
             </div>
-            <span className="badge">Read-only</span>
+            <span className="badge">
+              {editableLabels.length
+                ? `Read-only except ${editableLabels.join(", ")}`
+                : "Read-only"}
+            </span>
           </div>
         </div>
         <div className="card table-wrap">
@@ -197,9 +217,33 @@ export default async function SharePage({
             <tbody>
               {data.rows.map((row) => (
                 <tr key={row.id}>
-                  {columns.map((key) => (
-                    <td key={key}>{cell(row, key, data.fields)}</td>
-                  ))}
+                  {columns.map((key) => {
+                    if (!data.editableColumns.includes(key))
+                      return <td key={key}>{cell(row, key, data.fields)}</td>;
+                    const field = data.fields.find((f) => f.key === key);
+                    const kind = field
+                      ? (field.kind as "text" | "number" | "date" | "select" | "boolean")
+                      : staticEditableKinds[key];
+                    const raw = field
+                      ? row.custom?.[key]
+                      : (row as Record<string, unknown>)[key];
+                    const value =
+                      kind === "date"
+                        ? dateOnly(raw as string | undefined)
+                        : (raw as string | number | boolean | undefined);
+                    return (
+                      <td key={key}>
+                        <SharedFieldCell
+                          token={token}
+                          roleCandidateId={row.id}
+                          column={key}
+                          value={value}
+                          kind={kind}
+                          options={field?.options}
+                        />
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>

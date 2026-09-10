@@ -15,9 +15,10 @@ async function act<T>(action: string, payload: unknown): Promise<T> {
   return result;
 }
 
-// Every field this stage could share. rating/client_notes/client_decision/
-// interview_at write back in later phases; sharing them read-only now costs
-// nothing and needs no schema change when that lands.
+// Every static field this stage could share, read-only. rating and every
+// candidate detail can only ever be viewed; client_decision gets its own
+// guided action in a later phase instead of a raw field edit, so it has no
+// Editable checkbox either, even though it can be shared.
 const staticColumns: { key: string; label: string }[] = [
   { key: "stage_entered_at", label: "Date added" },
   { key: "full_name", label: "Full name" },
@@ -31,6 +32,10 @@ const staticColumns: { key: string; label: string }[] = [
   { key: "client_decision", label: "Decision" },
   { key: "interview_at", label: "Interview date" },
 ];
+// Only these static columns, plus any active custom field, can ever be made
+// editable — enforced again on the server, since a client only ever gets as
+// much write access as create_share_link actually allows.
+const editableEligibleStatic = new Set(["client_notes", "interview_at"]);
 
 function status(link: ShareLink): { label: string; badge: string } {
   if (link.revoked_at) return { label: "Revoked", badge: "rejected" };
@@ -59,13 +64,20 @@ export function ShareDialog({
   onChanged: () => void;
 }) {
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
+  const [editableColumns, setEditableColumns] = useState<string[]>([]);
   const [expiresAt, setExpiresAt] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [justCreated, setJustCreated] = useState<{ url: string; copied: boolean } | null>(null);
 
-  function toggle(key: string) {
-    setSelectedColumns((old) =>
+  function toggleVisible(key: string) {
+    const wasVisible = selectedColumns.includes(key);
+    setSelectedColumns((old) => (wasVisible ? old.filter((k) => k !== key) : [...old, key]));
+    // A column that stops being visible cannot stay editable either.
+    if (wasVisible) setEditableColumns((old) => old.filter((k) => k !== key));
+  }
+  function toggleEditable(key: string) {
+    setEditableColumns((old) =>
       old.includes(key) ? old.filter((k) => k !== key) : [...old, key],
     );
   }
@@ -92,10 +104,12 @@ export function ShareDialog({
         roleId,
         stage,
         visibleColumns: selectedColumns,
+        editableColumns,
         expiresAt: expiresAt ? new Date(`${expiresAt}T23:59:59`).toISOString() : null,
       });
       setJustCreated({ url: shareUrl(result.token), copied: false });
       setSelectedColumns([]);
+      setEditableColumns([]);
       setExpiresAt("");
       onChanged();
     } catch (e) {
@@ -131,6 +145,10 @@ export function ShareDialog({
       setBusy(false);
     }
   }
+
+  const pickerRows = staticColumns.concat(
+    fields.map((f) => ({ key: f.key, label: f.label })),
+  );
 
   return (
     <dialog open className="modal">
@@ -225,40 +243,52 @@ export function ShareDialog({
       )}
       <h3>Create a new link</h3>
       <p className="muted">
-        Choose exactly what this link shows. Nothing is visible until you
-        select it here.
+        Choose exactly what this link shows, and which of those the client
+        can edit. Nothing is visible until you select it here.
       </p>
-      <div>
-        {staticColumns.map((c) => (
-          <label key={c.key} className="check-label">
-            <input
-              type="checkbox"
-              disabled={busy}
-              checked={selectedColumns.includes(c.key)}
-              onChange={() => toggle(c.key)}
-            />
-            {c.label}
-          </label>
-        ))}
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Column</th>
+              <th>Visible</th>
+              <th>Editable</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pickerRows.map((c) => {
+              const field = fields.find((f) => f.key === c.key);
+              const canEdit = field ? true : editableEligibleStatic.has(c.key);
+              const visible = selectedColumns.includes(c.key);
+              return (
+                <tr key={c.key}>
+                  <td>{c.label}</td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label={`${c.label} visible`}
+                      disabled={busy}
+                      checked={visible}
+                      onChange={() => toggleVisible(c.key)}
+                    />
+                  </td>
+                  <td>
+                    {canEdit && (
+                      <input
+                        type="checkbox"
+                        aria-label={`${c.label} editable`}
+                        disabled={busy || !visible}
+                        checked={editableColumns.includes(c.key)}
+                        onChange={() => toggleEditable(c.key)}
+                      />
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-      {fields.length > 0 && (
-        <>
-          <p className="muted">This role&rsquo;s custom columns</p>
-          <div>
-            {fields.map((f) => (
-              <label key={f.key} className="check-label">
-                <input
-                  type="checkbox"
-                  disabled={busy}
-                  checked={selectedColumns.includes(f.key)}
-                  onChange={() => toggle(f.key)}
-                />
-                {f.label}
-              </label>
-            ))}
-          </div>
-        </>
-      )}
       <label>
         Expires <span className="optional">optional</span>
         <input

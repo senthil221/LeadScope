@@ -357,6 +357,7 @@ export async function POST(request: Request) {
               "rejected",
             ]),
             visibleColumns: z.array(z.string().min(1).max(50)).min(1).max(30),
+            editableColumns: z.array(z.string().min(1).max(50)).max(30).default([]),
             expiresAt: z.string().datetime().nullable().default(null),
           })
           .parse(payload);
@@ -371,9 +372,7 @@ export async function POST(request: Request) {
             p_role: p.roleId,
             p_stage: p.stage,
             p_visible_columns: p.visibleColumns,
-            // Editable columns are not offered from this UI yet: sharing a
-            // stage is read-only until a later phase adds client write-back.
-            p_editable_columns: [],
+            p_editable_columns: p.editableColumns,
             p_expires_at: p.expiresAt,
             p_token_hash: tokenHash,
             p_token_prefix: token.slice(0, 8),

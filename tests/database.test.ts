@@ -2274,6 +2274,9 @@ describe("role_share_links: anon has no path to any of it except the token itsel
       sql("select public.regenerate_share_link(null,repeat('a',64),'aaaaaaaa')"),
     ).rejects.toThrow();
     await expect(sql("select public.read_shared_stage('x')")).rejects.toThrow();
+    await expect(
+      sql("select public.write_shared_cell('x',null,'client_notes','\"x\"'::jsonb)"),
+    ).rejects.toThrow();
     await sql("rollback");
   });
   it("denies a logged-in operator execute on read_shared_stage: it is service_role only", async () => {
@@ -2282,6 +2285,17 @@ describe("role_share_links: anon has no path to any of it except the token itsel
     const { token } = await shareLink(cid, rid, "client_shortlisted", ["full_name"]);
     await expect(
       asUser(actor, () => rpc("read_shared_stage", [hashOf(token)])),
+    ).rejects.toThrow();
+  });
+  it("denies a logged-in operator execute on write_shared_cell: it is service_role only", async () => {
+    const { cid, rid, rcId } = await pipeline("share-write-authenticated-denied", 0);
+    const { token } = await shareLink(cid, rid, "all_profiles", ["full_name", "client_notes"], {
+      editable: ["client_notes"],
+    });
+    await expect(
+      asUser(actor, () =>
+        rpc("write_shared_cell", [hashOf(token), rcId, "client_notes", JSON.stringify("x")]),
+      ),
     ).rejects.toThrow();
   });
 });
@@ -2383,6 +2397,59 @@ describe("create_share_link: what can ever be shared", () => {
         [cid, rid],
       ),
     ).rejects.toThrow();
+  });
+  it("refuses client_decision and any static candidate field as editable, even when visible", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await expect(
+      asUser(actor, () => {
+        const fresh = freshToken();
+        return rpc("create_share_link", [
+          cid,
+          rid,
+          "all_profiles",
+          ["full_name", "client_decision"],
+          ["client_decision"],
+          null,
+          fresh.hash,
+          fresh.prefix,
+        ]);
+      }),
+    ).rejects.toThrow("cannot be made editable");
+    await expect(
+      asUser(actor, () => {
+        const fresh = freshToken();
+        return rpc("create_share_link", [
+          cid,
+          rid,
+          "all_profiles",
+          ["full_name"],
+          ["full_name"],
+          null,
+          fresh.hash,
+          fresh.prefix,
+        ]);
+      }),
+    ).rejects.toThrow("cannot be made editable");
+  });
+  it("accepts client_notes, interview_at, and an active custom field as editable", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const fid = await asUser(actor, () =>
+      rpc("add_role_field", [cid, rid, "Notice period", "text", "[]"]),
+    );
+    const key = (await sql("select key from public.role_fields where id=$1", [fid])).rows[0].key;
+    const { id } = await shareLink(
+      cid,
+      rid,
+      "all_profiles",
+      ["client_notes", "interview_at", key],
+      { editable: ["client_notes", "interview_at", key] },
+    );
+    expect(
+      (await sql("select editable_columns from public.role_share_links where id=$1", [id]))
+        .rows[0].editable_columns.sort(),
+    ).toEqual(["client_notes", "interview_at", key].sort());
   });
   it("rejects an invalid stage and a role from another client", async () => {
     const cid = await client();
@@ -2513,6 +2580,169 @@ describe("read_shared_stage: only what was chosen, nothing else, ever", () => {
       (await sql("select last_viewed_at from public.role_share_links where id=$1", [id])).rows[0]
         .last_viewed_at,
     ).not.toBeNull();
+  });
+});
+
+describe("write_shared_cell: the only path a client's edit can ever take", () => {
+  it("rejects a token that does not exist", async () => {
+    await expect(
+      rpc("write_shared_cell", [
+        hashOf("never-issued"),
+        randomUUID(),
+        "client_notes",
+        JSON.stringify("x"),
+      ]),
+    ).rejects.toThrow("no longer valid");
+  });
+  it("denies a revoked or expired link", async () => {
+    const { cid, rid, rcId } = await pipeline("write-revoked", 0);
+    const revoked = await shareLink(cid, rid, "all_profiles", ["client_notes"], {
+      editable: ["client_notes"],
+    });
+    await asUser(actor, () => rpc("revoke_share_link", [revoked.id]));
+    await expect(
+      rpc("write_shared_cell", [hashOf(revoked.token), rcId, "client_notes", JSON.stringify("x")]),
+    ).rejects.toThrow("revoked");
+    const expired = await shareLink(cid, rid, "all_profiles", ["client_notes"], {
+      editable: ["client_notes"],
+    });
+    await sql("update public.role_share_links set expires_at=now()-interval '1 day' where id=$1", [
+      expired.id,
+    ]);
+    await expect(
+      rpc("write_shared_cell", [hashOf(expired.token), rcId, "client_notes", JSON.stringify("x")]),
+    ).rejects.toThrow("expired");
+  });
+  it("refuses a column not marked editable, even if it is visible", async () => {
+    const { cid, rid, rcId, candidateId } = await pipeline("write-not-editable", 0);
+    const { token } = await shareLink(cid, rid, "all_profiles", ["full_name", "client_notes"], {
+      editable: ["client_notes"],
+    });
+    await expect(
+      rpc("write_shared_cell", [hashOf(token), rcId, "full_name", JSON.stringify("Hacked")]),
+    ).rejects.toThrow("cannot be edited");
+    expect(
+      (await sql("select full_name from public.candidates where id=$1", [candidateId])).rows[0]
+        .full_name,
+    ).not.toBe("Hacked");
+  });
+  it("refuses a candidate outside this link's own role and stage", async () => {
+    const { cid, rid, rcId } = await pipeline("write-scope-a", 0);
+    const other = await pipeline("write-scope-b", 0);
+    const { token } = await shareLink(cid, rid, "all_profiles", ["client_notes"], {
+      editable: ["client_notes"],
+    });
+    await expect(
+      rpc("write_shared_cell", [hashOf(token), other.rcId, "client_notes", JSON.stringify("x")]),
+    ).rejects.toThrow("Candidate not found");
+    await asUser(actor, () => rpc("move_stage", [cid, [rcId], "recruiter_shortlisted", ""]));
+    await expect(
+      rpc("write_shared_cell", [hashOf(token), rcId, "client_notes", JSON.stringify("x")]),
+    ).rejects.toThrow("Candidate not found");
+  });
+  it("writes client_notes and records the edit as the client, not the recruiter", async () => {
+    const { cid, rid, rcId } = await pipeline("write-notes", 0);
+    const { token } = await shareLink(cid, rid, "all_profiles", ["full_name", "client_notes"], {
+      editable: ["client_notes"],
+    });
+    await rpc("write_shared_cell", [hashOf(token), rcId, "client_notes", JSON.stringify("Great fit")]);
+    expect(
+      (await sql("select client_notes from public.role_candidates where id=$1", [rcId])).rows[0]
+        .client_notes,
+    ).toBe("Great fit");
+    const event = (
+      await sql(
+        "select actor,share_link_id,detail from public.role_candidate_events where role_candidate_id=$1 and kind='client_edit'",
+        [rcId],
+      )
+    ).rows[0];
+    expect(event.actor).toBeNull();
+    expect(event.detail).toEqual({
+      column: "client_notes",
+      previousValue: "",
+      value: "Great fit",
+    });
+    const projected = await rpc("read_shared_stage", [hashOf(token)]);
+    expect(projected.rows[0].client_notes).toBe("Great fit");
+  });
+  it("validates interview_at as a real date and rejects garbage", async () => {
+    const { cid, rid, rcId } = await pipeline("write-interview", 0);
+    const { token } = await shareLink(cid, rid, "all_profiles", ["interview_at"], {
+      editable: ["interview_at"],
+    });
+    await expect(
+      rpc("write_shared_cell", [hashOf(token), rcId, "interview_at", JSON.stringify("not-a-date")]),
+    ).rejects.toThrow("valid date");
+    await rpc("write_shared_cell", [
+      hashOf(token),
+      rcId,
+      "interview_at",
+      JSON.stringify("2026-10-01T10:00:00Z"),
+    ]);
+    expect(
+      (await sql("select interview_at from public.role_candidates where id=$1", [rcId])).rows[0]
+        .interview_at,
+    ).toEqual(new Date("2026-10-01T10:00:00Z"));
+  });
+  it("clears interview_at back to null", async () => {
+    const { cid, rid, rcId } = await pipeline("write-interview-clear", 0);
+    const { token } = await shareLink(cid, rid, "all_profiles", ["interview_at"], {
+      editable: ["interview_at"],
+    });
+    await rpc("write_shared_cell", [
+      hashOf(token),
+      rcId,
+      "interview_at",
+      JSON.stringify("2026-10-01T10:00:00Z"),
+    ]);
+    await rpc("write_shared_cell", [hashOf(token), rcId, "interview_at", null]);
+    expect(
+      (await sql("select interview_at from public.role_candidates where id=$1", [rcId])).rows[0]
+        .interview_at,
+    ).toBeNull();
+  });
+  it("validates a custom field's value by its own kind, same rules as save_custom_field", async () => {
+    const { cid, rid, rcId } = await pipeline("write-custom", 0);
+    const fid = await asUser(actor, () =>
+      rpc("add_role_field", [cid, rid, "Willing to relocate", "boolean", "[]"]),
+    );
+    const key = (await sql("select key from public.role_fields where id=$1", [fid])).rows[0].key;
+    const { token } = await shareLink(cid, rid, "all_profiles", [key], { editable: [key] });
+    await expect(
+      rpc("write_shared_cell", [hashOf(token), rcId, key, JSON.stringify("yes")]),
+    ).rejects.toThrow("Choose yes or no");
+    await rpc("write_shared_cell", [hashOf(token), rcId, key, JSON.stringify(true)]);
+    expect(
+      (await sql("select custom from public.role_candidates where id=$1", [rcId])).rows[0].custom,
+    ).toEqual({ [key]: true });
+  });
+  it("refuses a custom field that was archived after the link was created", async () => {
+    const { cid, rid, rcId } = await pipeline("write-archived-field", 0);
+    const fid = await asUser(actor, () =>
+      rpc("add_role_field", [cid, rid, "Notice period", "text", "[]"]),
+    );
+    const key = (await sql("select key from public.role_fields where id=$1", [fid])).rows[0].key;
+    const { token } = await shareLink(cid, rid, "all_profiles", [key], { editable: [key] });
+    await asUser(actor, () => rpc("archive_role_field", [fid, true]));
+    await expect(
+      rpc("write_shared_cell", [hashOf(token), rcId, key, JSON.stringify("30 days")]),
+    ).rejects.toThrow("no longer exists");
+  });
+  it("throttles a link that writes too many times in a short window", async () => {
+    const { cid, rid, rcId } = await pipeline("write-throttle", 0);
+    const { id: linkId, token } = await shareLink(cid, rid, "all_profiles", ["client_notes"], {
+      editable: ["client_notes"],
+    });
+    // Simulate 60 prior writes directly, rather than making 60 real round
+    // trips, to exercise the same count the RPC itself reads.
+    await sql(
+      `insert into public.role_candidate_events(client_id,role_candidate_id,kind,share_link_id,created_at)
+       select $1,$2,'client_edit',$3,now() from generate_series(1,60)`,
+      [cid, rcId, linkId],
+    );
+    await expect(
+      rpc("write_shared_cell", [hashOf(token), rcId, "client_notes", JSON.stringify("one more")]),
+    ).rejects.toThrow("Too many changes");
   });
 });
 
