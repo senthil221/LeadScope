@@ -3,7 +3,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Archive, CircleHelp, Plus, SlidersHorizontal } from "lucide-react";
-import type { Client, MasterCandidate, Role, RoleCandidate } from "@/lib/types";
+import type {
+  Client,
+  MasterCandidate,
+  Role,
+  RoleCandidate,
+  RoleField,
+} from "@/lib/types";
 import {
   stages,
   stageLabels,
@@ -18,6 +24,8 @@ import { AddCandidatesDialog, type ImportSummary } from "./add-candidates";
 import { RejectDialog } from "./reject-dialog";
 import { RatingCell } from "./rating-cell";
 import { CandidatePanel } from "./candidate-panel";
+import { CustomFieldCell } from "./custom-field-cell";
+import { RoleFieldsDialog } from "./role-fields-dialog";
 
 async function act<T = { id: string }>(
   action: string,
@@ -69,6 +77,7 @@ export function RolePipeline({
   total,
   page,
   sourcingProspects,
+  roleFields,
 }: {
   client: Client;
   role: Role;
@@ -78,6 +87,7 @@ export function RolePipeline({
   total: number;
   page: number;
   sourcingProspects: { id: string; canonical_url: string; title: string }[];
+  roleFields: RoleField[];
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -93,6 +103,7 @@ export function RolePipeline({
   const [selected, setSelected] = useState<string[]>([]);
   const [rejecting, setRejecting] = useState(false);
   const [panelId, setPanelId] = useState<string | null>(null);
+  const [managingFields, setManagingFields] = useState(false);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -260,18 +271,26 @@ export function RolePipeline({
           </Link>
         ))}
       </div>
-      {tab === "all_profiles" && !role.archived && (
+      {tab !== "master_db" && (
         <div className="section-heading">
-          <h2>All profiles</h2>
+          <h2>{tab === "rejected" ? "Rejects" : stageLabels[tab as Stage]}</h2>
           <div className="row">
-            <button onClick={() => setApplying(true)}>
-              <SlidersHorizontal size={15} />
-              Apply threshold
-            </button>
-            <button className="primary small" onClick={() => setImporting(true)}>
-              <Plus size={15} />
-              Add candidates
-            </button>
+            <button onClick={() => setManagingFields(true)}>Manage columns</button>
+            {tab === "all_profiles" && !role.archived && (
+              <>
+                <button onClick={() => setApplying(true)}>
+                  <SlidersHorizontal size={15} />
+                  Apply threshold
+                </button>
+                <button
+                  className="primary small"
+                  onClick={() => setImporting(true)}
+                >
+                  <Plus size={15} />
+                  Add candidates
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -418,6 +437,9 @@ export function RolePipeline({
                 ) : (
                   <th>Rating</th>
                 )}
+                {roleFields.map((f) => (
+                  <th key={f.id}>{f.label}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -484,6 +506,17 @@ export function RolePipeline({
                       />
                     </td>
                   )}
+                  {roleFields.map((f) => (
+                    <td key={f.id}>
+                      <CustomFieldCell
+                        key={`${f.id}:${rc.id}:${JSON.stringify(rc.custom[f.key])}`}
+                        clientId={client.id}
+                        roleCandidateId={rc.id}
+                        field={f}
+                        value={rc.custom[f.key]}
+                      />
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>
@@ -540,6 +573,15 @@ export function RolePipeline({
           clientId={client.id}
           roleCandidate={roleCandidates.find((rc) => rc.id === panelId)!}
           onClose={() => setPanelId(null)}
+          onChanged={() => router.refresh()}
+        />
+      )}
+      {managingFields && (
+        <RoleFieldsDialog
+          clientId={client.id}
+          roleId={role.id}
+          fields={roleFields}
+          onClose={() => setManagingFields(false)}
           onChanged={() => router.refresh()}
         />
       )}

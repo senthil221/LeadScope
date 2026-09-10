@@ -770,6 +770,7 @@ export function Workspace({ data }: { data: PageData }) {
               total={data.total ?? 0}
               page={data.page ?? 1}
               sourcingProspects={data.sourcingProspects ?? []}
+              roleFields={data.roleFields ?? []}
             />
           )}
           {data.view === "excluded" && <ExcludedProfiles data={data} />}

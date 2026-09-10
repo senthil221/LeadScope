@@ -183,7 +183,7 @@ export default async function Page({
           data.total = result.count ?? 0;
         } else {
           const stage = isStage(stageParam) ? stageParam : "all_profiles";
-          const [rows, allStages] = await Promise.all([
+          const [rows, allStages, fields] = await Promise.all([
             db
               .from("role_candidates")
               .select("*,candidates(*)")
@@ -194,12 +194,19 @@ export default async function Page({
               .from("role_candidates")
               .select("stage")
               .eq("role_id", data.role!.id),
+            db
+              .from("role_fields")
+              .select("*")
+              .eq("role_id", data.role!.id)
+              .eq("archived", false)
+              .order("ordinal"),
           ]);
           data.roleCandidates = checked(rows) as unknown as RoleCandidate[];
           const counts: Record<string, number> = {};
           for (const row of checked(allStages) as { stage: string }[])
             counts[row.stage] = (counts[row.stage] ?? 0) + 1;
           data.roleCandidateCounts = counts;
+          data.roleFields = checked(fields);
           // Only the All profiles tab offers "Import from sourcing", so this
           // extra query is skipped on every other tab.
           if (stage === "all_profiles")

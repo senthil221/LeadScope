@@ -157,6 +157,7 @@ export type RoleCandidate = {
   rating: number | null;
   source: string;
   screening: Record<string, unknown>;
+  custom: Record<string, string | number | boolean>;
   internal_notes: string;
   client_notes: string;
   rejection_type: string | null;
@@ -165,6 +166,16 @@ export type RoleCandidate = {
   stage_entered_at: string;
   created_at: string;
   candidates: MasterCandidate;
+};
+export type RoleField = {
+  id: string;
+  role_id: string;
+  key: string;
+  label: string;
+  kind: "text" | "number" | "date" | "select" | "boolean";
+  options: string[];
+  ordinal: number;
+  archived: boolean;
 };
 export type Preflight = {
   revision: number;
@@ -225,4 +236,5 @@ export type PageData = {
   roleCandidateCounts?: Record<string, number>;
   masterCandidates?: MasterCandidate[];
   sourcingProspects?: { id: string; canonical_url: string; title: string }[];
+  roleFields?: RoleField[];
 };

@@ -288,6 +288,60 @@ export async function POST(request: Request) {
         );
         break;
       }
+      case "addRoleField": {
+        const p = z
+          .object({
+            clientId: uuid,
+            roleId: uuid,
+            label: z.string().trim().min(1).max(80),
+            kind: z.enum(["text", "number", "date", "select", "boolean"]),
+            options: z.array(z.string().trim().min(1).max(60)).max(20).default([]),
+          })
+          .parse(payload);
+        result = {
+          id: checked(
+            await db.rpc("add_role_field", {
+              p_client: p.clientId,
+              p_role: p.roleId,
+              p_label: p.label,
+              p_kind: p.kind,
+              p_options: p.options,
+            }),
+          ),
+        };
+        break;
+      }
+      case "archiveRoleField": {
+        const p = z
+          .object({ id: uuid, archived: z.boolean() })
+          .parse(payload);
+        checked(
+          await db.rpc("archive_role_field", {
+            p_id: p.id,
+            p_archived: p.archived,
+          }),
+        );
+        break;
+      }
+      case "customField": {
+        const p = z
+          .object({
+            clientId: uuid,
+            id: uuid,
+            key: z.string().min(1).max(50),
+            value: z.union([z.string(), z.number(), z.boolean()]).nullable(),
+          })
+          .parse(payload);
+        checked(
+          await db.rpc("save_custom_field", {
+            p_client: p.clientId,
+            p_id: p.id,
+            p_key: p.key,
+            p_value: p.value,
+          }),
+        );
+        break;
+      }
       case "duplicate": {
         const p = z.object({ id: uuid }).parse(payload);
         const campaign = checked(

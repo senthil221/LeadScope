@@ -2027,3 +2027,190 @@ describe("save_resume_path: recording where an uploaded resume landed", () => {
     ).rejects.toThrow("Candidate not found");
   });
 });
+
+async function field(
+  cid: string,
+  rid: string,
+  label: string,
+  kind = "text",
+  options: string[] = [],
+) {
+  return asUser(actor, () => rpc("add_role_field", [cid, rid, label, kind, JSON.stringify(options)]));
+}
+
+describe("add_role_field: role-level custom column definitions", () => {
+  it("denies a non-admin", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await expect(
+      asUser(outsider, () => rpc("add_role_field", [cid, rid, "Visa status", "text", "[]"])),
+    ).rejects.toThrow("Agency access");
+  });
+  it("derives a stable key from the label", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const id = await field(cid, rid, "Visa Status!!", "text");
+    expect(
+      (await sql("select key,label,kind from public.role_fields where id=$1", [id])).rows[0],
+    ).toEqual({ key: "visa_status", label: "Visa Status!!", kind: "text" });
+  });
+  it("appends a numeric suffix when two columns share a label", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const first = await field(cid, rid, "Notes");
+    const second = await field(cid, rid, "Notes");
+    const keys = (
+      await sql("select key from public.role_fields where id=any($1) order by key", [
+        [first, second],
+      ])
+    ).rows.map((r) => r.key);
+    expect(keys).toEqual(["notes", "notes_2"]);
+  });
+  it("requires at least one option for a dropdown column", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await expect(
+      asUser(actor, () => rpc("add_role_field", [cid, rid, "Stage", "select", "[]"])),
+    ).rejects.toThrow("between 1 and 20 options");
+  });
+  it("rejects an invalid kind, a blank label, and an archived or foreign role", async () => {
+    const cid = await client();
+    const other = await client();
+    const rid = await role(cid);
+    await expect(
+      asUser(actor, () => rpc("add_role_field", [cid, rid, "X", "currency", "[]"])),
+    ).rejects.toThrow("valid column type");
+    await expect(
+      asUser(actor, () => rpc("add_role_field", [cid, rid, "  ", "text", "[]"])),
+    ).rejects.toThrow("Enter a column name");
+    await expect(
+      asUser(actor, () => rpc("add_role_field", [other, rid, "X", "text", "[]"])),
+    ).rejects.toThrow("Restore this role");
+    await asUser(actor, () => rpc("archive_role", [rid, true]));
+    await expect(
+      asUser(actor, () => rpc("add_role_field", [cid, rid, "X", "text", "[]"])),
+    ).rejects.toThrow("Restore this role");
+  });
+  it("caps a role at 30 active custom columns", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    for (let i = 0; i < 30; i++) await field(cid, rid, `Field ${i}`);
+    await expect(field(cid, rid, "One too many")).rejects.toThrow("maximum of 30");
+  });
+});
+
+describe("archive_role_field: hides a column without touching stored values", () => {
+  it("fails for a column that does not exist", async () => {
+    await expect(
+      asUser(actor, () => rpc("archive_role_field", [randomUUID(), true])),
+    ).rejects.toThrow("Custom column not found");
+  });
+  it("stops accepting new values once archived, without clearing what is already saved", async () => {
+    const { cid, rid, rcId } = await pipeline("field-archive", 3);
+    const id = await field(cid, rid, "Visa status");
+    const key = (await sql("select key from public.role_fields where id=$1", [id])).rows[0].key;
+    await asUser(actor, () => rpc("save_custom_field", [cid, rcId, key, JSON.stringify("Valid")]));
+    await asUser(actor, () => rpc("archive_role_field", [id, true]));
+    await expect(
+      asUser(actor, () => rpc("save_custom_field", [cid, rcId, key, JSON.stringify("Changed")])),
+    ).rejects.toThrow("no longer exists");
+    expect(
+      (await sql("select custom from public.role_candidates where id=$1", [rcId])).rows[0]
+        .custom,
+    ).toEqual({ [key]: "Valid" });
+  });
+});
+
+describe("save_custom_field: one cell, one save, validated per column type", () => {
+  it("denies a non-admin", async () => {
+    const { cid, rid, rcId } = await pipeline("field-denied", 3);
+    const id = await field(cid, rid, "Note");
+    const key = (await sql("select key from public.role_fields where id=$1", [id])).rows[0].key;
+    await expect(
+      asUser(outsider, () => rpc("save_custom_field", [cid, rcId, key, JSON.stringify("x")])),
+    ).rejects.toThrow("Agency access");
+  });
+  it("saves a value for every column type and validates its shape", async () => {
+    const { cid, rid, rcId } = await pipeline("field-types", 3);
+    const textId = await field(cid, rid, "Note", "text");
+    const numberId = await field(cid, rid, "Score", "number");
+    const boolId = await field(cid, rid, "Willing to relocate", "boolean");
+    const selectId = await field(cid, rid, "Priority", "select", ["High", "Low"]);
+    const keys = Object.fromEntries(
+      (
+        await sql("select id,key from public.role_fields where id=any($1)", [
+          [textId, numberId, boolId, selectId],
+        ])
+      ).rows.map((r) => [r.id, r.key]),
+    );
+    await asUser(actor, () =>
+      rpc("save_custom_field", [cid, rcId, keys[textId], JSON.stringify("Looks strong")]),
+    );
+    await asUser(actor, () => rpc("save_custom_field", [cid, rcId, keys[numberId], JSON.stringify(8)]));
+    await asUser(actor, () =>
+      rpc("save_custom_field", [cid, rcId, keys[boolId], JSON.stringify(true)]),
+    );
+    await asUser(actor, () =>
+      rpc("save_custom_field", [cid, rcId, keys[selectId], JSON.stringify("High")]),
+    );
+    expect(
+      (await sql("select custom from public.role_candidates where id=$1", [rcId])).rows[0]
+        .custom,
+    ).toEqual({
+      [keys[textId]]: "Looks strong",
+      [keys[numberId]]: 8,
+      [keys[boolId]]: true,
+      [keys[selectId]]: "High",
+    });
+    await expect(
+      asUser(actor, () =>
+        rpc("save_custom_field", [cid, rcId, keys[numberId], JSON.stringify("not a number")]),
+      ),
+    ).rejects.toThrow("Enter a number");
+    await expect(
+      asUser(actor, () =>
+        rpc("save_custom_field", [cid, rcId, keys[boolId], JSON.stringify("yes")]),
+      ),
+    ).rejects.toThrow("Choose yes or no");
+  });
+  it("removes the key entirely when cleared, rather than storing a null", async () => {
+    const { cid, rid, rcId } = await pipeline("field-clear", 3);
+    const id = await field(cid, rid, "Note");
+    const key = (await sql("select key from public.role_fields where id=$1", [id])).rows[0].key;
+    await asUser(actor, () => rpc("save_custom_field", [cid, rcId, key, JSON.stringify("x")]));
+    await asUser(actor, () => rpc("save_custom_field", [cid, rcId, key, null]));
+    expect(
+      (await sql("select custom from public.role_candidates where id=$1", [rcId])).rows[0]
+        .custom,
+    ).toEqual({});
+  });
+  it("fails for a column key this role never defined", async () => {
+    const { cid, rcId } = await pipeline("field-unknown", 3);
+    await expect(
+      asUser(actor, () => rpc("save_custom_field", [cid, rcId, "made_up_key", JSON.stringify("x")])),
+    ).rejects.toThrow("no longer exists");
+  });
+  it("cannot reach a candidate outside this client, even with a same-named column", async () => {
+    const { rcId } = await pipeline("field-scope", 3);
+    const other = await client();
+    const id = await field(other, await role(other), "Note");
+    const key = (await sql("select key from public.role_fields where id=$1", [id])).rows[0].key;
+    // The lookup joins role_candidates scoped by client_id, so a role_candidate
+    // from a different client is invisible here regardless of whether some
+    // field with a matching key happens to exist in the caller's own client.
+    await expect(
+      asUser(actor, () => rpc("save_custom_field", [other, rcId, key, JSON.stringify("x")])),
+    ).rejects.toThrow("no longer exists");
+  });
+  it("survives a stage move unchanged, by construction", async () => {
+    const { cid, rid, rcId } = await pipeline("field-persist", 3);
+    const id = await field(cid, rid, "Note");
+    const key = (await sql("select key from public.role_fields where id=$1", [id])).rows[0].key;
+    await asUser(actor, () => rpc("save_custom_field", [cid, rcId, key, JSON.stringify("Persisted")]));
+    await asUser(actor, () => rpc("move_stage", [cid, [rcId], "recruiter_shortlisted", ""]));
+    expect(
+      (await sql("select custom from public.role_candidates where id=$1", [rcId])).rows[0]
+        .custom,
+    ).toEqual({ [key]: "Persisted" });
+  });
+});
