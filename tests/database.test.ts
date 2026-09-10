@@ -1866,3 +1866,164 @@ describe("apply_threshold: the only path that moves an already-rated candidate",
     ).rejects.toThrow("Role not found");
   });
 });
+
+describe("save_screening: recruiter screening answers and internal notes", () => {
+  it("denies a non-admin", async () => {
+    const { cid, rcId } = await pipeline("screen-denied", 3);
+    await expect(
+      asUser(outsider, () =>
+        rpc("save_screening", [cid, rcId, JSON.stringify({ interest: "yes" }), "note"]),
+      ),
+    ).rejects.toThrow("Agency access");
+  });
+  it("saves screening and internal notes together and logs one event", async () => {
+    const { cid, rcId } = await pipeline("screen-save", 3);
+    await asUser(actor, () =>
+      rpc("save_screening", [
+        cid,
+        rcId,
+        JSON.stringify({ interest: "yes", currentCtc: "12 LPA" }),
+        "Strong communicator.",
+      ]),
+    );
+    const row = (
+      await sql("select screening,internal_notes from public.role_candidates where id=$1", [
+        rcId,
+      ])
+    ).rows[0];
+    expect(row).toEqual({
+      screening: { interest: "yes", currentCtc: "12 LPA" },
+      internal_notes: "Strong communicator.",
+    });
+    expect(
+      (
+        await sql(
+          "select count(*)::int as n from public.role_candidate_events where role_candidate_id=$1 and kind='screening'",
+          [rcId],
+        )
+      ).rows[0].n,
+    ).toBe(1);
+  });
+  it("rejects a non-object screening payload and an oversized note", async () => {
+    const { cid, rcId } = await pipeline("screen-invalid", 3);
+    await expect(
+      asUser(actor, () => rpc("save_screening", [cid, rcId, JSON.stringify(["not an object"]), ""])),
+    ).rejects.toThrow("Invalid screening data");
+    await expect(
+      asUser(actor, () =>
+        rpc("save_screening", [cid, rcId, "{}", "x".repeat(4001)]),
+      ),
+    ).rejects.toThrow("Shorten the internal note");
+  });
+  it("cannot reach a candidate outside this client", async () => {
+    const { rcId } = await pipeline("screen-scope", 3);
+    const other = await client();
+    await expect(
+      asUser(actor, () => rpc("save_screening", [other, rcId, "{}", ""])),
+    ).rejects.toThrow("Candidate not found");
+  });
+});
+
+describe("update_candidate_details: correcting the reusable master record", () => {
+  it("denies a non-admin", async () => {
+    const id = await person("edit-denied");
+    await expect(
+      asUser(outsider, () =>
+        rpc("update_candidate_details", [id, "New Name", "", "", "", "", null, null, null]),
+      ),
+    ).rejects.toThrow("Agency access");
+  });
+  it("updates every editable field, including clearing phone and email", async () => {
+    const id = await person("edit-full", { phone: "+919876500000", email: "old@example.com" });
+    await asUser(actor, () =>
+      rpc("update_candidate_details", [
+        id,
+        "Corrected Name",
+        "Staff engineer",
+        "Newco",
+        "Principal engineer",
+        "Bengaluru",
+        9.5,
+        null,
+        null,
+      ]),
+    );
+    expect(
+      (
+        await sql(
+          "select full_name,headline,current_company,current_designation,location,total_experience_years,phone,email from public.candidates where id=$1",
+          [id],
+        )
+      ).rows[0],
+    ).toEqual({
+      full_name: "Corrected Name",
+      headline: "Staff engineer",
+      current_company: "Newco",
+      current_designation: "Principal engineer",
+      location: "Bengaluru",
+      total_experience_years: "9.5",
+      phone: null,
+      email: null,
+    });
+  });
+  it("rejects a blank name, an out-of-range experience, and an invalid email", async () => {
+    const id = await person("edit-invalid");
+    await expect(
+      asUser(actor, () => rpc("update_candidate_details", [id, "  ", "", "", "", "", null, null, null])),
+    ).rejects.toThrow("Enter a candidate name");
+    await expect(
+      asUser(actor, () =>
+        rpc("update_candidate_details", [id, "Name", "", "", "", "", 71, null, null]),
+      ),
+    ).rejects.toThrow("between 0 and 70");
+    await expect(
+      asUser(actor, () =>
+        rpc("update_candidate_details", [id, "Name", "", "", "", "", null, null, "not-an-email"]),
+      ),
+    ).rejects.toThrow("valid email");
+  });
+  it("fails for a candidate that does not exist", async () => {
+    await expect(
+      asUser(actor, () =>
+        rpc("update_candidate_details", [
+          randomUUID(),
+          "Name",
+          "",
+          "",
+          "",
+          "",
+          null,
+          null,
+          null,
+        ]),
+      ),
+    ).rejects.toThrow("Candidate not found");
+  });
+});
+
+describe("save_resume_path: recording where an uploaded resume landed", () => {
+  it("denies a non-admin", async () => {
+    const id = await person("resume-denied");
+    await expect(
+      asUser(outsider, () => rpc("save_resume_path", [id, `${id}/1.pdf`])),
+    ).rejects.toThrow("Agency access");
+  });
+  it("sets and clears the resume reference", async () => {
+    const id = await person("resume-set");
+    await asUser(actor, () => rpc("save_resume_path", [id, `${id}/1700000000000.pdf`]));
+    expect(
+      (await sql("select resume_path from public.candidates where id=$1", [id])).rows[0]
+        .resume_path,
+    ).toBe(`${id}/1700000000000.pdf`);
+    await asUser(actor, () => rpc("save_resume_path", [id, ""]));
+    expect(
+      (await sql("select resume_path from public.candidates where id=$1", [id])).rows[0]
+        .resume_path,
+    ).toBeNull();
+  });
+  it("fails for a candidate that does not exist", async () => {
+    await expect(
+      asUser(actor, () => rpc("save_resume_path", [randomUUID(), "x/1.pdf"])),
+    ).rejects.toThrow("Candidate not found");
+  });
+});

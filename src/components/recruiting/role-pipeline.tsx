@@ -17,6 +17,7 @@ import { RoleFormDialog } from "./role-form";
 import { AddCandidatesDialog, type ImportSummary } from "./add-candidates";
 import { RejectDialog } from "./reject-dialog";
 import { RatingCell } from "./rating-cell";
+import { CandidatePanel } from "./candidate-panel";
 
 async function act<T = { id: string }>(
   action: string,
@@ -91,6 +92,7 @@ export function RolePipeline({
   const [applyBusy, setApplyBusy] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [rejecting, setRejecting] = useState(false);
+  const [panelId, setPanelId] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -441,7 +443,19 @@ export function RolePipeline({
                     </td>
                   )}
                   <td>{date(rc.stage_entered_at)}</td>
-                  <td className="strong">{rc.candidates.full_name}</td>
+                  <td>
+                    {tab === "rejected" ? (
+                      <span className="strong">{rc.candidates.full_name}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="text-button strong"
+                        onClick={() => setPanelId(rc.id)}
+                      >
+                        {rc.candidates.full_name}
+                      </button>
+                    )}
+                  </td>
                   <td>{rc.candidates.current_designation || "—"}</td>
                   <td>{rc.candidates.current_company || "—"}</td>
                   <td>
@@ -519,6 +533,14 @@ export function RolePipeline({
             );
             router.refresh();
           }}
+        />
+      )}
+      {panelId && (
+        <CandidatePanel
+          clientId={client.id}
+          roleCandidate={roleCandidates.find((rc) => rc.id === panelId)!}
+          onClose={() => setPanelId(null)}
+          onChanged={() => router.refresh()}
         />
       )}
       {applying && (

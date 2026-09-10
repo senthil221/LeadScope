@@ -240,6 +240,54 @@ export async function POST(request: Request) {
         );
         break;
       }
+      case "screening": {
+        const p = z
+          .object({
+            clientId: uuid,
+            id: uuid,
+            screening: z.record(z.string(), z.unknown()).default({}),
+            internalNotes: z.string().max(4000).default(""),
+          })
+          .parse(payload);
+        checked(
+          await db.rpc("save_screening", {
+            p_client: p.clientId,
+            p_id: p.id,
+            p_screening: p.screening,
+            p_internal_notes: p.internalNotes,
+          }),
+        );
+        break;
+      }
+      case "candidateDetails": {
+        const p = z
+          .object({
+            id: uuid,
+            fullName: z.string().trim().min(1).max(200),
+            headline: z.string().max(300).default(""),
+            currentCompany: z.string().max(200).default(""),
+            currentDesignation: z.string().max(200).default(""),
+            location: z.string().max(200).default(""),
+            totalExperienceYears: z.number().min(0).max(70).nullable().default(null),
+            phone: z.string().max(40).nullable().default(null),
+            email: z.string().max(320).nullable().default(null),
+          })
+          .parse(payload);
+        checked(
+          await db.rpc("update_candidate_details", {
+            p_id: p.id,
+            p_full_name: p.fullName,
+            p_headline: p.headline,
+            p_current_company: p.currentCompany,
+            p_current_designation: p.currentDesignation,
+            p_location: p.location,
+            p_total_experience_years: p.totalExperienceYears,
+            p_phone: p.phone,
+            p_email: p.email,
+          }),
+        );
+        break;
+      }
       case "duplicate": {
         const p = z.object({ id: uuid }).parse(payload);
         const campaign = checked(

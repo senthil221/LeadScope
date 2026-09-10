@@ -145,6 +145,7 @@ export type MasterCandidate = {
   total_experience_years: number | null;
   phone: string | null;
   email: string | null;
+  resume_path: string | null;
   enrichment_state: string;
   created_at: string;
 };
@@ -155,6 +156,7 @@ export type RoleCandidate = {
   stage: string;
   rating: number | null;
   source: string;
+  screening: Record<string, unknown>;
   internal_notes: string;
   client_notes: string;
   rejection_type: string | null;
