@@ -49,7 +49,8 @@
   /* Shell + frame dimensions */
   --sidebar-w: 224px;
   --header-h: 56px;
-  --page-max: 1360px;
+  --page-max: 1480px;
+  --frame-pad: clamp(16px, 1.9vw, 30px);
 }
 
 /* ---------- Base ---------- */
@@ -135,7 +136,7 @@ code {
   line-height: 1.6;
 }
 .eyebrow {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -313,7 +314,7 @@ label {
 }
 label small {
   font-weight: 400;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   margin-top: -2px;
 }
@@ -329,7 +330,7 @@ label small {
 .optional {
   color: var(--faint);
   font-weight: 400;
-  font-size: 11px;
+  font-size: 12px;
   margin-left: 4px;
 }
 
@@ -668,7 +669,7 @@ label small {
   gap: 2px;
 }
 .shell-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -721,7 +722,11 @@ label small {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px 4px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+}
+.shell-user:hover {
+  background: #f6f8f4;
 }
 .avatar {
   background: var(--brand-soft);
@@ -742,7 +747,7 @@ label small {
 }
 .shell-user-meta strong {
   display: block;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
 }
 .shell-user-meta small {
@@ -751,7 +756,7 @@ label small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: 12px;
 }
 .shell-user form {
   margin-left: auto;
@@ -783,7 +788,9 @@ label small {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 0 32px;
+  max-width: var(--page-max);
+  width: 100%;
+  padding: 0 var(--frame-pad);
   background: var(--bg);
   position: sticky;
   top: 0;
@@ -832,10 +839,10 @@ label small {
    ============================================================ */
 
 .page-body {
-  max-width: var(--page-max);
   width: 100%;
-  margin: 0 auto;
-  padding: 28px 32px 72px;
+  max-width: var(--page-max);
+  margin: 0;
+  padding: 28px var(--frame-pad) 72px;
 }
 .page-header {
   display: flex;
@@ -888,7 +895,7 @@ label small {
 }
 .count {
   display: inline-block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   background: #edf0eb;
   color: var(--ink-soft);
@@ -979,7 +986,7 @@ tbody tr:hover {
   padding: 1px 6px;
   border-radius: 4px;
   margin-left: 6px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .filters {
   display: flex;
@@ -1182,7 +1189,7 @@ tbody tr:hover {
 .strategy {
   display: inline-block;
   text-transform: capitalize;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   background: var(--brand-soft);
   color: var(--brand-ink);
@@ -1447,7 +1454,7 @@ progress::-moz-progress-bar {
 }
 .review-metrics small {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
 }
 .detail-grid {
   display: grid;
@@ -1500,7 +1507,7 @@ blockquote {
 }
 .evidence-span small {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   margin-top: 4px;
 }
 details {
@@ -1739,7 +1746,7 @@ details h3 {
 }
 .setup-brand > small {
   color: #8ca793;
-  font-size: 11px;
+  font-size: 12px;
 }
 .setup-content {
   align-self: center;
@@ -1851,9 +1858,11 @@ details h3 {
 }
 @media (max-width: 1200px) {
   .shell-header {
+    max-width: none;
     padding: 0 24px;
   }
   .page-body {
+    max-width: none;
     padding: 24px 24px 56px;
   }
   .page-header {
@@ -1940,6 +1949,7 @@ details h3 {
     margin: 0;
   }
   .shell-header {
+    max-width: none;
     height: 48px;
     min-height: 48px;
     padding: 0 16px;
