@@ -7,6 +7,7 @@ import { resolve, sep } from "node:path";
 import { defaults, type CampaignConfig } from "../src/lib/domain";
 import { generateQueries, signature } from "../src/lib/queries";
 import { qualify } from "../src/lib/qualification";
+import { normalizeIdentity } from "../src/lib/recruiting/identity";
 
 let embedded: EmbeddedPostgres | undefined;
 let db: PgClient;
@@ -1067,5 +1068,417 @@ describe("actual migration, RLS and transactional RPCs", () => {
         ])
       ).rows[0].status,
     ).toBe("response_saved");
+  });
+});
+
+const recruitingTables = [
+  "candidates",
+  "candidate_identities",
+  "roles",
+  "role_candidates",
+  "role_candidate_events",
+];
+async function role(clientId: string, threshold = 3, name = "Senior engineer") {
+  return asUser(actor, () =>
+    rpc("save_role", [null, clientId, name, "", threshold, null]),
+  );
+}
+async function person(slug: string, fields: Record<string, unknown> = {}) {
+  const identity = normalizeIdentity(
+    "linkedin",
+    `https://www.linkedin.com/in/${slug}`,
+  );
+  return asUser(actor, () =>
+    rpc("upsert_candidate", [
+      `Candidate ${slug}`,
+      JSON.stringify([identity]),
+      JSON.stringify(fields),
+    ]),
+  );
+}
+async function pipeline(slug: string, threshold = 3) {
+  const cid = await client();
+  const rid = await role(cid, threshold);
+  const candidateId = await person(slug);
+  await asUser(actor, () =>
+    rpc("add_candidates_to_role", [cid, rid, [candidateId], "manual"]),
+  );
+  const rcId = (
+    await sql("select id from public.role_candidates where role_id=$1", [rid])
+  ).rows[0].id as string;
+  return { cid, rid, candidateId, rcId };
+}
+
+describe("recruiting foundation: roles, master candidates and pipeline history", () => {
+  it("grants authenticated read-only access to every recruiting table", async () => {
+    for (const table of recruitingTables) {
+      const grants = await sql(
+        "select privilege_type from information_schema.role_table_grants where table_schema='public' and table_name=$1 and grantee='authenticated'",
+        [table],
+      );
+      expect({ table, granted: grants.rows.map((r) => r.privilege_type) }).toEqual(
+        { table, granted: ["SELECT"] },
+      );
+      const secured = await sql(
+        "select relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and relname=$1",
+        [table],
+      );
+      expect({ table, rls: secured.rows[0].relrowsecurity }).toEqual({
+        table,
+        rls: true,
+      });
+    }
+  });
+  it("denies anon reads and recruiting RPCs entirely", async () => {
+    await sql("begin");
+    await sql("set local role anon");
+    await expect(sql("select * from public.roles")).rejects.toThrow();
+    await expect(sql("select * from public.candidates")).rejects.toThrow();
+    await expect(
+      sql("select public.save_role(null,null,'x','',3,null)"),
+    ).rejects.toThrow();
+    await sql("rollback");
+  });
+  it("denies non-admin and direct writes to recruiting tables", async () => {
+    const cid = await client();
+    await expect(
+      asUser(outsider, () => rpc("save_role", [null, cid, "Forbidden", "", 3, null])),
+    ).rejects.toThrow("Agency access");
+    await expect(
+      asUser(actor, () =>
+        sql("insert into public.roles(client_id,name) values($1,'bypass')", [cid]),
+      ),
+    ).rejects.toThrow();
+    await expect(
+      asUser(actor, () =>
+        sql("insert into public.candidates(full_name,created_by) values('bypass',$1)", [
+          actor,
+        ]),
+      ),
+    ).rejects.toThrow();
+  });
+  it("refuses a role candidate that crosses clients even with privileged writes", async () => {
+    const a = await client(),
+      b = await client();
+    const roleInB = await role(b);
+    const candidateId = await person("cross-client-guard");
+    await expect(
+      sql(
+        "insert into public.role_candidates(client_id,role_id,candidate_id) values($1,$2,$3)",
+        [a, roleInB, candidateId],
+      ),
+    ).rejects.toThrow();
+  });
+  it("resolves LinkedIn URL variants to one master candidate", async () => {
+    const first = await asUser(actor, () =>
+      rpc("upsert_candidate", [
+        "Priya Nair",
+        JSON.stringify([
+          normalizeIdentity("linkedin", "https://www.linkedin.com/in/priya-dedupe"),
+        ]),
+        "{}",
+      ]),
+    );
+    const second = await asUser(actor, () =>
+      rpc("upsert_candidate", [
+        "Priya N",
+        JSON.stringify([
+          normalizeIdentity("linkedin", "https://in.linkedin.com/in/priya-dedupe?trk=x"),
+        ]),
+        "{}",
+      ]),
+    );
+    expect(second).toBe(first);
+    expect(
+      (
+        await sql(
+          "select count(*)::int as n from public.candidate_identities where candidate_id=$1",
+          [first],
+        )
+      ).rows[0].n,
+    ).toBe(1);
+  });
+  it("never clears reusable contact data with a blank re-import", async () => {
+    const identity = JSON.stringify([
+      normalizeIdentity("linkedin", "https://www.linkedin.com/in/enriched-once"),
+    ]);
+    const id = await asUser(actor, () =>
+      rpc("upsert_candidate", [
+        "Enriched Person",
+        identity,
+        JSON.stringify({ phone: "+919876543210", location: "Chennai" }),
+      ]),
+    );
+    await asUser(actor, () =>
+      rpc("upsert_candidate", ["Enriched Person", identity, JSON.stringify({ phone: "" })]),
+    );
+    expect(
+      (await sql("select phone,location from public.candidates where id=$1", [id]))
+        .rows[0],
+    ).toEqual({ phone: "+919876543210", location: "Chennai" });
+  });
+  it("requires a mergeable identity and stops an ambiguous merge", async () => {
+    await expect(
+      asUser(actor, () =>
+        rpc("upsert_candidate", [
+          "Nameless",
+          JSON.stringify([{ kind: "phone", value: "+919000000001" }]),
+          "{}",
+        ]),
+      ),
+    ).rejects.toThrow("can be matched");
+    const a = await person("ambiguous-a");
+    const b = await person("ambiguous-b");
+    expect(a).not.toBe(b);
+    await expect(
+      asUser(actor, () =>
+        rpc("upsert_candidate", [
+          "Ambiguous",
+          JSON.stringify([
+            normalizeIdentity("linkedin", "https://www.linkedin.com/in/ambiguous-a"),
+            normalizeIdentity("linkedin", "https://www.linkedin.com/in/ambiguous-b"),
+          ]),
+          "{}",
+        ]),
+      ),
+    ).rejects.toThrow("different candidates");
+  });
+  it("adds a candidate to a role once, however many times it is submitted", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const candidateId = await person("added-once");
+    expect(
+      await asUser(actor, () =>
+        rpc("add_candidates_to_role", [cid, rid, [candidateId, candidateId], "csv"]),
+      ),
+    ).toEqual({ added: 1, alreadyInRole: 0 });
+    expect(
+      await asUser(actor, () =>
+        rpc("add_candidates_to_role", [cid, rid, [candidateId], "csv"]),
+      ),
+    ).toEqual({ added: 0, alreadyInRole: 1 });
+    expect(
+      (
+        await sql(
+          "select count(*)::int as n from public.role_candidate_events where kind='import' and client_id=$1",
+          [cid],
+        )
+      ).rows[0].n,
+    ).toBe(1);
+  });
+  it("keeps the same person in two roles without duplicating the master record", async () => {
+    const cid = await client();
+    const first = await role(cid, 3, "Backend engineer");
+    const second = await role(cid, 4, "Platform engineer");
+    const candidateId = await person("two-roles");
+    await asUser(actor, () =>
+      rpc("add_candidates_to_role", [cid, first, [candidateId], "manual"]),
+    );
+    await asUser(actor, () =>
+      rpc("add_candidates_to_role", [cid, second, [candidateId], "manual"]),
+    );
+    expect(
+      (
+        await sql(
+          "select count(*)::int as n from public.role_candidates where candidate_id=$1",
+          [candidateId],
+        )
+      ).rows[0].n,
+    ).toBe(2);
+    expect(
+      (
+        await sql("select count(*)::int as n from public.candidates where id=$1", [
+          candidateId,
+        ])
+      ).rows[0].n,
+    ).toBe(1);
+  });
+  it("records one event per stage move and never rewrites created_at", async () => {
+    const { cid, rcId } = await pipeline("stage-history");
+    const before = (
+      await sql("select created_at,stage from public.role_candidates where id=$1", [
+        rcId,
+      ])
+    ).rows[0];
+    await asUser(actor, () =>
+      rpc("move_stage", [cid, [rcId], "profile_shortlisted", "Rated above floor"]),
+    );
+    const events = await sql(
+      "select from_stage,to_stage,actor,reason from public.role_candidate_events where role_candidate_id=$1 and kind='stage'",
+      [rcId],
+    );
+    expect(events.rows).toEqual([
+      {
+        from_stage: "all_profiles",
+        to_stage: "profile_shortlisted",
+        actor,
+        reason: "Rated above floor",
+      },
+    ]);
+    const after = (
+      await sql(
+        "select created_at,stage,stage_entered_at from public.role_candidates where id=$1",
+        [rcId],
+      )
+    ).rows[0];
+    expect(after.created_at).toEqual(before.created_at);
+    expect(after.stage).toBe("profile_shortlisted");
+    // Re-submitting the same stage writes no second history row.
+    await asUser(actor, () =>
+      rpc("move_stage", [cid, [rcId], "profile_shortlisted", ""]),
+    );
+    expect(
+      (
+        await sql(
+          "select count(*)::int as n from public.role_candidate_events where role_candidate_id=$1 and kind='stage'",
+          [rcId],
+        )
+      ).rows[0].n,
+    ).toBe(1);
+  });
+  it("refuses a stage move that targets rejection or another client", async () => {
+    const { cid, rcId } = await pipeline("stage-guards");
+    const other = await client();
+    await expect(
+      asUser(actor, () => rpc("move_stage", [cid, [rcId], "rejected", ""])),
+    ).rejects.toThrow("valid pipeline stage");
+    await expect(
+      asUser(actor, () => rpc("move_stage", [other, [rcId], "offer_sent", ""])),
+    ).rejects.toThrow("not in this client");
+  });
+  it("requires a reason to reject, in the RPC and in the table itself", async () => {
+    const { cid, rcId } = await pipeline("reject-reason");
+    await expect(
+      asUser(actor, () => rpc("reject_candidate", [cid, [rcId], "recruiter", "   "])),
+    ).rejects.toThrow("Enter a reason");
+    await expect(
+      asUser(actor, () => rpc("reject_candidate", [cid, [rcId], "unknown", "Not a fit"])),
+    ).rejects.toThrow("recruiter or client");
+    await expect(
+      sql(
+        "update public.role_candidates set stage='rejected',rejection_type='recruiter',rejection_reason='' where id=$1",
+        [rcId],
+      ),
+    ).rejects.toThrow();
+    await expect(
+      sql("update public.role_candidates set stage='rejected' where id=$1", [rcId]),
+    ).rejects.toThrow();
+  });
+  it("keeps rejected candidates readable and restores them cleanly", async () => {
+    const { cid, rcId } = await pipeline("reject-history");
+    await asUser(actor, () =>
+      rpc("move_stage", [cid, [rcId], "recruiter_shortlisted", ""]),
+    );
+    await asUser(actor, () =>
+      rpc("reject_candidate", [cid, [rcId], "client", "Salary expectation too high"]),
+    );
+    const rejected = (
+      await sql(
+        "select stage,rejection_type,rejection_reason,rejected_by from public.role_candidates where id=$1",
+        [rcId],
+      )
+    ).rows[0];
+    expect(rejected).toEqual({
+      stage: "rejected",
+      rejection_type: "client",
+      rejection_reason: "Salary expectation too high",
+      rejected_by: actor,
+    });
+    expect(
+      (
+        await sql(
+          "select from_stage,to_stage,reason from public.role_candidate_events where role_candidate_id=$1 and kind='reject'",
+          [rcId],
+        )
+      ).rows,
+    ).toEqual([
+      {
+        from_stage: "recruiter_shortlisted",
+        to_stage: "rejected",
+        reason: "Salary expectation too high",
+      },
+    ]);
+    await asUser(actor, () =>
+      rpc("move_stage", [cid, [rcId], "recruiter_shortlisted", "Client reconsidered"]),
+    );
+    expect(
+      (
+        await sql(
+          "select stage,rejection_type,rejection_reason,rejected_at from public.role_candidates where id=$1",
+          [rcId],
+        )
+      ).rows[0],
+    ).toEqual({
+      stage: "recruiter_shortlisted",
+      rejection_type: null,
+      rejection_reason: "",
+      rejected_at: null,
+    });
+  });
+  it("changes a rating threshold without touching a single candidate", async () => {
+    const { cid, rid, rcId } = await pipeline("threshold-frozen", 3);
+    await asUser(actor, () =>
+      rpc("move_stage", [cid, [rcId], "profile_shortlisted", ""]),
+    );
+    const before = (
+      await sql(
+        "select id,stage,rating,threshold_at_rating,stage_entered_at,updated_at from public.role_candidates where role_id=$1 order by id",
+        [rid],
+      )
+    ).rows;
+    const events = (
+      await sql(
+        "select count(*)::int as n from public.role_candidate_events where client_id=$1",
+        [cid],
+      )
+    ).rows[0].n;
+    await asUser(actor, () =>
+      rpc("save_role", [rid, cid, "Senior engineer", "Raised the bar", 5, 1]),
+    );
+    expect(
+      (await sql("select rating_threshold,revision from public.roles where id=$1", [rid]))
+        .rows[0],
+    ).toEqual({ rating_threshold: 5, revision: 2 });
+    expect(
+      (
+        await sql(
+          "select id,stage,rating,threshold_at_rating,stage_entered_at,updated_at from public.role_candidates where role_id=$1 order by id",
+          [rid],
+        )
+      ).rows,
+    ).toEqual(before);
+    expect(
+      (
+        await sql(
+          "select count(*)::int as n from public.role_candidate_events where client_id=$1",
+          [cid],
+        )
+      ).rows[0].n,
+    ).toBe(events);
+  });
+  it("guards role saves with revision, threshold range and client state", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await expect(
+      asUser(actor, () => rpc("save_role", [rid, cid, "Stale", "", 3, 99])),
+    ).rejects.toThrow("Another operator");
+    await expect(
+      asUser(actor, () => rpc("save_role", [null, cid, "Bad floor", "", 9, null])),
+    ).rejects.toThrow("between 0 and 5");
+    await asUser(actor, () => rpc("archive_entity", ["client", cid, true]));
+    await expect(
+      asUser(actor, () => rpc("save_role", [null, cid, "Archived", "", 3, null])),
+    ).rejects.toThrow("Restore this client");
+  });
+  it("refuses candidates for an archived role", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const candidateId = await person("archived-role");
+    await asUser(actor, () => rpc("archive_role", [rid, true]));
+    await expect(
+      asUser(actor, () =>
+        rpc("add_candidates_to_role", [cid, rid, [candidateId], "manual"]),
+      ),
+    ).rejects.toThrow("Restore this role");
   });
 });
