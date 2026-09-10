@@ -222,4 +222,5 @@ export type PageData = {
   roleCandidates?: RoleCandidate[];
   roleCandidateCounts?: Record<string, number>;
   masterCandidates?: MasterCandidate[];
+  sourcingProspects?: { id: string; canonical_url: string; title: string }[];
 };

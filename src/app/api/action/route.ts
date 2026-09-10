@@ -125,6 +125,48 @@ export async function POST(request: Request) {
         );
         break;
       }
+      case "importCandidates": {
+        const identity = z.object({
+          kind: z.enum(["linkedin", "naukri", "email", "phone", "external"]),
+          value: z.string().min(1).max(500),
+        });
+        const p = z
+          .object({
+            clientId: uuid,
+            roleId: uuid,
+            source: z.enum([
+              "linkedin",
+              "naukri",
+              "manual",
+              "url_paste",
+              "csv",
+              "sourcing_import",
+              "other",
+            ]),
+            rows: z
+              .array(
+                z.object({
+                  name: z.string().trim().min(1).max(200),
+                  identities: z.array(identity).min(1).max(10),
+                  fields: z
+                    .record(z.string(), z.union([z.string(), z.number()]))
+                    .default({}),
+                }),
+              )
+              .min(1)
+              .max(200),
+          })
+          .parse(payload);
+        result = checked(
+          await db.rpc("import_candidates", {
+            p_client: p.clientId,
+            p_role: p.roleId,
+            p_rows: p.rows,
+            p_source: p.source,
+          }),
+        );
+        break;
+      }
       case "duplicate": {
         const p = z.object({ id: uuid }).parse(payload);
         const campaign = checked(

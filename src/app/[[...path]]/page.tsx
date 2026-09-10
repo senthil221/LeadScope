@@ -200,6 +200,17 @@ export default async function Page({
           for (const row of checked(allStages) as { stage: string }[])
             counts[row.stage] = (counts[row.stage] ?? 0) + 1;
           data.roleCandidateCounts = counts;
+          // Only the All profiles tab offers "Import from sourcing", so this
+          // extra query is skipped on every other tab.
+          if (stage === "all_profiles")
+            data.sourcingProspects = checked(
+              await db
+                .from("accepted_prospect_rows")
+                .select("id,canonical_url,title")
+                .eq("client_id", clientId!)
+                .order("date_added", { ascending: false })
+                .limit(200),
+            );
         }
       });
     }

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { Archive, CircleHelp } from "lucide-react";
+import { Archive, CircleHelp, Plus } from "lucide-react";
 import type { Client, MasterCandidate, Role, RoleCandidate } from "@/lib/types";
 import {
   stages,
@@ -12,6 +12,7 @@ import {
   type Stage,
 } from "@/lib/recruiting/stages";
 import { RoleFormDialog } from "./role-form";
+import { AddCandidatesDialog, type ImportSummary } from "./add-candidates";
 
 async function act<T = { id: string }>(
   action: string,
@@ -62,6 +63,7 @@ export function RolePipeline({
   masterCandidates,
   total,
   page,
+  sourcingProspects,
 }: {
   client: Client;
   role: Role;
@@ -70,6 +72,7 @@ export function RolePipeline({
   masterCandidates: MasterCandidate[];
   total: number;
   page: number;
+  sourcingProspects: { id: string; canonical_url: string; title: string }[];
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -79,8 +82,10 @@ export function RolePipeline({
       ? "master_db"
       : "all_profiles";
   const [editing, setEditing] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const path = `/roles/${role.id}`;
   const pipelineTotal = Object.entries(counts)
     .filter(([stage]) => stage !== "rejected")
@@ -100,6 +105,18 @@ export function RolePipeline({
     return `${path}?${p}`;
   };
 
+  function summarize(summary: ImportSummary) {
+    setImporting(false);
+    const parts = [
+      summary.created && `${summary.created} added`,
+      summary.matchedExisting &&
+        `${summary.matchedExisting} matched an existing candidate`,
+      summary.alreadyInRole && `${summary.alreadyInRole} already in this role`,
+      summary.invalid && `${summary.invalid} skipped as invalid`,
+    ].filter(Boolean);
+    setMessage(parts.length ? parts.join(", ") + "." : "Nothing to import.");
+    router.refresh();
+  }
   async function toggleArchive() {
     if (busy) return;
     setBusy(true);
@@ -135,6 +152,11 @@ export function RolePipeline({
       {error && (
         <p className="toast error" role="alert">
           {error}
+        </p>
+      )}
+      {message && (
+        <p className="toast success" role="status">
+          {message}
         </p>
       )}
       {role.archived && (
@@ -178,6 +200,15 @@ export function RolePipeline({
           </Link>
         ))}
       </div>
+      {tab === "all_profiles" && !role.archived && (
+        <div className="section-heading">
+          <h2>All profiles</h2>
+          <button className="primary small" onClick={() => setImporting(true)}>
+            <Plus size={15} />
+            Add candidates
+          </button>
+        </div>
+      )}
       {tab === "master_db" ? (
         <>
           <form
@@ -330,6 +361,15 @@ export function RolePipeline({
             setEditing(false);
             router.refresh();
           }}
+        />
+      )}
+      {importing && (
+        <AddCandidatesDialog
+          clientId={client.id}
+          roleId={role.id}
+          sourcingProspects={sourcingProspects}
+          onClose={() => setImporting(false)}
+          onImported={summarize}
         />
       )}
     </>

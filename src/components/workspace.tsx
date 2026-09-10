@@ -769,6 +769,7 @@ export function Workspace({ data }: { data: PageData }) {
               masterCandidates={data.masterCandidates ?? []}
               total={data.total ?? 0}
               page={data.page ?? 1}
+              sourcingProspects={data.sourcingProspects ?? []}
             />
           )}
           {data.view === "excluded" && <ExcludedProfiles data={data} />}

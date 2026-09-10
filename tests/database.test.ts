@@ -1482,3 +1482,193 @@ describe("recruiting foundation: roles, master candidates and pipeline history",
     ).rejects.toThrow("Restore this role");
   });
 });
+
+function linkedinRow(slug: string, overrides: Record<string, unknown> = {}) {
+  return {
+    name: `Candidate ${slug}`,
+    identities: [normalizeIdentity("linkedin", `https://www.linkedin.com/in/${slug}`)],
+    fields: {},
+    ...overrides,
+  };
+}
+
+describe("import_candidates: bulk import shared by paste, manual, CSV and sourcing", () => {
+  it("rejects an unsupported source and an out-of-range batch size", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await expect(
+      asUser(actor, () =>
+        rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("bad-source")]), "invented"]),
+      ),
+    ).rejects.toThrow("Unsupported candidate source");
+    await expect(
+      asUser(actor, () => rpc("import_candidates", [cid, rid, JSON.stringify([]), "manual"])),
+    ).rejects.toThrow("between 1 and 200");
+    await expect(
+      asUser(actor, () =>
+        rpc("import_candidates", [
+          cid,
+          rid,
+          JSON.stringify(Array.from({ length: 201 }, (_, i) => linkedinRow(`over-${i}`))),
+          "manual",
+        ]),
+      ),
+    ).rejects.toThrow("between 1 and 200");
+  });
+  it("refuses an import into another client's role or an archived role", async () => {
+    const cid = await client();
+    const other = await client();
+    const rid = await role(cid);
+    await expect(
+      asUser(actor, () =>
+        rpc("import_candidates", [other, rid, JSON.stringify([linkedinRow("cross-client")]), "manual"]),
+      ),
+    ).rejects.toThrow("Restore this role");
+    await asUser(actor, () => rpc("archive_role", [rid, true]));
+    await expect(
+      asUser(actor, () =>
+        rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("archived")]), "manual"]),
+      ),
+    ).rejects.toThrow("Restore this role");
+  });
+  it("creates new candidates, adds them to the role, and writes one import event each", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const summary = await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        rid,
+        JSON.stringify([linkedinRow("bulk-a"), linkedinRow("bulk-b")]),
+        "url_paste",
+      ]),
+    );
+    expect(summary).toEqual({ created: 2, matchedExisting: 0, alreadyInRole: 0, invalid: 0 });
+    expect(
+      (await sql("select count(*)::int as n from public.role_candidates where role_id=$1", [rid]))
+        .rows[0].n,
+    ).toBe(2);
+    expect(
+      (
+        await sql(
+          "select count(*)::int as n from public.role_candidate_events where client_id=$1 and kind='import'",
+          [cid],
+        )
+      ).rows[0].n,
+    ).toBe(2);
+  });
+  it("resolves a candidate already in the master database as matchedExisting, never duplicating it", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const existing = await person("bulk-existing");
+    const summary = await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        rid,
+        JSON.stringify([linkedinRow("bulk-existing")]),
+        "csv",
+      ]),
+    );
+    expect(summary).toEqual({ created: 0, matchedExisting: 1, alreadyInRole: 0, invalid: 0 });
+    expect(
+      (
+        await sql("select candidate_id from public.role_candidates where role_id=$1", [rid])
+      ).rows[0].candidate_id,
+    ).toBe(existing);
+  });
+  it("counts a candidate already in this role without erroring or duplicating the row", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const first = await asUser(actor, () =>
+      rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("bulk-repeat")]), "manual"]),
+    );
+    expect(first.created).toBe(1);
+    const second = await asUser(actor, () =>
+      rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("bulk-repeat")]), "manual"]),
+    );
+    expect(second).toEqual({ created: 0, matchedExisting: 1, alreadyInRole: 1, invalid: 0 });
+    expect(
+      (await sql("select count(*)::int as n from public.role_candidates where role_id=$1", [rid]))
+        .rows[0].n,
+    ).toBe(1);
+  });
+  it("dedupes two rows in the same batch that share an identity", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const summary = await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        rid,
+        JSON.stringify([linkedinRow("same-batch"), linkedinRow("same-batch")]),
+        "csv",
+      ]),
+    );
+    expect(summary).toEqual({ created: 1, matchedExisting: 1, alreadyInRole: 1, invalid: 0 });
+    expect(
+      (await sql("select count(*)::int as n from public.role_candidates where role_id=$1", [rid]))
+        .rows[0].n,
+    ).toBe(1);
+  });
+  it("skips invalid rows and still imports the valid ones in the same batch", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const summary = await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        rid,
+        JSON.stringify([
+          linkedinRow("valid-one"),
+          { name: "", identities: [normalizeIdentity("linkedin", "https://www.linkedin.com/in/no-name")] },
+          { name: "No identity" },
+          { name: "Phone only", identities: [{ kind: "phone", value: "+919000000002" }] },
+          { name: "Bad kind", identities: [{ kind: "fax", value: "123" }] },
+        ]),
+        "csv",
+      ]),
+    );
+    expect(summary).toEqual({ created: 1, matchedExisting: 0, alreadyInRole: 0, invalid: 4 });
+  });
+  it("treats a row spanning two existing candidates as invalid rather than merging them", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await person("merge-guard-a");
+    await person("merge-guard-b");
+    const summary = await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        rid,
+        JSON.stringify([
+          {
+            name: "Ambiguous",
+            identities: [
+              normalizeIdentity("linkedin", "https://www.linkedin.com/in/merge-guard-a"),
+              normalizeIdentity("linkedin", "https://www.linkedin.com/in/merge-guard-b"),
+            ],
+          },
+        ]),
+        "manual",
+      ]),
+    );
+    expect(summary).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 0, invalid: 1 });
+  });
+  it("never clears reusable contact data with a blank field on a bulk re-import", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await person("bulk-enriched", { phone: "+919876500000" });
+    await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        rid,
+        JSON.stringify([linkedinRow("bulk-enriched", { fields: { phone: "" } })]),
+        "manual",
+      ]),
+    );
+    expect(
+      (
+        await sql(
+          "select c.phone from public.candidates c join public.candidate_identities i on i.candidate_id=c.id where i.kind='linkedin' and i.normalized_value=$1",
+          ["https://www.linkedin.com/in/bulk-enriched"],
+        )
+      ).rows[0].phone,
+    ).toBe("+919876500000");
+  });
+});
