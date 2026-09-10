@@ -123,6 +123,47 @@ export type SuppressionEvent = {
   active: boolean;
   created_at: string;
 };
+export type Role = {
+  id: string;
+  client_id: string;
+  name: string;
+  description: string;
+  rating_threshold: number;
+  status: string;
+  archived: boolean;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+};
+export type MasterCandidate = {
+  id: string;
+  full_name: string;
+  headline: string;
+  current_company: string;
+  current_designation: string;
+  location: string;
+  total_experience_years: number | null;
+  phone: string | null;
+  email: string | null;
+  enrichment_state: string;
+  created_at: string;
+};
+export type RoleCandidate = {
+  id: string;
+  role_id: string;
+  candidate_id: string;
+  stage: string;
+  rating: number | null;
+  source: string;
+  internal_notes: string;
+  client_notes: string;
+  rejection_type: string | null;
+  rejection_reason: string;
+  outcome: string | null;
+  stage_entered_at: string;
+  created_at: string;
+  candidates: MasterCandidate;
+};
 export type Preflight = {
   revision: number;
   queries: {
@@ -176,4 +217,9 @@ export type PageData = {
   reviewSeconds?: number;
   precision?: { accepted: number; adjudicated: number };
   dispatched?: number;
+  roles?: Role[];
+  role?: Role;
+  roleCandidates?: RoleCandidate[];
+  roleCandidateCounts?: Record<string, number>;
+  masterCandidates?: MasterCandidate[];
 };

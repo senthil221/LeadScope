@@ -88,6 +88,43 @@ export async function POST(request: Request) {
         );
         break;
       }
+      case "role": {
+        const p = z
+          .object({
+            id: uuid.optional(),
+            clientId: uuid,
+            name: z.string().trim().min(1).max(120),
+            description: z.string().max(4000).default(""),
+            ratingThreshold: z.number().int().min(0).max(5),
+            expectedRevision: z.number().int().min(1).optional(),
+          })
+          .parse(payload);
+        result = {
+          id: checked(
+            await db.rpc("save_role", {
+              p_id: p.id ?? null,
+              p_client: p.clientId,
+              p_name: p.name,
+              p_description: p.description,
+              p_threshold: p.ratingThreshold,
+              p_revision: p.expectedRevision ?? null,
+            }),
+          ),
+        };
+        break;
+      }
+      case "archiveRole": {
+        const p = z
+          .object({ id: uuid, archived: z.boolean() })
+          .parse(payload);
+        checked(
+          await db.rpc("archive_role", {
+            p_id: p.id,
+            p_archived: p.archived,
+          }),
+        );
+        break;
+      }
       case "duplicate": {
         const p = z.object({ id: uuid }).parse(payload);
         const campaign = checked(

@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Archive,
+  Briefcase,
   Check,
   CheckCheck,
   ChevronDown,
@@ -42,6 +43,8 @@ import { defaults, type CampaignConfig, type Query } from "@/lib/domain";
 import type { Client, PageData, Run } from "@/lib/types";
 import { ProspectSheet } from "./prospect-sheet";
 import { ExcludedProfiles } from "./excluded-profiles";
+import { RolesPage } from "./recruiting/roles";
+import { RolePipeline } from "./recruiting/role-pipeline";
 
 async function act<T = { id: string }>(
   action: string,
@@ -388,6 +391,15 @@ export function Workspace({ data }: { data: PageData }) {
                 Leads & review
               </Link>
               <Link
+                className={
+                  ["roles", "role"].includes(data.view) ? "active" : ""
+                }
+                href={`/clients/${client.id}/roles`}
+              >
+                <Briefcase size={18} />
+                Roles
+              </Link>
+              <Link
                 className={data.view === "settings" ? "active" : ""}
                 href={`/settings?client=${client.id}`}
               >
@@ -472,6 +484,14 @@ export function Workspace({ data }: { data: PageData }) {
                 href={`/leads?client=${client.id}`}
               >
                 Leads & review
+              </Link>
+              <Link
+                className={
+                  ["roles", "role"].includes(data.view) ? "active" : ""
+                }
+                href={`/clients/${client.id}/roles`}
+              >
+                Roles
               </Link>
               <Link
                 className={data.view === "prospects" ? "active" : ""}
@@ -737,6 +757,20 @@ export function Workspace({ data }: { data: PageData }) {
           )}
           {data.view === "runs" && <RunPage data={data} {...actions} />}
           {data.view === "leads" && <LeadsPage data={data} {...actions} />}
+          {data.view === "roles" && client && (
+            <RolesPage client={client} roles={data.roles ?? []} />
+          )}
+          {data.view === "role" && client && data.role && (
+            <RolePipeline
+              client={client}
+              role={data.role}
+              roleCandidates={data.roleCandidates ?? []}
+              counts={data.roleCandidateCounts ?? {}}
+              masterCandidates={data.masterCandidates ?? []}
+              total={data.total ?? 0}
+              page={data.page ?? 1}
+            />
+          )}
           {data.view === "excluded" && <ExcludedProfiles data={data} />}
           {data.view === "prospects" && client && (
             <ProspectSheet

@@ -6,7 +6,8 @@ import { Workspace } from "@/components/workspace";
 import { prospectFilters } from "@/lib/prospects";
 import { prospectQuery } from "@/lib/server/prospects";
 import { uuid } from "@/lib/domain";
-import type { PageData, Discovery, Lead } from "@/lib/types";
+import type { PageData, Discovery, Lead, RoleCandidate } from "@/lib/types";
+import { isStage } from "@/lib/recruiting/stages";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export default async function Page({
@@ -73,7 +74,9 @@ export default async function Page({
           ? "excluded"
           : path[2] === "prospects"
             ? "prospects"
-            : "client";
+            : path[2] === "roles"
+              ? "roles"
+              : "client";
     }
     if (path[0] === "campaigns") {
       data.view =
@@ -139,6 +142,67 @@ export default async function Page({
       data.runQueries = checked(queries);
       data.campaign = checked(campaign);
     }
+    if (path[0] === "roles" && path[1]) {
+      data.view = "role";
+      data.role = checked(
+        await db
+          .from("roles")
+          .select("*")
+          .eq("id", uuid.parse(path[1]))
+          .single(),
+      );
+      clientId = data.role!.client_id;
+      loads.push(async () => {
+        const stageParam = filter.stage ?? "all_profiles";
+        if (stageParam === "master_db") {
+          const page = Math.max(
+            1,
+            Math.min(100000, Math.floor(Number(filter.page) || 1)),
+          );
+          data.page = page;
+          let q = db.from("candidates").select("*", { count: "exact" });
+          if (filter.q?.trim()) {
+            const term = filter.q
+              .trim()
+              .slice(0, 200)
+              .replace(/[\\%_,]/g, "\\$&");
+            q = q.or(
+              [
+                `full_name.ilike.%${term}%`,
+                `headline.ilike.%${term}%`,
+                `current_company.ilike.%${term}%`,
+                `email.ilike.%${term}%`,
+              ].join(","),
+            );
+          }
+          const result = await q
+            .order("created_at", { ascending: false })
+            .order("id")
+            .range((page - 1) * 50, page * 50 - 1);
+          data.masterCandidates = checked(result);
+          data.total = result.count ?? 0;
+        } else {
+          const stage = isStage(stageParam) ? stageParam : "all_profiles";
+          const [rows, allStages] = await Promise.all([
+            db
+              .from("role_candidates")
+              .select("*,candidates(*)")
+              .eq("role_id", data.role!.id)
+              .eq("stage", stage)
+              .order("stage_entered_at", { ascending: false }),
+            db
+              .from("role_candidates")
+              .select("stage")
+              .eq("role_id", data.role!.id),
+          ]);
+          data.roleCandidates = checked(rows) as unknown as RoleCandidate[];
+          const counts: Record<string, number> = {};
+          for (const row of checked(allStages) as { stage: string }[])
+            counts[row.stage] = (counts[row.stage] ?? 0) + 1;
+          data.roleCandidateCounts = counts;
+        }
+      });
+    }
     if (path[0] === "leads" && path[1]) {
       data.view = "lead";
       data.lead = checked(
@@ -191,6 +255,7 @@ export default async function Page({
         "builder",
         "prospects",
         "excluded",
+        "roles",
       ].includes(data.view) &&
       !clientId
     )
@@ -262,6 +327,17 @@ export default async function Page({
         data.reviewSeconds = metric.seconds;
         data.precision = metric.precision;
         data.dispatched = metric.dispatched;
+      });
+    }
+    if (data.view === "roles") {
+      loads.push(async () => {
+        data.roles = checked(
+          await db
+            .from("roles")
+            .select("*")
+            .eq("client_id", clientId!)
+            .order("created_at", { ascending: false }),
+        );
       });
     }
     if (data.view === "prospects") {
@@ -342,6 +418,8 @@ export default async function Page({
         "leads",
         "lead",
         "settings",
+        "roles",
+        "role",
       ].includes(data.view)
     )
       notFound();
@@ -358,7 +436,7 @@ export default async function Page({
   }
   return (
     <Workspace
-      key={`${path.join("/")}:${filter.page ?? ""}:${filter.status ?? ""}:${filter.campaign ?? ""}:${filter.q ?? ""}:${filter.contact ?? ""}`}
+      key={`${path.join("/")}:${filter.page ?? ""}:${filter.status ?? ""}:${filter.campaign ?? ""}:${filter.q ?? ""}:${filter.contact ?? ""}:${filter.stage ?? ""}`}
       data={data}
     />
   );
