@@ -2,17 +2,21 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { Archive, CircleHelp, Plus } from "lucide-react";
+import { Archive, CircleHelp, Plus, SlidersHorizontal } from "lucide-react";
 import type { Client, MasterCandidate, Role, RoleCandidate } from "@/lib/types";
 import {
   stages,
   stageLabels,
   isStage,
+  nextStage,
   rejectionTypes,
+  type PipelineStage,
   type Stage,
 } from "@/lib/recruiting/stages";
 import { RoleFormDialog } from "./role-form";
 import { AddCandidatesDialog, type ImportSummary } from "./add-candidates";
+import { RejectDialog } from "./reject-dialog";
+import { RatingCell } from "./rating-cell";
 
 async function act<T = { id: string }>(
   action: string,
@@ -83,10 +87,19 @@ export function RolePipeline({
       : "all_profiles";
   const [editing, setEditing] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [applyBusy, setApplyBusy] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [rejecting, setRejecting] = useState(false);
+  const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const path = `/roles/${role.id}`;
+  // The bulk bar and rating cells only apply to the five pipeline stages;
+  // Rejects and Master DB stay read-only and unaffected by selection.
+  const isPipelineTab = tab !== "rejected" && tab !== "master_db";
+  const advanceTo = isPipelineTab ? nextStage(tab as PipelineStage) : null;
   const pipelineTotal = Object.entries(counts)
     .filter(([stage]) => stage !== "rejected")
     .reduce((sum, [, n]) => sum + n, 0);
@@ -128,6 +141,51 @@ export function RolePipeline({
       setError((e as Error).message);
     } finally {
       setBusy(false);
+    }
+  }
+  async function moveSelectedToNextStage() {
+    if (busy || !advanceTo || !selected.length) return;
+    setBusy(true);
+    setError("");
+    try {
+      await act("moveStage", {
+        clientId: client.id,
+        ids: selected,
+        toStage: advanceTo,
+        reason: note,
+      });
+      setSelected([]);
+      setNote("");
+      setMessage(
+        `Moved ${selected.length} candidate${selected.length > 1 ? "s" : ""} to ${stageLabels[advanceTo]}.`,
+      );
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function applyThreshold() {
+    if (applyBusy) return;
+    setApplyBusy(true);
+    setError("");
+    try {
+      const result = await act<{ moved: number }>("applyThreshold", {
+        clientId: client.id,
+        roleId: role.id,
+      });
+      setApplying(false);
+      setMessage(
+        result.moved
+          ? `${result.moved} candidate${result.moved > 1 ? "s" : ""} moved to Profile shortlisted.`
+          : "No candidates in All profiles currently meet the threshold.",
+      );
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setApplyBusy(false);
     }
   }
 
@@ -203,9 +261,35 @@ export function RolePipeline({
       {tab === "all_profiles" && !role.archived && (
         <div className="section-heading">
           <h2>All profiles</h2>
-          <button className="primary small" onClick={() => setImporting(true)}>
-            <Plus size={15} />
-            Add candidates
+          <div className="row">
+            <button onClick={() => setApplying(true)}>
+              <SlidersHorizontal size={15} />
+              Apply threshold
+            </button>
+            <button className="primary small" onClick={() => setImporting(true)}>
+              <Plus size={15} />
+              Add candidates
+            </button>
+          </div>
+        </div>
+      )}
+      {isPipelineTab && selected.length > 0 && (
+        <div className="bulk-bar">
+          <strong>{selected.length} selected</strong>
+          <input
+            aria-label="Optional note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Optional note"
+            maxLength={4000}
+          />
+          {advanceTo && (
+            <button disabled={busy} onClick={() => void moveSelectedToNextStage()}>
+              Move to {stageLabels[advanceTo]}
+            </button>
+          )}
+          <button disabled={busy} onClick={() => setRejecting(true)}>
+            Reject
           </button>
         </div>
       )}
@@ -302,6 +386,23 @@ export function RolePipeline({
           <table>
             <thead>
               <tr>
+                {isPipelineTab && (
+                  <th className="select-cell">
+                    <input
+                      aria-label="Select all visible candidates"
+                      type="checkbox"
+                      checked={
+                        roleCandidates.length > 0 &&
+                        selected.length === roleCandidates.length
+                      }
+                      onChange={(e) =>
+                        setSelected(
+                          e.target.checked ? roleCandidates.map((rc) => rc.id) : [],
+                        )
+                      }
+                    />
+                  </th>
+                )}
                 <th>Date added</th>
                 <th>Full name</th>
                 <th>Designation</th>
@@ -319,7 +420,26 @@ export function RolePipeline({
             </thead>
             <tbody>
               {roleCandidates.map((rc) => (
-                <tr key={rc.id}>
+                <tr
+                  key={rc.id}
+                  className={selected.includes(rc.id) ? "selected-row" : ""}
+                >
+                  {isPipelineTab && (
+                    <td>
+                      <input
+                        aria-label={`Select ${rc.candidates.full_name}`}
+                        type="checkbox"
+                        checked={selected.includes(rc.id)}
+                        onChange={(e) =>
+                          setSelected((old) =>
+                            e.target.checked
+                              ? [...old, rc.id]
+                              : old.filter((id) => id !== rc.id),
+                          )
+                        }
+                      />
+                    </td>
+                  )}
                   <td>{date(rc.stage_entered_at)}</td>
                   <td className="strong">{rc.candidates.full_name}</td>
                   <td>{rc.candidates.current_designation || "—"}</td>
@@ -339,7 +459,16 @@ export function RolePipeline({
                       <td>{rc.rejection_reason || "—"}</td>
                     </>
                   ) : (
-                    <td>{rc.rating != null ? `${rc.rating} / 5` : "Not rated"}</td>
+                    <td>
+                      <RatingCell
+                        key={`${rc.id}:${rc.rating}`}
+                        clientId={client.id}
+                        roleCandidateId={rc.id}
+                        rating={rc.rating}
+                        name={rc.candidates.full_name}
+                        onRated={() => router.refresh()}
+                      />
+                    </td>
                   )}
                 </tr>
               ))}
@@ -371,6 +500,60 @@ export function RolePipeline({
           onClose={() => setImporting(false)}
           onImported={summarize}
         />
+      )}
+      {rejecting && (
+        <RejectDialog
+          clientId={client.id}
+          ids={selected}
+          title={
+            selected.length === 1
+              ? `Reject ${roleCandidates.find((rc) => rc.id === selected[0])?.candidates.full_name ?? "candidate"}`
+              : `Reject ${selected.length} candidates`
+          }
+          onClose={() => setRejecting(false)}
+          onRejected={() => {
+            setRejecting(false);
+            setSelected([]);
+            setMessage(
+              `Rejected ${selected.length} candidate${selected.length > 1 ? "s" : ""}.`,
+            );
+            router.refresh();
+          }}
+        />
+      )}
+      {applying && (
+        <dialog open className="modal">
+          <div className="modal-heading">
+            <h2>Apply rating threshold</h2>
+          </div>
+          <p className="muted">
+            Moves every candidate still in All profiles whose rating already
+            meets the current threshold ({role.rating_threshold} / 5) to
+            Profile shortlisted. Candidates rated below the threshold, or not
+            yet rated, are left where they are.
+          </p>
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="row">
+            <button
+              className="primary"
+              disabled={applyBusy}
+              onClick={() => void applyThreshold()}
+            >
+              {applyBusy ? "Applying…" : "Apply threshold"}
+            </button>
+            <button
+              type="button"
+              disabled={applyBusy}
+              onClick={() => setApplying(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </dialog>
       )}
     </>
   );

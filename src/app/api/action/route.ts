@@ -167,6 +167,79 @@ export async function POST(request: Request) {
         );
         break;
       }
+      case "rate": {
+        const p = z
+          .object({
+            clientId: uuid,
+            id: uuid,
+            rating: z.number().int().min(0).max(5).nullable(),
+          })
+          .parse(payload);
+        checked(
+          await db.rpc("rate_candidate", {
+            p_client: p.clientId,
+            p_id: p.id,
+            p_rating: p.rating,
+          }),
+        );
+        break;
+      }
+      case "moveStage": {
+        const p = z
+          .object({
+            clientId: uuid,
+            ids: z.array(uuid).min(1).max(200),
+            toStage: z.enum([
+              "all_profiles",
+              "profile_shortlisted",
+              "recruiter_shortlisted",
+              "client_shortlisted",
+              "offer_sent",
+            ]),
+            reason: z.string().max(4000).default(""),
+          })
+          .parse(payload);
+        checked(
+          await db.rpc("move_stage", {
+            p_client: p.clientId,
+            p_ids: [...new Set(p.ids)],
+            p_to_stage: p.toStage,
+            p_reason: p.reason,
+          }),
+        );
+        break;
+      }
+      case "rejectCandidates": {
+        const p = z
+          .object({
+            clientId: uuid,
+            ids: z.array(uuid).min(1).max(200),
+            type: z.enum(["recruiter", "client"]),
+            reason: z.string().trim().min(1).max(4000),
+          })
+          .parse(payload);
+        checked(
+          await db.rpc("reject_candidate", {
+            p_client: p.clientId,
+            p_ids: [...new Set(p.ids)],
+            p_type: p.type,
+            p_reason: p.reason,
+          }),
+        );
+        break;
+      }
+      case "applyThreshold": {
+        const p = z
+          .object({ clientId: uuid, roleId: uuid })
+          .parse(payload);
+        result = checked(
+          await db.rpc("apply_threshold", {
+            p_client: p.clientId,
+            p_role: p.roleId,
+          }),
+        );
+        break;
+      }
       case "duplicate": {
         const p = z.object({ id: uuid }).parse(payload);
         const campaign = checked(

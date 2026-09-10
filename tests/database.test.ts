@@ -1672,3 +1672,197 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
     ).toBe("+919876500000");
   });
 });
+
+describe("rate_candidate: auto-advance out of All profiles only", () => {
+  it("rejects an out-of-range rating", async () => {
+    const { cid, rcId } = await pipeline("rate-range", 3);
+    await expect(
+      asUser(actor, () => rpc("rate_candidate", [cid, rcId, 6])),
+    ).rejects.toThrow("between 0 and 5");
+    await expect(
+      asUser(actor, () => rpc("rate_candidate", [cid, rcId, -1])),
+    ).rejects.toThrow("between 0 and 5");
+  });
+  it("fails for a candidate outside this client's scope", async () => {
+    const { rcId } = await pipeline("rate-scope", 3);
+    const other = await client();
+    await expect(
+      asUser(actor, () => rpc("rate_candidate", [other, rcId, 4])),
+    ).rejects.toThrow("Candidate not found");
+  });
+  it("advances to Profile shortlisted the moment the rating meets the threshold", async () => {
+    const { cid, rcId } = await pipeline("rate-meets", 3);
+    await asUser(actor, () => rpc("rate_candidate", [cid, rcId, 4]));
+    const row = (
+      await sql(
+        "select stage,rating,rated_by,threshold_at_rating from public.role_candidates where id=$1",
+        [rcId],
+      )
+    ).rows[0];
+    expect(row).toEqual({
+      stage: "profile_shortlisted",
+      rating: 4,
+      rated_by: actor,
+      threshold_at_rating: 3,
+    });
+    // rate_candidate always writes a rating event, then a stage event only
+    // because this row was still in All profiles; add_candidates_to_role's
+    // own import event from pipeline() setup is untouched alongside them.
+    // Both events can share one now() timestamp within the same transaction,
+    // so kind is asserted rather than a fragile created_at ordering.
+    const events = await sql(
+      "select kind,from_stage,to_stage from public.role_candidate_events where role_candidate_id=$1",
+      [rcId],
+    );
+    expect(events.rows).toEqual(
+      expect.arrayContaining([
+        { kind: "import", from_stage: null, to_stage: "all_profiles" },
+        { kind: "rating", from_stage: null, to_stage: null },
+        { kind: "stage", from_stage: "all_profiles", to_stage: "profile_shortlisted" },
+      ]),
+    );
+    expect(events.rows).toHaveLength(3);
+  });
+  it("stays in All profiles when the rating is below the threshold", async () => {
+    const { cid, rcId } = await pipeline("rate-below", 3);
+    await asUser(actor, () => rpc("rate_candidate", [cid, rcId, 2]));
+    expect(
+      (await sql("select stage,rating from public.role_candidates where id=$1", [rcId]))
+        .rows[0],
+    ).toEqual({ stage: "all_profiles", rating: 2 });
+    expect(
+      (
+        await sql(
+          "select count(*)::int as n from public.role_candidate_events where role_candidate_id=$1 and kind='stage'",
+          [rcId],
+        )
+      ).rows[0].n,
+    ).toBe(0);
+  });
+  it("never advances a candidate again once past All profiles, however high the rating", async () => {
+    const { cid, rcId } = await pipeline("rate-past", 3);
+    await asUser(actor, () => rpc("move_stage", [cid, [rcId], "recruiter_shortlisted", ""]));
+    await asUser(actor, () => rpc("rate_candidate", [cid, rcId, 5]));
+    expect(
+      (await sql("select stage,rating from public.role_candidates where id=$1", [rcId]))
+        .rows[0],
+    ).toEqual({ stage: "recruiter_shortlisted", rating: 5 });
+  });
+  it("is a no-op when the rating does not actually change", async () => {
+    const { cid, rcId } = await pipeline("rate-noop", 3);
+    await asUser(actor, () => rpc("rate_candidate", [cid, rcId, 2]));
+    const before = (
+      await sql("select updated_at from public.role_candidates where id=$1", [rcId])
+    ).rows[0].updated_at;
+    await asUser(actor, () => rpc("rate_candidate", [cid, rcId, 2]));
+    const after = (
+      await sql("select updated_at from public.role_candidates where id=$1", [rcId])
+    ).rows[0].updated_at;
+    expect(after).toEqual(before);
+    // One 'rating' event from the first call; the second, identical call
+    // writes nothing more. pipeline() setup's own 'import' event is separate.
+    expect(
+      (
+        await sql(
+          "select count(*)::int as n from public.role_candidate_events where role_candidate_id=$1 and kind='rating'",
+          [rcId],
+        )
+      ).rows[0].n,
+    ).toBe(1);
+  });
+  it("clears rated_by and rated_at along with the rating itself", async () => {
+    const { cid, rcId } = await pipeline("rate-clear", 3);
+    await asUser(actor, () => rpc("rate_candidate", [cid, rcId, 2]));
+    await asUser(actor, () => rpc("rate_candidate", [cid, rcId, null]));
+    expect(
+      (
+        await sql(
+          "select rating,rated_by,rated_at from public.role_candidates where id=$1",
+          [rcId],
+        )
+      ).rows[0],
+    ).toEqual({ rating: null, rated_by: null, rated_at: null });
+  });
+});
+
+describe("apply_threshold: the only path that moves an already-rated candidate", () => {
+  it("moves only All-profiles candidates whose rating already meets the current threshold", async () => {
+    const cid = await client();
+    const rid = await role(cid, 3);
+    const meets = await person("threshold-meets");
+    const below = await person("threshold-below");
+    const unrated = await person("threshold-unrated");
+    await asUser(actor, () =>
+      rpc("add_candidates_to_role", [cid, rid, [meets, below, unrated], "manual"]),
+    );
+    const rows = await sql(
+      "select id,candidate_id from public.role_candidates where role_id=$1",
+      [rid],
+    );
+    const idFor = (candidateId: string) =>
+      rows.rows.find((r) => r.candidate_id === candidateId)!.id as string;
+    // Written directly rather than via rate_candidate, whose own auto-advance
+    // would already move a qualifying row before apply_threshold ever runs.
+    // This isolates apply_threshold's own filter from that other RPC.
+    await sql("update public.role_candidates set rating=3 where id=$1", [idFor(meets)]);
+    await sql("update public.role_candidates set rating=1 where id=$1", [idFor(below)]);
+    const result = await asUser(actor, () => rpc("apply_threshold", [cid, rid]));
+    expect(result).toEqual({ moved: 1 });
+    expect(
+      (await sql("select stage,threshold_at_rating from public.role_candidates where id=$1", [
+        idFor(meets),
+      ])).rows[0],
+    ).toEqual({ stage: "profile_shortlisted", threshold_at_rating: 3 });
+    expect(
+      (await sql("select stage from public.role_candidates where id=$1", [idFor(below)]))
+        .rows[0].stage,
+    ).toBe("all_profiles");
+    expect(
+      (await sql("select stage from public.role_candidates where id=$1", [idFor(unrated)]))
+        .rows[0].stage,
+    ).toBe("all_profiles");
+  });
+  it("moves candidates that were rated before the threshold was raised, only when explicitly applied", async () => {
+    const { cid, rid, rcId } = await pipeline("threshold-retroactive", 2);
+    await asUser(actor, () => rpc("rate_candidate", [cid, rcId, 2]));
+    expect(
+      (await sql("select stage from public.role_candidates where id=$1", [rcId])).rows[0]
+        .stage,
+    ).toBe("profile_shortlisted");
+    // Move back to all_profiles to simulate a candidate still sitting there
+    // under the old, lower threshold once it is raised.
+    await sql(
+      "update public.role_candidates set stage='all_profiles',rejection_type=null,rejection_reason='' where id=$1",
+      [rcId],
+    );
+    await asUser(actor, () => rpc("save_role", [rid, cid, "Threshold retro", "", 5, 1]));
+    expect(
+      (await sql("select stage from public.role_candidates where id=$1", [rcId])).rows[0]
+        .stage,
+    ).toBe("all_profiles");
+    const first = await asUser(actor, () => rpc("apply_threshold", [cid, rid]));
+    expect(first).toEqual({ moved: 0 });
+    await asUser(actor, () => rpc("save_role", [rid, cid, "Threshold retro", "", 2, 2]));
+    const second = await asUser(actor, () => rpc("apply_threshold", [cid, rid]));
+    expect(second).toEqual({ moved: 1 });
+    // Distinct from the earlier auto-advance's own "met the threshold" event:
+    // this one specifically confirms apply_threshold, not rate_candidate,
+    // performed this move.
+    expect(
+      (
+        await sql(
+          "select count(*)::int as n from public.role_candidate_events where role_candidate_id=$1 and kind='stage' and reason='Threshold applied to already-rated candidates.'",
+          [rcId],
+        )
+      ).rows[0].n,
+    ).toBe(1);
+  });
+  it("fails for a role outside this client or that does not exist", async () => {
+    const cid = await client();
+    const other = await client();
+    const rid = await role(other);
+    await expect(
+      asUser(actor, () => rpc("apply_threshold", [cid, rid])),
+    ).rejects.toThrow("Role not found");
+  });
+});
