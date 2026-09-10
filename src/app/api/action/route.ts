@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { randomBytes, createHash } from "node:crypto";
 import { admin, checked, integrationDb, AppError } from "@/lib/server/db";
 import { body, failure } from "@/lib/server/http";
 import { setup } from "@/lib/server/config";
@@ -340,6 +341,64 @@ export async function POST(request: Request) {
             p_value: p.value,
           }),
         );
+        break;
+      }
+      case "createShareLink": {
+        const p = z
+          .object({
+            clientId: uuid,
+            roleId: uuid,
+            stage: z.enum([
+              "all_profiles",
+              "profile_shortlisted",
+              "recruiter_shortlisted",
+              "client_shortlisted",
+              "offer_sent",
+              "rejected",
+            ]),
+            visibleColumns: z.array(z.string().min(1).max(50)).min(1).max(30),
+            expiresAt: z.string().datetime().nullable().default(null),
+          })
+          .parse(payload);
+        // Generated and hashed here, matching signature() in queries.ts: the
+        // raw token never touches SQL and is returned to the browser exactly
+        // once, by this response.
+        const token = randomBytes(32).toString("hex");
+        const tokenHash = createHash("sha256").update(token).digest("hex");
+        const id = checked(
+          await db.rpc("create_share_link", {
+            p_client: p.clientId,
+            p_role: p.roleId,
+            p_stage: p.stage,
+            p_visible_columns: p.visibleColumns,
+            // Editable columns are not offered from this UI yet: sharing a
+            // stage is read-only until a later phase adds client write-back.
+            p_editable_columns: [],
+            p_expires_at: p.expiresAt,
+            p_token_hash: tokenHash,
+            p_token_prefix: token.slice(0, 8),
+          }),
+        );
+        result = { id, token };
+        break;
+      }
+      case "revokeShareLink": {
+        const p = z.object({ id: uuid }).parse(payload);
+        checked(await db.rpc("revoke_share_link", { p_id: p.id }));
+        break;
+      }
+      case "regenerateShareLink": {
+        const p = z.object({ id: uuid }).parse(payload);
+        const token = randomBytes(32).toString("hex");
+        const tokenHash = createHash("sha256").update(token).digest("hex");
+        checked(
+          await db.rpc("regenerate_share_link", {
+            p_id: p.id,
+            p_token_hash: tokenHash,
+            p_token_prefix: token.slice(0, 8),
+          }),
+        );
+        result = { token };
         break;
       }
       case "duplicate": {

@@ -2,13 +2,20 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { Archive, CircleHelp, Plus, SlidersHorizontal } from "lucide-react";
+import {
+  Archive,
+  CircleHelp,
+  Link as LinkIcon,
+  Plus,
+  SlidersHorizontal,
+} from "lucide-react";
 import type {
   Client,
   MasterCandidate,
   Role,
   RoleCandidate,
   RoleField,
+  ShareLink,
 } from "@/lib/types";
 import {
   stages,
@@ -26,6 +33,7 @@ import { RatingCell } from "./rating-cell";
 import { CandidatePanel } from "./candidate-panel";
 import { CustomFieldCell } from "./custom-field-cell";
 import { RoleFieldsDialog } from "./role-fields-dialog";
+import { ShareDialog } from "./share-dialog";
 
 async function act<T = { id: string }>(
   action: string,
@@ -78,6 +86,7 @@ export function RolePipeline({
   page,
   sourcingProspects,
   roleFields,
+  shareLinks,
 }: {
   client: Client;
   role: Role;
@@ -88,6 +97,7 @@ export function RolePipeline({
   page: number;
   sourcingProspects: { id: string; canonical_url: string; title: string }[];
   roleFields: RoleField[];
+  shareLinks: ShareLink[];
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -104,6 +114,7 @@ export function RolePipeline({
   const [rejecting, setRejecting] = useState(false);
   const [panelId, setPanelId] = useState<string | null>(null);
   const [managingFields, setManagingFields] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -276,6 +287,10 @@ export function RolePipeline({
           <h2>{tab === "rejected" ? "Rejects" : stageLabels[tab as Stage]}</h2>
           <div className="row">
             <button onClick={() => setManagingFields(true)}>Manage columns</button>
+            <button onClick={() => setSharing(true)}>
+              <LinkIcon size={15} />
+              Share with client
+            </button>
             {tab === "all_profiles" && !role.archived && (
               <>
                 <button onClick={() => setApplying(true)}>
@@ -582,6 +597,17 @@ export function RolePipeline({
           roleId={role.id}
           fields={roleFields}
           onClose={() => setManagingFields(false)}
+          onChanged={() => router.refresh()}
+        />
+      )}
+      {sharing && tab !== "master_db" && (
+        <ShareDialog
+          clientId={client.id}
+          roleId={role.id}
+          stage={tab}
+          links={shareLinks}
+          fields={roleFields}
+          onClose={() => setSharing(false)}
           onChanged={() => router.refresh()}
         />
       )}

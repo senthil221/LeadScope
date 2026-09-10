@@ -1,7 +1,7 @@
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { Client as PgClient } from "pg";
 import EmbeddedPostgres from "embedded-postgres";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { readFile, readdir, mkdir } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import { defaults, type CampaignConfig } from "../src/lib/domain";
@@ -2212,5 +2212,385 @@ describe("save_custom_field: one cell, one save, validated per column type", () 
       (await sql("select custom from public.role_candidates where id=$1", [rcId])).rows[0]
         .custom,
     ).toEqual({ [key]: "Persisted" });
+  });
+});
+
+function hashOf(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+function freshToken() {
+  const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
+  return { token, hash: hashOf(token), prefix: token.slice(0, 8) };
+}
+// The RPC no longer generates or returns a token: the app does that in Node
+// (see route.ts), matching what this test does here for exactly the same
+// reason (see the migration's own comment on create_share_link).
+async function shareLink(
+  cid: string,
+  rid: string,
+  stage: string,
+  visible: string[],
+  overrides: { editable?: string[]; expiresAt?: string | null } = {},
+) {
+  const { token, hash, prefix } = freshToken();
+  const id = await asUser(actor, () =>
+    rpc("create_share_link", [
+      cid,
+      rid,
+      stage,
+      visible,
+      overrides.editable ?? [],
+      overrides.expiresAt ?? null,
+      hash,
+      prefix,
+    ]),
+  );
+  return { id: id as string, token };
+}
+
+describe("role_share_links: anon has no path to any of it except the token itself", () => {
+  it("grants authenticated read-only access, matching every other recruiting table", async () => {
+    const grants = await sql(
+      "select privilege_type from information_schema.role_table_grants where table_schema='public' and table_name='role_share_links' and grantee='authenticated'",
+    );
+    expect(grants.rows.map((r) => r.privilege_type)).toEqual(["SELECT"]);
+  });
+  it("denies anon every table read", async () => {
+    await sql("begin");
+    await sql("set local role anon");
+    await expect(sql("select * from public.role_share_links")).rejects.toThrow();
+    await sql("rollback");
+  });
+  it("denies anon execute on every recruiting share function", async () => {
+    await sql("begin");
+    await sql("set local role anon");
+    await expect(
+      sql(
+        "select public.create_share_link(null,null,'all_profiles',array['full_name'],array[]::text[],null,repeat('a',64),'aaaaaaaa')",
+      ),
+    ).rejects.toThrow();
+    await expect(sql("select public.revoke_share_link(null)")).rejects.toThrow();
+    await expect(
+      sql("select public.regenerate_share_link(null,repeat('a',64),'aaaaaaaa')"),
+    ).rejects.toThrow();
+    await expect(sql("select public.read_shared_stage('x')")).rejects.toThrow();
+    await sql("rollback");
+  });
+  it("denies a logged-in operator execute on read_shared_stage: it is service_role only", async () => {
+    const { cid, rid, rcId } = await pipeline("share-authenticated-denied", 0);
+    await asUser(actor, () => rpc("move_stage", [cid, [rcId], "client_shortlisted", ""]));
+    const { token } = await shareLink(cid, rid, "client_shortlisted", ["full_name"]);
+    await expect(
+      asUser(actor, () => rpc("read_shared_stage", [hashOf(token)])),
+    ).rejects.toThrow();
+  });
+});
+
+describe("create_share_link: what can ever be shared", () => {
+  it("denies a non-admin", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await expect(
+      asUser(outsider, () => {
+        const fresh = freshToken();
+        return rpc("create_share_link", [
+          cid,
+          rid,
+          "all_profiles",
+          ["full_name"],
+          [],
+          null,
+          fresh.hash,
+          fresh.prefix,
+        ]);
+      }),
+    ).rejects.toThrow("Agency access");
+  });
+  it("refuses internal_notes as visible or editable, from the RPC and from the table itself", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await expect(
+      shareLink(cid, rid, "all_profiles", ["full_name", "internal_notes"]),
+    ).rejects.toThrow("Internal notes can never be shared");
+    await expect(
+      asUser(actor, () => {
+        const fresh = freshToken();
+        return rpc("create_share_link", [
+          cid,
+          rid,
+          "all_profiles",
+          ["full_name"],
+          ["internal_notes"],
+          null,
+          fresh.hash,
+          fresh.prefix,
+        ]);
+      }),
+    ).rejects.toThrow("Internal notes can never be shared");
+    // Direct privileged insert, bypassing the RPC entirely: the CHECK
+    // constraint is the actual backstop, not just application logic.
+    await expect(
+      sql(
+        "insert into public.role_share_links(client_id,role_id,stage,token_hash,token_prefix,visible_columns) values($1,$2,'all_profiles',repeat('x',64),'aaaaaaaa',array['internal_notes'])",
+        [cid, rid],
+      ),
+    ).rejects.toThrow();
+  });
+  it("requires at least one visible column and rejects an unknown one", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await expect(shareLink(cid, rid, "all_profiles", [])).rejects.toThrow(
+      "Choose at least one column",
+    );
+    await expect(
+      shareLink(cid, rid, "all_profiles", ["not_a_real_column"]),
+    ).rejects.toThrow("not available for this role");
+  });
+  it("accepts an active custom field key for this role", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const fid = await asUser(actor, () =>
+      rpc("add_role_field", [cid, rid, "Visa status", "text", "[]"]),
+    );
+    const key = (await sql("select key from public.role_fields where id=$1", [fid])).rows[0].key;
+    const { id } = await shareLink(cid, rid, "all_profiles", ["full_name", key]);
+    expect(
+      (await sql("select visible_columns from public.role_share_links where id=$1", [id]))
+        .rows[0].visible_columns,
+    ).toEqual(["full_name", key]);
+  });
+  it("requires an editable column to already be visible, from the RPC and from the table", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await expect(
+      asUser(actor, () => {
+        const fresh = freshToken();
+        return rpc("create_share_link", [
+          cid,
+          rid,
+          "all_profiles",
+          ["full_name"],
+          ["client_notes"],
+          null,
+          fresh.hash,
+          fresh.prefix,
+        ]);
+      }),
+    ).rejects.toThrow("must be visible");
+    await expect(
+      sql(
+        "insert into public.role_share_links(client_id,role_id,stage,token_hash,token_prefix,visible_columns,editable_columns) values($1,$2,'all_profiles',repeat('y',64),'bbbbbbbb',array['full_name'],array['client_notes'])",
+        [cid, rid],
+      ),
+    ).rejects.toThrow();
+  });
+  it("rejects an invalid stage and a role from another client", async () => {
+    const cid = await client();
+    const other = await client();
+    const rid = await role(cid);
+    await expect(
+      shareLink(cid, rid, "master_db", ["full_name"]),
+    ).rejects.toThrow("valid pipeline stage");
+    await expect(
+      shareLink(other, rid, "all_profiles", ["full_name"]),
+    ).rejects.toThrow("Role not found");
+  });
+  it("stores only the hash and prefix it is given, never the raw token", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const { id, token } = await shareLink(cid, rid, "all_profiles", ["full_name"]);
+    const stored = (
+      await sql("select token_hash,token_prefix from public.role_share_links where id=$1", [id])
+    ).rows[0];
+    expect(stored.token_hash).not.toBe(token);
+    expect(stored.token_hash).toBe(hashOf(token));
+    expect(stored.token_prefix).toBe(token.slice(0, 8));
+  });
+  it("rejects a malformed hash or prefix", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await expect(
+      asUser(actor, () =>
+        rpc("create_share_link", [cid, rid, "all_profiles", ["full_name"], [], null, "too-short", "aaaaaaaa"]),
+      ),
+    ).rejects.toThrow("Invalid share token");
+    await expect(
+      asUser(actor, () =>
+        rpc("create_share_link", [cid, rid, "all_profiles", ["full_name"], [], null, "a".repeat(64), "short"]),
+      ),
+    ).rejects.toThrow("Invalid share token");
+  });
+});
+
+describe("read_shared_stage: only what was chosen, nothing else, ever", () => {
+  it("projects only the requested columns as keys, never anything else", async () => {
+    const { cid, rid, rcId } = await pipeline("share-projection", 0);
+    await asUser(actor, () =>
+      rpc("save_screening", [cid, rcId, "{}", "Never shown to a client."]),
+    );
+    const candidateId = (
+      await sql("select candidate_id from public.role_candidates where id=$1", [rcId])
+    ).rows[0].candidate_id;
+    await asUser(actor, () =>
+      rpc("update_candidate_details", [
+        candidateId,
+        "Priya Nair",
+        "Senior engineer",
+        "Zetaflow",
+        "Staff engineer",
+        "Chennai",
+        7,
+        "+919876500000",
+        "priya@example.com",
+      ]),
+    );
+    const { token } = await shareLink(cid, rid, "all_profiles", ["full_name", "location"]);
+    const result = await rpc("read_shared_stage", [hashOf(token)]);
+    expect(result.rows).toHaveLength(1);
+    const row = result.rows[0];
+    expect(Object.keys(row).sort()).toEqual(["full_name", "id", "location"]);
+    expect(row.full_name).toBe("Priya Nair");
+    expect(row.location).toBe("Chennai");
+    expect(JSON.stringify(result)).not.toContain("Never shown to a client");
+    expect(JSON.stringify(result)).not.toContain("headline");
+    expect(JSON.stringify(result)).not.toContain("zetaflow");
+    expect(JSON.stringify(result)).not.toContain("919876500000");
+  });
+  it("includes a custom field's value and definition only when it is visible", async () => {
+    const { cid, rid, rcId } = await pipeline("share-custom", 0);
+    const fid = await asUser(actor, () =>
+      rpc("add_role_field", [cid, rid, "Notice period", "text", "[]"]),
+    );
+    const key = (await sql("select key from public.role_fields where id=$1", [fid])).rows[0].key;
+    await asUser(actor, () => rpc("save_custom_field", [cid, rcId, key, JSON.stringify("30 days")]));
+    const hiddenLink = await shareLink(cid, rid, "all_profiles", ["full_name"]);
+    const hidden = await rpc("read_shared_stage", [hashOf(hiddenLink.token)]);
+    expect(hidden.fields).toEqual([]);
+    expect(hidden.rows[0].custom).toBeUndefined();
+    const visibleLink = await shareLink(cid, rid, "all_profiles", ["full_name", key]);
+    const visible = await rpc("read_shared_stage", [hashOf(visibleLink.token)]);
+    expect(visible.fields).toEqual([{ key, label: "Notice period", kind: "text", options: [] }]);
+    expect(visible.rows[0].custom).toEqual({ [key]: "30 days" });
+  });
+  it("only returns candidates actually in the shared stage", async () => {
+    const { cid, rid, rcId } = await pipeline("share-stage-scope", 0);
+    await asUser(actor, () => rpc("move_stage", [cid, [rcId], "recruiter_shortlisted", ""]));
+    const { token } = await shareLink(cid, rid, "all_profiles", ["full_name"]);
+    const result = await rpc("read_shared_stage", [hashOf(token)]);
+    expect(result.rows).toEqual([]);
+  });
+  it("denies a revoked link", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const { id, token } = await shareLink(cid, rid, "all_profiles", ["full_name"]);
+    await asUser(actor, () => rpc("revoke_share_link", [id]));
+    await expect(rpc("read_shared_stage", [hashOf(token)])).rejects.toThrow("revoked");
+  });
+  it("denies an expired link", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const { id, token } = await shareLink(cid, rid, "all_profiles", ["full_name"]);
+    await sql("update public.role_share_links set expires_at=now()-interval '1 day' where id=$1", [
+      id,
+    ]);
+    await expect(rpc("read_shared_stage", [hashOf(token)])).rejects.toThrow("expired");
+  });
+  it("denies a token that does not exist", async () => {
+    await expect(
+      rpc("read_shared_stage", [hashOf("guessed-token-that-was-never-issued")]),
+    ).rejects.toThrow("no longer valid");
+  });
+  it("records that the link was viewed", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const { id, token } = await shareLink(cid, rid, "all_profiles", ["full_name"]);
+    expect(
+      (await sql("select last_viewed_at from public.role_share_links where id=$1", [id])).rows[0]
+        .last_viewed_at,
+    ).toBeNull();
+    await rpc("read_shared_stage", [hashOf(token)]);
+    expect(
+      (await sql("select last_viewed_at from public.role_share_links where id=$1", [id])).rows[0]
+        .last_viewed_at,
+    ).not.toBeNull();
+  });
+});
+
+describe("revoke_share_link and regenerate_share_link", () => {
+  it("denies a non-admin for both", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const { id } = await shareLink(cid, rid, "all_profiles", ["full_name"]);
+    await expect(asUser(outsider, () => rpc("revoke_share_link", [id]))).rejects.toThrow(
+      "Agency access",
+    );
+    const fresh = freshToken();
+    await expect(
+      asUser(outsider, () =>
+        rpc("regenerate_share_link", [id, fresh.hash, fresh.prefix]),
+      ),
+    ).rejects.toThrow("Agency access");
+  });
+  it("is idempotent and fails for a link that does not exist", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const { id } = await shareLink(cid, rid, "all_profiles", ["full_name"]);
+    await asUser(actor, () => rpc("revoke_share_link", [id]));
+    const first = (
+      await sql("select revoked_at from public.role_share_links where id=$1", [id])
+    ).rows[0].revoked_at;
+    await asUser(actor, () => rpc("revoke_share_link", [id]));
+    const second = (
+      await sql("select revoked_at from public.role_share_links where id=$1", [id])
+    ).rows[0].revoked_at;
+    expect(second).toEqual(first);
+    await expect(
+      asUser(actor, () => rpc("revoke_share_link", [randomUUID()])),
+    ).rejects.toThrow("not found");
+  });
+  it("issues a genuinely new token that invalidates the old one, and revives a revoked link", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const { id, token: oldToken } = await shareLink(cid, rid, "all_profiles", ["full_name"]);
+    await asUser(actor, () => rpc("revoke_share_link", [id]));
+    const fresh = freshToken();
+    await asUser(actor, () => rpc("regenerate_share_link", [id, fresh.hash, fresh.prefix]));
+    const newToken = fresh.token;
+    expect(newToken).not.toBe(oldToken);
+    await expect(rpc("read_shared_stage", [hashOf(oldToken)])).rejects.toThrow(
+      "no longer valid",
+    );
+    const result = await rpc("read_shared_stage", [hashOf(newToken)]);
+    expect(result.rows).toEqual([]);
+    expect(
+      (await sql("select revoked_at from public.role_share_links where id=$1", [id])).rows[0]
+        .revoked_at,
+    ).toBeNull();
+  });
+  it("fails to regenerate a link that does not exist", async () => {
+    const fresh = freshToken();
+    await expect(
+      asUser(actor, () =>
+        rpc("regenerate_share_link", [randomUUID(), fresh.hash, fresh.prefix]),
+      ),
+    ).rejects.toThrow("not found");
+  });
+});
+
+describe("role_candidate_events.share_link_id: the Phase 1 column finally has a home", () => {
+  it("accepts null but rejects a share link that does not exist", async () => {
+    const { cid, rcId } = await pipeline("share-event-fk", 0);
+    await expect(
+      sql(
+        "insert into public.role_candidate_events(client_id,role_candidate_id,kind,share_link_id) values($1,$2,'stage',$3)",
+        [cid, rcId, randomUUID()],
+      ),
+    ).rejects.toThrow();
+    await expect(
+      sql(
+        "insert into public.role_candidate_events(client_id,role_candidate_id,kind,share_link_id) values($1,$2,'stage',null)",
+        [cid, rcId],
+      ),
+    ).resolves.toBeDefined();
   });
 });

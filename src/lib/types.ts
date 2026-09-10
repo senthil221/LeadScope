@@ -177,6 +177,16 @@ export type RoleField = {
   ordinal: number;
   archived: boolean;
 };
+export type ShareLink = {
+  id: string;
+  stage: string;
+  token_prefix: string;
+  visible_columns: string[];
+  expires_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+  last_viewed_at: string | null;
+};
 export type Preflight = {
   revision: number;
   queries: {
@@ -237,4 +247,5 @@ export type PageData = {
   masterCandidates?: MasterCandidate[];
   sourcingProspects?: { id: string; canonical_url: string; title: string }[];
   roleFields?: RoleField[];
+  shareLinks?: ShareLink[];
 };

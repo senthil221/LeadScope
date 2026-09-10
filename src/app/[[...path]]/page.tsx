@@ -207,6 +207,18 @@ export default async function Page({
             counts[row.stage] = (counts[row.stage] ?? 0) + 1;
           data.roleCandidateCounts = counts;
           data.roleFields = checked(fields);
+          // token_hash is never selected; the app has no use for it and a
+          // hash of a never-reused secret has no reason to leave the database.
+          data.shareLinks = checked(
+            await db
+              .from("role_share_links")
+              .select(
+                "id,stage,token_prefix,visible_columns,expires_at,revoked_at,created_at,last_viewed_at",
+              )
+              .eq("role_id", data.role!.id)
+              .eq("stage", stage)
+              .order("created_at", { ascending: false }),
+          );
           // Only the All profiles tab offers "Import from sourcing", so this
           // extra query is skipped on every other tab.
           if (stage === "all_profiles")
