@@ -16,6 +16,8 @@ import type {
   RoleCandidate,
   RoleField,
   ShareLink,
+  StageDurationRow,
+  StageFunnelRow,
 } from "@/lib/types";
 import {
   stages,
@@ -35,6 +37,7 @@ import { CustomFieldCell } from "./custom-field-cell";
 import { OutcomeCell } from "./outcome-cell";
 import { RoleFieldsDialog } from "./role-fields-dialog";
 import { ShareDialog } from "./share-dialog";
+import { RoleAnalytics } from "./role-analytics";
 
 async function act<T = { id: string }>(
   action: string,
@@ -51,13 +54,14 @@ async function act<T = { id: string }>(
   return result;
 }
 
-type Tab = Stage | "master_db";
+type Tab = Stage | "master_db" | "analytics";
 const tabs: { key: Tab; label: string }[] = [
   ...stages
     .filter((s) => s !== "rejected")
     .map((s) => ({ key: s as Tab, label: stageLabels[s] })),
   { key: "rejected", label: "Rejects" },
   { key: "master_db", label: "Master DB" },
+  { key: "analytics", label: "Analytics" },
 ];
 
 const date = (s: string | null | undefined) =>
@@ -88,6 +92,8 @@ export function RolePipeline({
   sourcingProspects,
   roleFields,
   shareLinks,
+  stageFunnel,
+  stageDurations,
 }: {
   client: Client;
   role: Role;
@@ -99,13 +105,16 @@ export function RolePipeline({
   sourcingProspects: { id: string; canonical_url: string; title: string }[];
   roleFields: RoleField[];
   shareLinks: ShareLink[];
+  stageFunnel: StageFunnelRow[];
+  stageDurations: StageDurationRow[];
 }) {
   const router = useRouter();
   const params = useSearchParams();
-  const tab: Tab = isStage(params.get("stage") ?? "")
-    ? (params.get("stage") as Tab)
-    : params.get("stage") === "master_db"
-      ? "master_db"
+  const rawStage = params.get("stage") ?? "";
+  const tab: Tab = isStage(rawStage)
+    ? (rawStage as Tab)
+    : rawStage === "master_db" || rawStage === "analytics"
+      ? rawStage
       : "all_profiles";
   const [editing, setEditing] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -123,7 +132,8 @@ export function RolePipeline({
   const path = `/roles/${role.id}`;
   // The bulk bar and rating cells only apply to the five pipeline stages;
   // Rejects and Master DB stay read-only and unaffected by selection.
-  const isPipelineTab = tab !== "rejected" && tab !== "master_db";
+  const isPipelineTab =
+    tab !== "rejected" && tab !== "master_db" && tab !== "analytics";
   const advanceTo = isPipelineTab ? nextStage(tab as PipelineStage) : null;
   const pipelineTotal = Object.entries(counts)
     .filter(([stage]) => stage !== "rejected")
@@ -277,13 +287,13 @@ export function RolePipeline({
             href={tabUrl(key)}
           >
             {label}
-            <span>
-              {key === "master_db" ? total : (counts[key] ?? 0)}
-            </span>
+            {key !== "analytics" && (
+              <span>{key === "master_db" ? total : (counts[key] ?? 0)}</span>
+            )}
           </Link>
         ))}
       </div>
-      {tab !== "master_db" && (
+      {tab !== "master_db" && tab !== "analytics" && (
         <div className="section-heading">
           <h2>{tab === "rejected" ? "Rejects" : stageLabels[tab as Stage]}</h2>
           <div className="row">
@@ -330,7 +340,14 @@ export function RolePipeline({
           </button>
         </div>
       )}
-      {tab === "master_db" ? (
+      {tab === "analytics" ? (
+        <>
+          <div className="section-heading">
+            <h2>Analytics</h2>
+          </div>
+          <RoleAnalytics funnel={stageFunnel} durations={stageDurations} />
+        </>
+      ) : tab === "master_db" ? (
         <>
           <form
             className="sheet-toolbar"
@@ -613,7 +630,7 @@ export function RolePipeline({
           onChanged={() => router.refresh()}
         />
       )}
-      {sharing && tab !== "master_db" && (
+      {sharing && tab !== "master_db" && tab !== "analytics" && (
         <ShareDialog
           clientId={client.id}
           roleId={role.id}

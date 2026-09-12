@@ -178,6 +178,20 @@ export type RoleField = {
   ordinal: number;
   archived: boolean;
 };
+export type StageFunnelRow = {
+  role_id: string;
+  client_id: string;
+  stage: string;
+  ever_reached: number;
+  currently_here: number;
+};
+export type StageDurationRow = {
+  role_id: string;
+  client_id: string;
+  stage: string;
+  completed_count: number;
+  median_days: number | null;
+};
 export type ShareLink = {
   id: string;
   stage: string;
@@ -250,4 +264,6 @@ export type PageData = {
   sourcingProspects?: { id: string; canonical_url: string; title: string }[];
   roleFields?: RoleField[];
   shareLinks?: ShareLink[];
+  roleStageFunnel?: StageFunnelRow[];
+  roleStageDurations?: StageDurationRow[];
 };

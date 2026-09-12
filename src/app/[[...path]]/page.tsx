@@ -181,6 +181,27 @@ export default async function Page({
             .range((page - 1) * 50, page * 50 - 1);
           data.masterCandidates = checked(result);
           data.total = result.count ?? 0;
+        } else if (stageParam === "analytics") {
+          const [funnel, durations, allStages] = await Promise.all([
+            db
+              .from("role_stage_funnel")
+              .select("*")
+              .eq("role_id", data.role!.id),
+            db
+              .from("role_stage_durations")
+              .select("*")
+              .eq("role_id", data.role!.id),
+            db
+              .from("role_candidates")
+              .select("stage")
+              .eq("role_id", data.role!.id),
+          ]);
+          data.roleStageFunnel = checked(funnel);
+          data.roleStageDurations = checked(durations);
+          const counts: Record<string, number> = {};
+          for (const row of checked(allStages) as { stage: string }[])
+            counts[row.stage] = (counts[row.stage] ?? 0) + 1;
+          data.roleCandidateCounts = counts;
         } else {
           const stage = isStage(stageParam) ? stageParam : "all_profiles";
           const [rows, allStages, fields] = await Promise.all([

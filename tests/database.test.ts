@@ -3037,3 +3037,65 @@ describe("record_outcome: offer_sent -> offer_accepted|offer_declined -> joined"
     ).rejects.toThrow("not in this client");
   });
 });
+
+describe("role_stage_funnel and role_stage_durations: read-only analytics views", () => {
+  it("denies anon any access, same as every other recruiting surface", async () => {
+    await sql("begin");
+    await sql("set local role anon");
+    await expect(sql("select * from public.role_stage_funnel")).rejects.toThrow();
+    await expect(sql("select * from public.role_stage_durations")).rejects.toThrow();
+    await sql("rollback");
+  });
+  it("counts ever_reached and currently_here per stage, and times only completed stays", async () => {
+    const { rid, rcId, cid } = await pipeline("analytics-funnel", 0);
+    const importedAt = (
+      await sql(
+        "select created_at from public.role_candidate_events where role_candidate_id=$1 and kind='import'",
+        [rcId],
+      )
+    ).rows[0].created_at as Date;
+    const shortlistedAt = new Date(importedAt.getTime() + 2 * 86400000);
+    const recruiterAt = new Date(shortlistedAt.getTime() + 4 * 86400000);
+    await sql(
+      `insert into public.role_candidate_events(client_id,role_candidate_id,kind,to_stage,created_at)
+       values($1,$2,'stage','profile_shortlisted',$3),($1,$2,'stage','recruiter_shortlisted',$4)`,
+      [cid, rcId, shortlistedAt, recruiterAt],
+    );
+    await sql("update public.role_candidates set stage='recruiter_shortlisted' where id=$1", [rcId]);
+
+    const funnel = await sql(
+      "select stage,ever_reached,currently_here from public.role_stage_funnel where role_id=$1",
+      [rid],
+    );
+    const byStage: Record<string, { ever_reached: number; currently_here: number }> =
+      Object.fromEntries(funnel.rows.map((r) => [r.stage, r]));
+    expect(byStage.all_profiles).toMatchObject({ ever_reached: 1, currently_here: 0 });
+    expect(byStage.profile_shortlisted).toMatchObject({ ever_reached: 1, currently_here: 0 });
+    expect(byStage.recruiter_shortlisted).toMatchObject({ ever_reached: 1, currently_here: 1 });
+    expect(byStage.client_shortlisted).toMatchObject({ ever_reached: 0, currently_here: 0 });
+
+    const durations = await sql(
+      "select stage,completed_count,median_days from public.role_stage_durations where role_id=$1",
+      [rid],
+    );
+    const durByStage: Record<string, { completed_count: number; median_days: number }> =
+      Object.fromEntries(durations.rows.map((r) => [r.stage, r]));
+    expect(durByStage.all_profiles.completed_count).toBe(1);
+    expect(Number(durByStage.all_profiles.median_days)).toBeCloseTo(2, 0);
+    expect(durByStage.profile_shortlisted.completed_count).toBe(1);
+    expect(Number(durByStage.profile_shortlisted.median_days)).toBeCloseTo(4, 0);
+    expect(durByStage.recruiter_shortlisted).toBeUndefined();
+  });
+  it("counts a rejection as ever_reached('rejected') without leaving it in an earlier stage's currently_here", async () => {
+    const { cid, rid, rcId } = await pipeline("analytics-reject", 0);
+    await asUser(actor, () => rpc("reject_candidate", [cid, [rcId], "recruiter", "Not a fit"]));
+    const funnel = await sql(
+      "select stage,ever_reached,currently_here from public.role_stage_funnel where role_id=$1",
+      [rid],
+    );
+    const byStage: Record<string, { ever_reached: number; currently_here: number }> =
+      Object.fromEntries(funnel.rows.map((r) => [r.stage, r]));
+    expect(byStage.rejected).toMatchObject({ ever_reached: 1, currently_here: 1 });
+    expect(byStage.all_profiles).toMatchObject({ ever_reached: 1, currently_here: 0 });
+  });
+});

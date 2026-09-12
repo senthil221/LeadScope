@@ -590,6 +590,8 @@ export function Workspace({ data }: { data: PageData }) {
               sourcingProspects={data.sourcingProspects ?? []}
               roleFields={data.roleFields ?? []}
               shareLinks={data.shareLinks ?? []}
+              stageFunnel={data.roleStageFunnel ?? []}
+              stageDurations={data.roleStageDurations ?? []}
             />
           )}
           {data.view === "excluded" && <ExcludedProfiles data={data} />}
