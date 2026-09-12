@@ -213,7 +213,7 @@ export default async function Page({
             await db
               .from("role_share_links")
               .select(
-                "id,stage,token_prefix,visible_columns,expires_at,revoked_at,created_at,last_viewed_at",
+                "id,stage,token_prefix,visible_columns,allow_decisions,expires_at,revoked_at,created_at,last_viewed_at",
               )
               .eq("role_id", data.role!.id)
               .eq("stage", stage)

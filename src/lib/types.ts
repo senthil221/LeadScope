@@ -182,6 +182,7 @@ export type ShareLink = {
   stage: string;
   token_prefix: string;
   visible_columns: string[];
+  allow_decisions: boolean;
   expires_at: string | null;
   revoked_at: string | null;
   created_at: string;

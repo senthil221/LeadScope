@@ -358,6 +358,7 @@ export async function POST(request: Request) {
             ]),
             visibleColumns: z.array(z.string().min(1).max(50)).min(1).max(30),
             editableColumns: z.array(z.string().min(1).max(50)).max(30).default([]),
+            allowDecisions: z.boolean().default(false),
             expiresAt: z.string().datetime().nullable().default(null),
           })
           .parse(payload);
@@ -376,6 +377,7 @@ export async function POST(request: Request) {
             p_expires_at: p.expiresAt,
             p_token_hash: tokenHash,
             p_token_prefix: token.slice(0, 8),
+            p_allow_decisions: p.allowDecisions,
           }),
         );
         result = { id, token };

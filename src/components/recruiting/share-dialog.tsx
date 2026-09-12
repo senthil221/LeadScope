@@ -65,6 +65,7 @@ export function ShareDialog({
 }) {
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
   const [editableColumns, setEditableColumns] = useState<string[]>([]);
+  const [allowDecisions, setAllowDecisions] = useState(false);
   const [expiresAt, setExpiresAt] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -105,11 +106,13 @@ export function ShareDialog({
         stage,
         visibleColumns: selectedColumns,
         editableColumns,
+        allowDecisions,
         expiresAt: expiresAt ? new Date(`${expiresAt}T23:59:59`).toISOString() : null,
       });
       setJustCreated({ url: shareUrl(result.token), copied: false });
       setSelectedColumns([]);
       setEditableColumns([]);
+      setAllowDecisions(false);
       setExpiresAt("");
       onChanged();
     } catch (e) {
@@ -208,7 +211,15 @@ export function ShareDialog({
                         <code>{link.token_prefix}…</code>
                         <small>Created {date(link.created_at)}</small>
                       </td>
-                      <td>{link.visible_columns.length} columns</td>
+                      <td>
+                        {link.visible_columns.length} columns
+                        {link.allow_decisions && (
+                          <>
+                            <br />
+                            <small className="muted">Decisions on</small>
+                          </>
+                        )}
+                      </td>
                       <td>
                         <span className={`badge ${s.badge}`}>{s.label}</span>
                       </td>
@@ -289,6 +300,15 @@ export function ShareDialog({
           </tbody>
         </table>
       </div>
+      <label className="check-label">
+        <input
+          type="checkbox"
+          disabled={busy}
+          checked={allowDecisions}
+          onChange={(e) => setAllowDecisions(e.target.checked)}
+        />
+        Let the client Shortlist, Hold, or Reject candidates from this link
+      </label>
       <label>
         Expires <span className="optional">optional</span>
         <input

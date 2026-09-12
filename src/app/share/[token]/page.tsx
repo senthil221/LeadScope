@@ -3,6 +3,7 @@ import { integrationDb } from "@/lib/server/db";
 import { setup } from "@/lib/server/config";
 import { stageLabels, isStage } from "@/lib/recruiting/stages";
 import { SharedFieldCell } from "@/components/recruiting/shared-field-cell";
+import { DecisionActions } from "@/components/recruiting/decision-actions";
 
 // Never cached, never statically generated: every request re-checks the
 // token against the database, so a revoked or expired link stops working
@@ -33,6 +34,7 @@ type SharedStage = {
   stage: string;
   visibleColumns: string[];
   editableColumns: string[];
+  allowDecisions: boolean;
   fields: SharedField[];
   rows: SharedRow[];
   lastViewedAt: string | null;
@@ -168,6 +170,9 @@ export default async function SharePage({
 
   const columns = staticOrder
     .filter((k) => data.visibleColumns.includes(k))
+    // When decisions are on, client_decision renders via the dedicated
+    // decision column instead of as a plain read-only cell.
+    .filter((k) => !(data.allowDecisions && k === "client_decision"))
     .concat(data.fields.map((f) => f.key));
   const stageName = isStage(data.stage) ? stageLabels[data.stage] : data.stage;
   const editableLabels = data.editableColumns.map(
@@ -200,6 +205,7 @@ export default async function SharePage({
               {editableLabels.length
                 ? `Read-only except ${editableLabels.join(", ")}`
                 : "Read-only"}
+              {data.allowDecisions ? " · can shortlist, hold, or reject" : ""}
             </span>
           </div>
         </div>
@@ -212,6 +218,7 @@ export default async function SharePage({
                     {staticLabels[key] ?? data.fields.find((f) => f.key === key)?.label ?? key}
                   </th>
                 ))}
+                {data.allowDecisions && <th>Decision</th>}
               </tr>
             </thead>
             <tbody>
@@ -244,6 +251,15 @@ export default async function SharePage({
                       </td>
                     );
                   })}
+                  {data.allowDecisions && (
+                    <td>
+                      <DecisionActions
+                        token={token}
+                        roleCandidateId={row.id}
+                        currentDecision={row.client_decision}
+                      />
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

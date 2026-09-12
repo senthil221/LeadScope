@@ -2230,7 +2230,7 @@ async function shareLink(
   rid: string,
   stage: string,
   visible: string[],
-  overrides: { editable?: string[]; expiresAt?: string | null } = {},
+  overrides: { editable?: string[]; expiresAt?: string | null; allowDecisions?: boolean } = {},
 ) {
   const { token, hash, prefix } = freshToken();
   const id = await asUser(actor, () =>
@@ -2243,6 +2243,7 @@ async function shareLink(
       overrides.expiresAt ?? null,
       hash,
       prefix,
+      overrides.allowDecisions ?? false,
     ]),
   );
   return { id: id as string, token };
@@ -2277,6 +2278,9 @@ describe("role_share_links: anon has no path to any of it except the token itsel
     await expect(
       sql("select public.write_shared_cell('x',null,'client_notes','\"x\"'::jsonb)"),
     ).rejects.toThrow();
+    await expect(
+      sql("select public.write_client_decision('x',null,'shortlisted','')"),
+    ).rejects.toThrow();
     await sql("rollback");
   });
   it("denies a logged-in operator execute on read_shared_stage: it is service_role only", async () => {
@@ -2296,6 +2300,15 @@ describe("role_share_links: anon has no path to any of it except the token itsel
       asUser(actor, () =>
         rpc("write_shared_cell", [hashOf(token), rcId, "client_notes", JSON.stringify("x")]),
       ),
+    ).rejects.toThrow();
+  });
+  it("denies a logged-in operator execute on write_client_decision: it is service_role only", async () => {
+    const { cid, rid, rcId } = await pipeline("share-decision-authenticated-denied", 0);
+    const { token } = await shareLink(cid, rid, "all_profiles", ["full_name"], {
+      allowDecisions: true,
+    });
+    await expect(
+      asUser(actor, () => rpc("write_client_decision", [hashOf(token), rcId, "shortlisted", ""])),
     ).rejects.toThrow();
   });
 });
@@ -2319,6 +2332,25 @@ describe("create_share_link: what can ever be shared", () => {
         ]);
       }),
     ).rejects.toThrow("Agency access");
+  });
+  it("defaults allow_decisions to false, and persists true when requested", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const plain = await shareLink(cid, rid, "all_profiles", ["full_name"]);
+    expect(
+      (await sql("select allow_decisions from public.role_share_links where id=$1", [plain.id]))
+        .rows[0].allow_decisions,
+    ).toBe(false);
+    const withDecisions = await shareLink(cid, rid, "profile_shortlisted", ["full_name"], {
+      allowDecisions: true,
+    });
+    expect(
+      (
+        await sql("select allow_decisions from public.role_share_links where id=$1", [
+          withDecisions.id,
+        ])
+      ).rows[0].allow_decisions,
+    ).toBe(true);
   });
   it("refuses internal_notes as visible or editable, from the RPC and from the table itself", async () => {
     const cid = await client();
@@ -2742,6 +2774,112 @@ describe("write_shared_cell: the only path a client's edit can ever take", () =>
     );
     await expect(
       rpc("write_shared_cell", [hashOf(token), rcId, "client_notes", JSON.stringify("one more")]),
+    ).rejects.toThrow("Too many changes");
+  });
+});
+
+describe("write_client_decision: the client's guided Shortlist/Hold/Reject", () => {
+  it("refuses a decision on a link that was not created with allow_decisions", async () => {
+    const { cid, rid, rcId } = await pipeline("decision-not-allowed", 0);
+    const { token } = await shareLink(cid, rid, "all_profiles", ["full_name"]);
+    await expect(
+      rpc("write_client_decision", [hashOf(token), rcId, "shortlisted", ""]),
+    ).rejects.toThrow("cannot record decisions");
+  });
+  it("rejects an unsupported decision value", async () => {
+    const { cid, rid, rcId } = await pipeline("decision-bad-value", 0);
+    const { token } = await shareLink(cid, rid, "all_profiles", ["full_name"], {
+      allowDecisions: true,
+    });
+    await expect(
+      rpc("write_client_decision", [hashOf(token), rcId, "maybe", ""]),
+    ).rejects.toThrow("Choose Shortlist, Hold, or Reject");
+  });
+  it("requires a reason to reject, but not to shortlist or hold", async () => {
+    const { cid, rid, rcId } = await pipeline("decision-reason", 0);
+    const { token } = await shareLink(cid, rid, "all_profiles", ["full_name"], {
+      allowDecisions: true,
+    });
+    await expect(
+      rpc("write_client_decision", [hashOf(token), rcId, "rejected", ""]),
+    ).rejects.toThrow("Enter a reason");
+    await expect(
+      rpc("write_client_decision", [hashOf(token), rcId, "shortlisted", ""]),
+    ).resolves.toBeDefined();
+  });
+  it("records shortlist and hold as an advisory signal, without touching stage", async () => {
+    const { cid, rid, rcId } = await pipeline("decision-shortlist", 0);
+    const { token } = await shareLink(cid, rid, "all_profiles", ["full_name", "client_decision"], {
+      allowDecisions: true,
+    });
+    await rpc("write_client_decision", [hashOf(token), rcId, "hold", "Waiting on budget"]);
+    const row = (
+      await sql("select stage,client_decision from public.role_candidates where id=$1", [rcId])
+    ).rows[0];
+    expect(row.stage).toBe("all_profiles");
+    expect(row.client_decision).toBe("hold");
+    const event = (
+      await sql(
+        "select actor,share_link_id,kind,detail from public.role_candidate_events where role_candidate_id=$1 and kind='client_decision'",
+        [rcId],
+      )
+    ).rows[0];
+    expect(event.actor).toBeNull();
+    expect(event.share_link_id).toBeTruthy();
+    expect(event.detail).toEqual({ decision: "hold", reason: "Waiting on budget" });
+    const projected = await rpc("read_shared_stage", [hashOf(token)]);
+    expect(projected.rows[0].client_decision).toBe("hold");
+  });
+  it("rejects the candidate through the same path a recruiter reject uses: stage, type, mandatory reason", async () => {
+    const { cid, rid, rcId } = await pipeline("decision-reject", 0);
+    const { token } = await shareLink(cid, rid, "all_profiles", ["full_name"], {
+      allowDecisions: true,
+    });
+    await rpc("write_client_decision", [hashOf(token), rcId, "rejected", "Not a fit"]);
+    const row = (
+      await sql(
+        "select stage,client_decision,rejection_type,rejection_reason,rejected_by from public.role_candidates where id=$1",
+        [rcId],
+      )
+    ).rows[0];
+    expect(row.stage).toBe("rejected");
+    expect(row.client_decision).toBe("rejected");
+    expect(row.rejection_type).toBe("client");
+    expect(row.rejection_reason).toBe("Not a fit");
+    expect(row.rejected_by).toBeNull();
+    const event = (
+      await sql(
+        "select actor,share_link_id,from_stage,to_stage from public.role_candidate_events where role_candidate_id=$1 and kind='reject'",
+        [rcId],
+      )
+    ).rows[0];
+    expect(event.actor).toBeNull();
+    expect(event.share_link_id).toBeTruthy();
+    expect(event.from_stage).toBe("all_profiles");
+    expect(event.to_stage).toBe("rejected");
+  });
+  it("refuses a candidate outside this link's own role and stage", async () => {
+    const { rcId } = await pipeline("decision-scope-a", 0);
+    const other = await pipeline("decision-scope-b", 0);
+    const { token } = await shareLink(other.cid, other.rid, "all_profiles", ["full_name"], {
+      allowDecisions: true,
+    });
+    await expect(
+      rpc("write_client_decision", [hashOf(token), rcId, "shortlisted", ""]),
+    ).rejects.toThrow("Candidate not found");
+  });
+  it("shares its throttle counter with write_shared_cell on the same link", async () => {
+    const { cid, rid, rcId } = await pipeline("decision-throttle", 0);
+    const { id: linkId, token } = await shareLink(cid, rid, "all_profiles", ["full_name"], {
+      allowDecisions: true,
+    });
+    await sql(
+      `insert into public.role_candidate_events(client_id,role_candidate_id,kind,share_link_id,created_at)
+       select $1,$2,'client_edit',$3,now() from generate_series(1,60)`,
+      [cid, rcId, linkId],
+    );
+    await expect(
+      rpc("write_client_decision", [hashOf(token), rcId, "shortlisted", ""]),
     ).rejects.toThrow("Too many changes");
   });
 });
