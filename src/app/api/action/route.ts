@@ -229,6 +229,23 @@ export async function POST(request: Request) {
         );
         break;
       }
+      case "recordOutcome": {
+        const p = z
+          .object({
+            clientId: uuid,
+            ids: z.array(uuid).min(1).max(200),
+            outcome: z.enum(["offer_sent", "offer_accepted", "offer_declined", "joined"]),
+          })
+          .parse(payload);
+        checked(
+          await db.rpc("record_outcome", {
+            p_client: p.clientId,
+            p_ids: [...new Set(p.ids)],
+            p_outcome: p.outcome,
+          }),
+        );
+        break;
+      }
       case "applyThreshold": {
         const p = z
           .object({ clientId: uuid, roleId: uuid })

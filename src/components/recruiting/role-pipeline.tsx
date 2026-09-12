@@ -32,6 +32,7 @@ import { RejectDialog } from "./reject-dialog";
 import { RatingCell } from "./rating-cell";
 import { CandidatePanel } from "./candidate-panel";
 import { CustomFieldCell } from "./custom-field-cell";
+import { OutcomeCell } from "./outcome-cell";
 import { RoleFieldsDialog } from "./role-fields-dialog";
 import { ShareDialog } from "./share-dialog";
 
@@ -452,6 +453,7 @@ export function RolePipeline({
                 ) : (
                   <th>Rating</th>
                 )}
+                {tab === "offer_sent" && <th>Outcome</th>}
                 {roleFields.map((f) => (
                   <th key={f.id}>{f.label}</th>
                 ))}
@@ -518,6 +520,17 @@ export function RolePipeline({
                         rating={rc.rating}
                         name={rc.candidates.full_name}
                         onRated={() => router.refresh()}
+                      />
+                    </td>
+                  )}
+                  {tab === "offer_sent" && (
+                    <td>
+                      <OutcomeCell
+                        key={`${rc.id}:${rc.outcome}`}
+                        clientId={client.id}
+                        roleCandidateId={rc.id}
+                        outcome={rc.outcome}
+                        onChanged={() => router.refresh()}
                       />
                     </td>
                   )}

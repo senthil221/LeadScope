@@ -2962,3 +2962,78 @@ describe("role_candidate_events.share_link_id: the Phase 1 column finally has a 
     ).resolves.toBeDefined();
   });
 });
+
+describe("record_outcome: offer_sent -> offer_accepted|offer_declined -> joined", () => {
+  it("denies a non-admin", async () => {
+    const { cid, rcId } = await pipeline("outcome-non-admin", 0);
+    await asUser(actor, () => rpc("move_stage", [cid, [rcId], "offer_sent", ""]));
+    await expect(
+      asUser(outsider, () => rpc("record_outcome", [cid, [rcId], "offer_sent"])),
+    ).rejects.toThrow("Agency access");
+  });
+  it("rejects an unsupported outcome value", async () => {
+    const { cid, rcId } = await pipeline("outcome-bad-value", 0);
+    await asUser(actor, () => rpc("move_stage", [cid, [rcId], "offer_sent", ""]));
+    await expect(
+      asUser(actor, () => rpc("record_outcome", [cid, [rcId], "hired"])),
+    ).rejects.toThrow("Choose a valid outcome");
+  });
+  it("refuses an outcome for a candidate who has not reached offer_sent", async () => {
+    const { cid, rcId } = await pipeline("outcome-wrong-stage", 0);
+    await expect(
+      asUser(actor, () => rpc("record_outcome", [cid, [rcId], "offer_sent"])),
+    ).rejects.toThrow("cannot move to that outcome");
+  });
+  it("refuses skipping a step: cannot go straight to offer_accepted or joined", async () => {
+    const { cid, rcId } = await pipeline("outcome-skip-step", 0);
+    await asUser(actor, () => rpc("move_stage", [cid, [rcId], "offer_sent", ""]));
+    await expect(
+      asUser(actor, () => rpc("record_outcome", [cid, [rcId], "offer_accepted"])),
+    ).rejects.toThrow("cannot move to that outcome");
+    await expect(
+      asUser(actor, () => rpc("record_outcome", [cid, [rcId], "joined"])),
+    ).rejects.toThrow("cannot move to that outcome");
+  });
+  it("walks the full path and stamps outcome_at and one event per step", async () => {
+    const { cid, rcId } = await pipeline("outcome-full-path", 0);
+    await asUser(actor, () => rpc("move_stage", [cid, [rcId], "offer_sent", ""]));
+    await asUser(actor, () => rpc("record_outcome", [cid, [rcId], "offer_sent"]));
+    await asUser(actor, () => rpc("record_outcome", [cid, [rcId], "offer_accepted"]));
+    await asUser(actor, () => rpc("record_outcome", [cid, [rcId], "joined"]));
+    const row = (
+      await sql("select outcome,outcome_at,stage from public.role_candidates where id=$1", [rcId])
+    ).rows[0];
+    expect(row.outcome).toBe("joined");
+    expect(row.stage).toBe("offer_sent");
+    expect(row.outcome_at).not.toBeNull();
+    const events = (
+      await sql(
+        "select detail from public.role_candidate_events where role_candidate_id=$1 and kind='outcome' order by created_at",
+        [rcId],
+      )
+    ).rows;
+    expect(events.map((e) => e.detail)).toEqual([
+      { outcome: "offer_sent" },
+      { outcome: "offer_accepted" },
+      { outcome: "joined" },
+    ]);
+  });
+  it("treats offer_declined as terminal: no further outcome can follow it", async () => {
+    const { cid, rcId } = await pipeline("outcome-declined-terminal", 0);
+    await asUser(actor, () => rpc("move_stage", [cid, [rcId], "offer_sent", ""]));
+    await asUser(actor, () => rpc("record_outcome", [cid, [rcId], "offer_sent"]));
+    await asUser(actor, () => rpc("record_outcome", [cid, [rcId], "offer_declined"]));
+    await expect(
+      asUser(actor, () => rpc("record_outcome", [cid, [rcId], "joined"])),
+    ).rejects.toThrow("cannot move to that outcome");
+  });
+  it("refuses a selection spanning outside this client", async () => {
+    const a = await pipeline("outcome-cross-client-a", 0);
+    const b = await pipeline("outcome-cross-client-b", 0);
+    await asUser(actor, () => rpc("move_stage", [a.cid, [a.rcId], "offer_sent", ""]));
+    await asUser(actor, () => rpc("move_stage", [b.cid, [b.rcId], "offer_sent", ""]));
+    await expect(
+      asUser(actor, () => rpc("record_outcome", [a.cid, [a.rcId, b.rcId], "offer_sent"])),
+    ).rejects.toThrow("not in this client");
+  });
+});
