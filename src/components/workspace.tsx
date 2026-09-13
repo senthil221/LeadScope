@@ -509,60 +509,38 @@ export function Workspace({ data }: { data: PageData }) {
                     )}
                   </Empty>
                 ) : (
-                  <div className="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Campaign</th>
-                          <th>Audience</th>
-                          <th>Request budget</th>
-                          <th>State</th>
-                          <th />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.campaigns.map((c) => (
-                          <tr key={c.id}>
-                            <td>
-                              <Link
-                                className="strong"
-                                href={`/campaigns/${c.id}`}
-                              >
-                                {c.name}
-                              </Link>
-                            </td>
-                            <td>
-                              {c.config.locations.slice(0, 2).join(", ") ||
-                                "Any location"}
-                              <small>
-                                {c.config.roles.slice(0, 2).join(", ") ||
-                                  "Any role"}
-                              </small>
-                            </td>
-                            <td>Up to {c.config.budget} / run</td>
-                            <td>
-                              <Badge
-                                status={
-                                  c.archived
-                                    ? "Archived"
-                                    : (data.activeRuns?.find(
-                                        (r) => r.campaign_id === c.id,
-                                      )?.status ?? "Ready")
-                                }
-                              />
-                            </td>
-                            <td>
-                              <Link
-                                aria-label={`Open ${c.name}`}
-                                href={`/campaigns/${c.id}`}
-                              >
-                                <ArrowRight size={17} />
-                              </Link>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="campaign-list">
+                    {data.campaigns.map((c) => (
+                      <Link
+                        key={c.id}
+                        className="campaign-row"
+                        href={`/campaigns/${c.id}`}
+                      >
+                        <span className="campaign-row-main">
+                          <span className="campaign-name">{c.name}</span>
+                          <span className="campaign-audience">
+                            {c.config.locations.slice(0, 2).join(", ") ||
+                              "Any location"}{" "}
+                            ·{" "}
+                            {c.config.roles.slice(0, 2).join(", ") || "Any role"}
+                          </span>
+                        </span>
+                        <span className="campaign-budget">
+                          <small>Request budget</small>
+                          Up to {c.config.budget} / run
+                        </span>
+                        <Badge
+                          status={
+                            c.archived
+                              ? "Archived"
+                              : (data.activeRuns?.find(
+                                  (r) => r.campaign_id === c.id,
+                                )?.status ?? "Ready")
+                          }
+                        />
+                        <ArrowRight className="row-arrow" size={17} />
+                      </Link>
+                    ))}
                   </div>
                 )}
               </div>
@@ -707,11 +685,11 @@ function History({ runs }: { runs: Run[] }) {
                 <tr>
                   <th>Started</th>
                   <th>Status</th>
-                  <th>Reserved / cap</th>
-                  <th>Dispatched</th>
-                  <th>New candidates</th>
-                  <th>Rule matches</th>
-                  <th />
+                  <th className="num">Reserved / cap</th>
+                  <th className="num">Dispatched</th>
+                  <th className="num">New candidates</th>
+                  <th className="num">Rule matches</th>
+                  <th className="col-arrow" />
                 </tr>
               </thead>
               <tbody>
@@ -725,13 +703,13 @@ function History({ runs }: { runs: Run[] }) {
                       <td>
                         <Badge status={r.status} />
                       </td>
-                      <td>
+                      <td className="num">
                         {r.reserved} / {r.budget}
                       </td>
-                      <td>{r.dispatched}</td>
-                      <td>{r.new_candidates}</td>
-                      <td>{r.rule_matches}</td>
-                      <td>
+                      <td className="num">{r.dispatched}</td>
+                      <td className="num">{r.new_candidates}</td>
+                      <td className="num">{r.rule_matches}</td>
+                      <td className="col-arrow">
                         <Link href={`/runs/${r.id}`} aria-label="Open run">
                           <ArrowRight size={16} />
                         </Link>

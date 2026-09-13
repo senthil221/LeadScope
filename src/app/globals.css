@@ -49,8 +49,8 @@
   /* Shell + frame dimensions */
   --sidebar-w: 224px;
   --header-h: 56px;
-  --page-max: 1480px;
-  --frame-pad: clamp(16px, 1.9vw, 30px);
+  --page-max: 1520px;
+  --frame-pad: clamp(14px, 2vw, 30px);
 }
 
 /* ---------- Base ---------- */
@@ -724,9 +724,14 @@ label small {
   gap: 10px;
   padding: 8px 10px;
   border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  transition:
+    background var(--t-base) var(--t-ease),
+    border-color var(--t-base) var(--t-ease);
 }
 .shell-user:hover {
   background: #f6f8f4;
+  border-color: var(--line-strong);
 }
 .avatar {
   background: var(--brand-soft);
@@ -788,8 +793,8 @@ label small {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  max-width: var(--page-max);
-  width: 100%;
+  width: min(100%, var(--page-max));
+  margin-inline: auto;
   padding: 0 var(--frame-pad);
   background: var(--bg);
   position: sticky;
@@ -803,6 +808,7 @@ label small {
   font-size: 13px;
   color: var(--muted);
   min-width: 0;
+  max-width: calc(100% - 160px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -839,9 +845,9 @@ label small {
    ============================================================ */
 
 .page-body {
-  width: 100%;
-  max-width: var(--page-max);
-  margin: 0;
+  width: min(100%, var(--page-max));
+  margin-inline: auto;
+  margin-block: 0;
   padding: 28px var(--frame-pad) 72px;
 }
 .page-header {
@@ -946,6 +952,24 @@ tbody tr {
 }
 tbody tr:hover {
   background: #fafbf8;
+}
+th.num,
+td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+th.col-arrow,
+td.col-arrow {
+  width: 44px;
+  text-align: right;
+}
+td.col-arrow a {
+  display: inline-flex;
+  color: var(--faint);
+  transition: color var(--t-fast) var(--t-ease);
+}
+tbody tr:hover td.col-arrow a {
+  color: var(--brand);
 }
 .table-footer {
   display: flex;
@@ -1061,46 +1085,109 @@ tbody tr:hover {
 .metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  margin: 20px 0 24px;
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
+  gap: 14px;
+  margin: 24px 0 0;
 }
 .metric {
+  display: flex;
+  flex-direction: column;
   padding: 18px 20px;
-  border-right: 1px solid var(--line);
-}
-.metric:last-child {
-  border: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
 .metric > span {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 500;
   color: var(--muted);
 }
 .metric > strong {
   display: block;
   font-size: 28px;
-  font-weight: 550;
+  font-weight: 600;
   letter-spacing: -0.02em;
-  margin: 6px 0;
-  line-height: 1.1;
+  margin: 6px 0 2px;
+  line-height: 1.15;
 }
 .metric small {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* ============================================================
+   Campaign list (client view)
+   ============================================================ */
+
+.campaign-list {
+  display: flex;
+  flex-direction: column;
+}
+.campaign-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-height: 60px;
+  padding: 12px 20px;
+  border-bottom: 1px solid #eef1eb;
+  transition: background var(--t-fast) var(--t-ease);
+}
+.campaign-list .campaign-row:last-child {
+  border-bottom: 0;
+}
+.campaign-row:hover {
+  background: #fafbf8;
+  color: inherit;
+}
+.campaign-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+.campaign-name {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.campaign-audience {
+  font-size: 12.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.campaign-budget {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.campaign-budget small {
+  margin: 0;
   font-size: 12px;
+  color: var(--faint);
 }
-.metrics.six {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+.campaign-row > .badge {
+  flex-shrink: 0;
 }
-.metrics.six .metric {
-  padding: 16px;
+.row-arrow {
+  flex-shrink: 0;
+  color: var(--faint);
+  transition:
+    color var(--t-fast) var(--t-ease),
+    transform var(--t-fast) var(--t-ease);
 }
-.metrics.six .metric > span {
-  min-height: 34px;
-  display: block;
+.campaign-row:hover .row-arrow {
+  color: var(--brand);
+  transform: translateX(2px);
 }
 
 /* ============================================================
@@ -1858,11 +1945,13 @@ details h3 {
 }
 @media (max-width: 1200px) {
   .shell-header {
-    max-width: none;
+    width: 100%;
+    margin-inline: 0;
     padding: 0 24px;
   }
   .page-body {
-    max-width: none;
+    width: 100%;
+    margin-inline: 0;
     padding: 24px 24px 56px;
   }
   .page-header {
@@ -1870,12 +1959,6 @@ details h3 {
   }
   .header-actions {
     max-width: 320px;
-  }
-  .metrics.six {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  .metrics.six .metric:nth-child(-n + 3) {
-    border-bottom: 1px solid var(--line);
   }
   .client-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1949,9 +2032,10 @@ details h3 {
     margin: 0;
   }
   .shell-header {
-    max-width: none;
+    width: 100%;
     height: 48px;
     min-height: 48px;
+    margin-inline: 0;
     padding: 0 16px;
   }
   .page-body {
@@ -2022,15 +2106,21 @@ details h3 {
   }
   .metrics {
     grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
   }
   .metric {
     padding: 16px;
   }
-  .metric:nth-child(-n + 2) {
-    border-bottom: 1px solid var(--line);
-  }
   .metric strong {
     font-size: 24px;
+  }
+  .campaign-row {
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    padding: 14px 16px;
+  }
+  .campaign-row-main {
+    flex-basis: 100%;
   }
   .form-card {
     padding: 18px;
