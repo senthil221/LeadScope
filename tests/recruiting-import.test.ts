@@ -4,6 +4,7 @@ import {
   isRowError,
   nameFromProfileUrl,
   parseCsv,
+  csvImportPreview,
   csvToDraftRows,
   type DraftRow,
 } from "../src/lib/recruiting/import";
@@ -124,5 +125,23 @@ describe("csvToDraftRows", () => {
   it("returns nothing for a header-only or empty file", () => {
     expect(csvToDraftRows("Full Name,Email")).toEqual([]);
     expect(csvToDraftRows("")).toEqual([]);
+  });
+});
+
+describe("csvImportPreview", () => {
+  it("shows the accepted rows, rejected rows, and detected columns before import", () => {
+    const preview = csvImportPreview(
+      "Full Name,Email,Source system\nPriya Nair,priya@example.com,LinkedIn\nNo Identity,,Manual",
+    );
+    expect(preview.totalRows).toBe(2);
+    expect(preview.validRows.map((row) => row.name)).toEqual(["Priya Nair"]);
+    expect(preview.invalidRows).toHaveLength(1);
+    expect(preview.recognizedColumns).toEqual(["Full Name", "Email"]);
+    expect(preview.ignoredColumns).toEqual(["Source system"]);
+  });
+  it("handles a UTF-8 byte-order mark in the first header", () => {
+    expect(csvToDraftRows("\uFEFFFull Name,Email\nPriya Nair,priya@example.com")).toEqual([
+      { name: "Priya Nair", email: "priya@example.com" },
+    ]);
   });
 });

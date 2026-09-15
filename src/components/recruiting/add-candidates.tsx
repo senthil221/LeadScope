@@ -1,11 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import {
   buildImportRow,
   isRowError,
   nameFromProfileUrl,
-  csvToDraftRows,
+  csvImportPreview,
   csvTemplateColumns,
   type DraftRow,
   type ImportRow,
@@ -61,9 +61,28 @@ export function AddCandidatesDialog({
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [csvFileName, setCsvFileName] = useState("");
+  const csvFileInput = useRef<HTMLInputElement>(null);
+  const csvPreview = useMemo(() => csvImportPreview(csvText), [csvText]);
 
   function switchMode(next: Mode) {
     setMode(next);
+    setError("");
+  }
+
+  async function chooseCsvFile(file: File | undefined) {
+    if (!file) return;
+    if (file.size > 60_000) {
+      setError("Choose a CSV file smaller than 60 KB. Split larger files into batches of 200 candidates.");
+      return;
+    }
+    const text = await file.text();
+    if (text.length > 60_000) {
+      setError("Choose a CSV file smaller than 60 KB. Split larger files into batches of 200 candidates.");
+      return;
+    }
+    setCsvFileName(file.name);
+    setCsvText(text);
     setError("");
   }
 
@@ -129,20 +148,12 @@ export function AddCandidatesDialog({
     void submit([built], "manual");
   }
   function submitCsv() {
-    const drafts = csvToDraftRows(csvText);
-    const rows: ImportRow[] = [];
-    let invalid = 0;
-    for (const draft of drafts) {
-      const built = buildImportRow(draft);
-      if (isRowError(built)) invalid++;
-      else rows.push(built);
+    if (csvPreview.totalRows > 200) {
+      setError("This file has more than 200 candidate rows. Split it into smaller files before importing.");
+      return;
     }
-    setError(
-      invalid
-        ? `${invalid} row${invalid === 1 ? "" : "s"} were missing a name or a valid identity and were skipped.`
-        : "",
-    );
-    void submit(rows, "csv");
+    setError("");
+    void submit(csvPreview.validRows, "csv");
   }
   function submitSourcing() {
     const rows: ImportRow[] = selected.flatMap((id) => {
@@ -313,14 +324,41 @@ export function AddCandidatesDialog({
       )}
       {mode === "csv" && (
         <>
+          <input
+            ref={csvFileInput}
+            className="visually-hidden"
+            type="file"
+            accept=".csv,text/csv"
+            disabled={busy}
+            onChange={(event) => {
+              void chooseCsvFile(event.target.files?.[0]);
+              event.target.value = "";
+            }}
+          />
+          <div className="csv-file-action">
+            <div>
+              <strong>{csvFileName || "Choose a CSV file"}</strong>
+              <p className="muted">Up to 200 candidate rows per import.</p>
+            </div>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => csvFileInput.current?.click()}
+            >
+              Browse files
+            </button>
+          </div>
           <label>
-            Paste CSV rows, including a header row
+            Or paste CSV rows, including a header row
             <textarea
               rows={8}
               maxLength={60000}
               disabled={busy}
               value={csvText}
-              onChange={(e) => setCsvText(e.target.value)}
+              onChange={(e) => {
+                setCsvFileName("");
+                setCsvText(e.target.value);
+              }}
               placeholder={csvTemplateColumns.join(",")}
             />
           </label>
@@ -328,12 +366,59 @@ export function AddCandidatesDialog({
             Recognized columns: {csvTemplateColumns.join(", ")}. Extra columns
             are ignored; column order does not matter.
           </p>
+          {!!csvText.trim() && (
+            <div className="csv-preview" aria-live="polite">
+              <div className="csv-preview-summary">
+                <strong>
+                  {csvPreview.validRows.length} ready to import
+                </strong>
+                <span>
+                  {csvPreview.invalidRows.length
+                    ? `${csvPreview.invalidRows.length} need attention`
+                    : csvPreview.validRows.length
+                      ? "All rows are valid"
+                      : "No valid candidate rows found"}
+                </span>
+              </div>
+              {csvPreview.recognizedColumns.length > 0 && (
+                <p className="muted">
+                  Found: {csvPreview.recognizedColumns.join(", ")}
+                </p>
+              )}
+              {csvPreview.ignoredColumns.length > 0 && (
+                <p className="muted">
+                  Ignored: {csvPreview.ignoredColumns.join(", ")}
+                </p>
+              )}
+              {csvPreview.invalidRows.length > 0 && (
+                <p className="csv-preview-warning">
+                  Rows need a name and a valid LinkedIn URL, Naukri URL, or email. They will not be imported.
+                </p>
+              )}
+              {csvPreview.validRows.length > 0 && (
+                <ul className="csv-preview-rows" aria-label="Candidates ready to import">
+                  {csvPreview.validRows.slice(0, 5).map((row, index) => (
+                    <li key={`${row.name}-${index}`}>
+                      {row.name}
+                    </li>
+                  ))}
+                  {csvPreview.validRows.length > 5 && (
+                    <li className="muted">
+                      +{csvPreview.validRows.length - 5} more candidates
+                    </li>
+                  )}
+                </ul>
+              )}
+            </div>
+          )}
           <button
             className="primary wide"
-            disabled={busy || !csvText.trim()}
+            disabled={busy || !csvText.trim() || !csvPreview.validRows.length || csvPreview.totalRows > 200}
             onClick={submitCsv}
           >
-            {busy ? "Adding…" : "Import CSV"}
+            {busy
+              ? "Adding…"
+              : `Import ${csvPreview.validRows.length || "CSV"} candidate${csvPreview.validRows.length === 1 ? "" : "s"}`}
           </button>
         </>
       )}

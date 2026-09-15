@@ -30,6 +30,14 @@ export function isRowError(x: ImportRow | RowError): x is RowError {
   return "reason" in x;
 }
 
+export type CsvImportPreview = {
+  totalRows: number;
+  validRows: ImportRow[];
+  invalidRows: RowError[];
+  recognizedColumns: string[];
+  ignoredColumns: string[];
+};
+
 export function buildImportRow(draft: DraftRow): ImportRow | RowError {
   const name = draft.name.trim();
   if (!name) return { row: draft, reason: "Missing a name." };
@@ -155,10 +163,14 @@ export const csvTemplateColumns = [
 // The first row is always treated as a header; column order does not matter
 // as long as the names are recognized (case-insensitive). Unknown columns
 // are ignored rather than rejected, so a richer export still imports.
+function csvColumnForHeader(header: string): keyof DraftRow | undefined {
+  return csvColumnAliases[header.replace(/^\uFEFF/, "").trim().toLowerCase()];
+}
+
 export function csvToDraftRows(text: string): DraftRow[] {
   const rows = parseCsv(text);
   if (rows.length < 2) return [];
-  const columns = rows[0].map((h) => csvColumnAliases[h.trim().toLowerCase()]);
+  const columns = rows[0].map(csvColumnForHeader);
   return rows.slice(1).map((cells) => {
     const draft: DraftRow = { name: "" };
     cells.forEach((cell, i) => {
@@ -167,4 +179,34 @@ export function csvToDraftRows(text: string): DraftRow[] {
     });
     return draft;
   });
+}
+
+// Build all CSV feedback before the request begins. The dialog can then show
+// exactly what will be sent, while the API remains the final validation layer.
+export function csvImportPreview(text: string): CsvImportPreview {
+  const parsed = parseCsv(text);
+  const headers = parsed[0] ?? [];
+  const knownHeaders = new Set<string>();
+  const ignoredHeaders = new Set<string>();
+  for (const header of headers) {
+    const label = header.replace(/^\uFEFF/, "").trim();
+    if (!label) continue;
+    if (csvColumnForHeader(label)) knownHeaders.add(label);
+    else ignoredHeaders.add(label);
+  }
+
+  const validRows: ImportRow[] = [];
+  const invalidRows: RowError[] = [];
+  for (const draft of csvToDraftRows(text)) {
+    const built = buildImportRow(draft);
+    if (isRowError(built)) invalidRows.push(built);
+    else validRows.push(built);
+  }
+  return {
+    totalRows: Math.max(parsed.length - 1, 0),
+    validRows,
+    invalidRows,
+    recognizedColumns: [...knownHeaders],
+    ignoredColumns: [...ignoredHeaders],
+  };
 }
