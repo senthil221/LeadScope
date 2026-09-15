@@ -20,10 +20,14 @@ const migration = readFileSync(
   resolve("supabase/migrations/20260910061500_recruiting_foundation.sql"),
   "utf8",
 );
+const latestSourceMigration = readFileSync(
+  resolve("supabase/migrations/20260916093000_recruiting_master_database_reuse.sql"),
+  "utf8",
+);
 // Pulls the list out of `check(<column> in ('a','b'))` in the migration itself,
 // so the constraint and the TypeScript union can never drift apart silently.
-function checkList(column: string): string[] {
-  const match = migration.match(
+function checkList(column: string, sql = migration): string[] {
+  const match = sql.match(
     new RegExp(`check\\(${column} in \\(([^)]*)\\)\\)`),
   );
   if (!match) throw new Error(`No CHECK constraint found for ${column}`);
@@ -35,7 +39,7 @@ describe("recruiting stages match the database constraint", () => {
     expect(checkList("stage").sort()).toEqual([...stages].sort());
   });
   it("declares exactly the sources the role_candidates CHECK allows", () => {
-    expect(checkList("source").sort()).toEqual([...candidateSources].sort());
+    expect(checkList("source", latestSourceMigration).sort()).toEqual([...candidateSources].sort());
   });
   it("keeps rejected out of the pipeline and labels every stage", () => {
     expect(pipelineStages).not.toContain("rejected");

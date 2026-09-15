@@ -264,6 +264,7 @@ export type PageData = {
   roleCandidates?: RoleCandidate[];
   roleCandidateCounts?: Record<string, number>;
   masterCandidates?: MasterCandidate[];
+  masterRoleCandidateIds?: string[];
   sourcingProspects?: { id: string; canonical_url: string; title: string }[];
   roleFields?: RoleField[];
   shareLinks?: ShareLink[];

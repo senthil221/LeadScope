@@ -1615,6 +1615,20 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         .rows[0].n,
     ).toBe(1);
   });
+  it("adds an existing master candidate to a role with the master database source", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const candidateId = await person("master-reuse");
+    await expect(
+      asUser(actor, () =>
+        rpc("add_candidates_to_role", [cid, rid, [candidateId], "master_db"]),
+      ),
+    ).resolves.toEqual({ added: 1, alreadyInRole: 0 });
+    expect(
+      (await sql("select source from public.role_candidates where role_id=$1", [rid])).rows[0]
+        .source,
+    ).toBe("master_db");
+  });
   it("dedupes two rows in the same batch that share an identity", async () => {
     const cid = await client();
     const rid = await role(cid);

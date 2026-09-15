@@ -169,6 +169,24 @@ export async function POST(request: Request) {
         );
         break;
       }
+      case "addExistingCandidates": {
+        const p = z
+          .object({
+            clientId: uuid,
+            roleId: uuid,
+            candidateIds: z.array(uuid).min(1).max(200),
+          })
+          .parse(payload);
+        result = checked(
+          await db.rpc("add_candidates_to_role", {
+            p_client: p.clientId,
+            p_role: p.roleId,
+            p_candidate_ids: [...new Set(p.candidateIds)],
+            p_source: "master_db",
+          }),
+        );
+        break;
+      }
       case "rate": {
         const p = z
           .object({

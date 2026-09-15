@@ -106,6 +106,7 @@ export function RolePipeline({
   roleCandidates,
   counts,
   masterCandidates,
+  masterRoleCandidateIds,
   total,
   page,
   sourcingProspects,
@@ -119,6 +120,7 @@ export function RolePipeline({
   roleCandidates: RoleCandidate[];
   counts: Record<string, number>;
   masterCandidates: MasterCandidate[];
+  masterRoleCandidateIds: string[];
   total: number;
   page: number;
   sourcingProspects: { id: string; canonical_url: string; title: string }[];
@@ -141,6 +143,10 @@ export function RolePipeline({
   const [applying, setApplying] = useState(false);
   const [applyBusy, setApplyBusy] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
+  const [masterSelection, setMasterSelection] = useState({
+    scope: "",
+    ids: [] as string[],
+  });
   const [rejecting, setRejecting] = useState(false);
   const [panelId, setPanelId] = useState<string | null>(null);
   const [managingFields, setManagingFields] = useState(false);
@@ -150,8 +156,7 @@ export function RolePipeline({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const path = `/roles/${role.id}`;
-  // The bulk bar and rating cells only apply to the five pipeline stages;
-  // Rejects and Master DB stay read-only and unaffected by selection.
+  // The bulk bar and rating cells only apply to the five pipeline stages.
   const isPipelineTab =
     tab !== "rejected" && tab !== "master_db" && tab !== "analytics";
   const showsClientResponse =
@@ -160,6 +165,23 @@ export function RolePipeline({
   const pipelineTotal = Object.entries(counts)
     .filter(([stage]) => stage !== "rejected")
     .reduce((sum, [, n]) => sum + n, 0);
+  // A selection belongs to the visible Master DB page. A stale selection is
+  // ignored as soon as the recruiter changes search, page, or tab.
+  const masterSelectionScope = `${tab}:${page}:${query}`;
+  const masterSelected =
+    masterSelection.scope === masterSelectionScope ? masterSelection.ids : [];
+  function setMasterSelected(
+    next: string[] | ((current: string[]) => string[]),
+  ) {
+    setMasterSelection((current) => {
+      const visibleIds =
+        current.scope === masterSelectionScope ? current.ids : [];
+      return {
+        scope: masterSelectionScope,
+        ids: typeof next === "function" ? next(visibleIds) : next,
+      };
+    });
+  }
 
   const tabUrl = (key: Tab) => {
     const p = new URLSearchParams(params);
@@ -230,6 +252,28 @@ export function RolePipeline({
       setNote("");
       setMessage(
         `Moved ${selected.length} candidate${selected.length > 1 ? "s" : ""} to ${stageLabels[advanceTo]}.`,
+      );
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function addSelectedFromMasterDb() {
+    if (busy || !masterSelected.length) return;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await act<{ added: number; alreadyInRole: number }>(
+        "addExistingCandidates",
+        { clientId: client.id, roleId: role.id, candidateIds: masterSelected },
+      );
+      setMasterSelected([]);
+      setMessage(
+        result.added
+          ? `${result.added} candidate${result.added === 1 ? "" : "s"} added to New profiles.`
+          : "Those candidates are already in this role.",
       );
       router.refresh();
     } catch (e) {
@@ -406,6 +450,21 @@ export function RolePipeline({
         </>
       ) : tab === "master_db" ? (
         <>
+          <div className="section-heading">
+            <div>
+              <h2>Master database</h2>
+              <p className="muted">Reuse an existing candidate for this role.</p>
+            </div>
+            {masterSelected.length > 0 && !role.archived && (
+              <button
+                className="primary small"
+                disabled={busy}
+                onClick={() => void addSelectedFromMasterDb()}
+              >
+                Add {masterSelected.length} to role
+              </button>
+            )}
+          </div>
           <form
             className="sheet-toolbar"
             onSubmit={(e) => {
@@ -427,6 +486,28 @@ export function RolePipeline({
             <table>
               <thead>
                 <tr>
+                  <th className="select-cell">
+                    <input
+                      aria-label="Select all candidates not yet in this role"
+                      type="checkbox"
+                      disabled={busy || role.archived}
+                      checked={
+                        masterCandidates.some((candidate) => !masterRoleCandidateIds.includes(candidate.id)) &&
+                        masterCandidates
+                          .filter((candidate) => !masterRoleCandidateIds.includes(candidate.id))
+                          .every((candidate) => masterSelected.includes(candidate.id))
+                      }
+                      onChange={(event) =>
+                        setMasterSelected(
+                          event.target.checked
+                            ? masterCandidates
+                                .filter((candidate) => !masterRoleCandidateIds.includes(candidate.id))
+                                .map((candidate) => candidate.id)
+                            : [],
+                        )
+                      }
+                    />
+                  </th>
                   <th>Full name</th>
                   <th>Headline</th>
                   <th>Company</th>
@@ -439,6 +520,25 @@ export function RolePipeline({
               <tbody>
                 {masterCandidates.map((c) => (
                   <tr key={c.id}>
+                    <td>
+                      {masterRoleCandidateIds.includes(c.id) ? (
+                        <span className="badge accepted">In this role</span>
+                      ) : (
+                        <input
+                          aria-label={`Add ${c.full_name} to this role`}
+                          type="checkbox"
+                          disabled={busy || role.archived}
+                          checked={masterSelected.includes(c.id)}
+                          onChange={(event) =>
+                            setMasterSelected((current) =>
+                              event.target.checked
+                                ? [...current, c.id]
+                                : current.filter((id) => id !== c.id),
+                            )
+                          }
+                        />
+                      )}
+                    </td>
                     <td className="strong">{c.full_name}</td>
                     <td>{c.headline || "—"}</td>
                     <td>{c.current_company || "—"}</td>

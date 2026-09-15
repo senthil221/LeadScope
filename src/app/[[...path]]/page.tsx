@@ -183,6 +183,16 @@ export default async function Page({
             .range((page - 1) * 50, page * 50 - 1);
           data.masterCandidates = checked(result);
           data.total = result.count ?? 0;
+          const candidateIds = data.masterCandidates.map((candidate) => candidate.id);
+          data.masterRoleCandidateIds = candidateIds.length
+            ? checked(
+                await db
+                  .from("role_candidates")
+                  .select("candidate_id")
+                  .eq("role_id", data.role!.id)
+                  .in("candidate_id", candidateIds),
+              ).map((membership) => membership.candidate_id)
+            : [];
         } else if (stageParam === "analytics") {
           const [funnel, durations, stageCounts] = await Promise.all([
             db

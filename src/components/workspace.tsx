@@ -565,6 +565,7 @@ export function Workspace({ data }: { data: PageData }) {
               roleCandidates={data.roleCandidates ?? []}
               counts={data.roleCandidateCounts ?? {}}
               masterCandidates={data.masterCandidates ?? []}
+              masterRoleCandidateIds={data.masterRoleCandidateIds ?? []}
               total={data.total ?? 0}
               page={data.page ?? 1}
               sourcingProspects={data.sourcingProspects ?? []}

@@ -30,6 +30,7 @@ export const candidateSources = [
   "url_paste",
   "csv",
   "sourcing_import",
+  "master_db",
   "other",
 ] as const;
 export type CandidateSource = (typeof candidateSources)[number];
@@ -40,6 +41,7 @@ export const candidateSourceLabels: Record<CandidateSource, string> = {
   url_paste: "Pasted profile URLs",
   csv: "CSV import",
   sourcing_import: "Sourcing workspace",
+  master_db: "Master database",
   other: "Other source",
 };
 export function candidateSourceLabel(source: string, detail = "") {
