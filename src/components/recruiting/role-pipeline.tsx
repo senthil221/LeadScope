@@ -80,6 +80,23 @@ function candidateEmptyMessage(tab: Tab) {
     return "No candidates yet. Add candidates from LinkedIn, Naukri, manual entry, or a CSV import.";
   return `No candidates in ${stageLabels[tab as Stage].toLowerCase()} yet.`;
 }
+const clientDecisionLabels = {
+  shortlisted: "Shortlisted",
+  hold: "On hold",
+  rejected: "Rejected",
+} as const;
+const clientDecisionBadge = {
+  shortlisted: "accepted",
+  hold: "review",
+  rejected: "rejected",
+} as const;
+function formatInterview(value: string | null) {
+  if (!value) return null;
+  return new Date(value).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
 
 export function RolePipeline({
   client,
@@ -134,6 +151,8 @@ export function RolePipeline({
   // Rejects and Master DB stay read-only and unaffected by selection.
   const isPipelineTab =
     tab !== "rejected" && tab !== "master_db" && tab !== "analytics";
+  const showsClientResponse =
+    tab === "client_shortlisted" || tab === "offer_sent" || tab === "rejected";
   const advanceTo = isPipelineTab ? nextStage(tab as PipelineStage) : null;
   const pipelineTotal = Object.entries(counts)
     .filter(([stage]) => stage !== "rejected")
@@ -479,6 +498,7 @@ export function RolePipeline({
                   <th>Rating</th>
                 )}
                 {tab === "offer_sent" && <th>Outcome</th>}
+                {showsClientResponse && <th>Client response</th>}
                 {roleFields.map((f) => (
                   <th key={f.id}>{f.label}</th>
                 ))}
@@ -508,17 +528,13 @@ export function RolePipeline({
                   )}
                   <td>{date(rc.stage_entered_at)}</td>
                   <td>
-                    {tab === "rejected" ? (
-                      <span className="strong">{rc.candidates.full_name}</span>
-                    ) : (
-                      <button
-                        type="button"
-                        className="text-button strong"
-                        onClick={() => setPanelId(rc.id)}
-                      >
-                        {rc.candidates.full_name}
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className="text-button strong"
+                      onClick={() => setPanelId(rc.id)}
+                    >
+                      {rc.candidates.full_name}
+                    </button>
                   </td>
                   <td>{rc.candidates.current_designation || "—"}</td>
                   <td>{rc.candidates.current_company || "—"}</td>
@@ -557,6 +573,20 @@ export function RolePipeline({
                         outcome={rc.outcome}
                         onChanged={() => router.refresh()}
                       />
+                    </td>
+                  )}
+                  {showsClientResponse && (
+                    <td className="candidate-client-response-cell">
+                      {rc.client_decision ? (
+                        <span className={`badge ${clientDecisionBadge[rc.client_decision]}`}>
+                          {clientDecisionLabels[rc.client_decision]}
+                        </span>
+                      ) : (
+                        <span className="muted">Awaiting response</span>
+                      )}
+                      {rc.interview_at && (
+                        <small>Interview {formatInterview(rc.interview_at)}</small>
+                      )}
                     </td>
                   )}
                   {roleFields.map((f) => (

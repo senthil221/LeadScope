@@ -1806,6 +1806,52 @@ details h3 {
   color: var(--muted);
 }
 
+.candidate-client-response {
+  padding: 14px 0;
+  margin: 0 0 20px;
+  border-block: 1px solid var(--line);
+}
+.candidate-panel-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+.candidate-panel-section-heading svg,
+.candidate-client-interview svg {
+  color: var(--brand);
+  flex-shrink: 0;
+}
+.candidate-panel-section-heading h3 {
+  margin: 0;
+}
+.candidate-client-note {
+  display: grid;
+  gap: 3px;
+  margin: 12px 0 0;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+}
+.candidate-client-note strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+.candidate-client-interview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.candidate-client-response-cell {
+  min-width: 142px;
+}
+.candidate-client-response-cell small {
+  display: block;
+  margin-top: 5px;
+}
+
 /* ============================================================
    Setup + login + access pages
    ============================================================ */

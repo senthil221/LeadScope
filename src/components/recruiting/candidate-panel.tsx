@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import { X } from "lucide-react";
+import { CalendarDays, MessageSquareText, X } from "lucide-react";
 import type { RoleCandidate } from "@/lib/types";
 import {
   isStage,
@@ -45,6 +45,26 @@ const screeningLabels: Record<keyof Screening, string> = {
   recruiterAssessment: "Recruiter assessment",
   followUpAt: "Follow-up date",
 };
+const clientDecisionLabels = {
+  shortlisted: "Client shortlisted",
+  hold: "Client is holding",
+  rejected: "Client rejected",
+} as const;
+const clientDecisionBadge = {
+  shortlisted: "accepted",
+  hold: "review",
+  rejected: "rejected",
+} as const;
+function formatDateTime(value: string | null) {
+  if (!value) return null;
+  return new Date(value).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
 // Recruiter Screening is a panel on a candidate row, not a tab: this dialog
 // is that panel. It edits reusable candidate details (folding in the manual
@@ -206,6 +226,32 @@ export function CandidatePanel({
           {message}
         </p>
       )}
+
+      <section className="candidate-client-response" aria-labelledby="client-response-heading">
+        <div className="candidate-panel-section-heading">
+          <MessageSquareText size={16} aria-hidden="true" />
+          <h3 id="client-response-heading">Client response</h3>
+        </div>
+        {rc.client_decision ? (
+          <span className={`badge ${clientDecisionBadge[rc.client_decision]}`}>
+            {clientDecisionLabels[rc.client_decision]}
+          </span>
+        ) : (
+          <p className="muted">No client decision recorded yet.</p>
+        )}
+        {rc.client_notes && (
+          <p className="candidate-client-note">
+            <strong>Notes</strong>
+            {rc.client_notes}
+          </p>
+        )}
+        {rc.interview_at && (
+          <p className="candidate-client-interview">
+            <CalendarDays size={15} aria-hidden="true" />
+            Interview {formatDateTime(rc.interview_at)}
+          </p>
+        )}
+      </section>
 
       <h3>Candidate details</h3>
       <p className="muted">

@@ -160,6 +160,8 @@ export type RoleCandidate = {
   custom: Record<string, string | number | boolean>;
   internal_notes: string;
   client_notes: string;
+  client_decision: "shortlisted" | "rejected" | "hold" | null;
+  interview_at: string | null;
   rejection_type: string | null;
   rejection_reason: string;
   outcome: string | null;
