@@ -156,6 +156,7 @@ export type RoleCandidate = {
   stage: string;
   rating: number | null;
   source: string;
+  source_detail: string;
   screening: Record<string, unknown>;
   custom: Record<string, string | number | boolean>;
   internal_notes: string;

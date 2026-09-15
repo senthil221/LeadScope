@@ -25,6 +25,7 @@ import {
   isStage,
   nextStage,
   rejectionTypes,
+  candidateSourceLabel,
   type PipelineStage,
   type Stage,
 } from "@/lib/recruiting/stages";
@@ -565,6 +566,9 @@ export function RolePipeline({
                     >
                       {rc.candidates.full_name}
                     </button>
+                    <small className="candidate-source">
+                      {candidateSourceLabel(rc.source, rc.source_detail)}
+                    </small>
                   </td>
                   <td>{rc.candidates.current_designation || "—"}</td>
                   <td>{rc.candidates.current_company || "—"}</td>

@@ -62,6 +62,7 @@ export function AddCandidatesDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [csvFileName, setCsvFileName] = useState("");
+  const [sourceDetail, setSourceDetail] = useState("");
   const csvFileInput = useRef<HTMLInputElement>(null);
   const csvPreview = useMemo(() => csvImportPreview(csvText), [csvText]);
 
@@ -101,7 +102,10 @@ export function AddCandidatesDialog({
         clientId,
         roleId,
         source,
-        rows,
+        rows: rows.map((row) => ({
+          ...row,
+          ...(sourceDetail.trim() ? { sourceDetail: sourceDetail.trim() } : {}),
+        })),
       });
       onImported(summary);
     } catch (e) {
@@ -193,6 +197,17 @@ export function AddCandidatesDialog({
           </button>
         ))}
       </div>
+      <label>
+        Source or vendor <span className="optional">optional</span>
+        <input
+          maxLength={500}
+          disabled={busy}
+          value={sourceDetail}
+          onChange={(event) => setSourceDetail(event.target.value)}
+          placeholder="e.g. Upwork, LinkedIn Recruiter, referral"
+        />
+      </label>
+      <p className="muted">Saved with every candidate in this import.</p>
       {error && (
         <p className="error" role="alert">
           {error}

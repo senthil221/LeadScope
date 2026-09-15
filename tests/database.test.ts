@@ -1556,6 +1556,30 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
       ).rows[0].n,
     ).toBe(2);
   });
+  it("stores the optional vendor detail on a new role candidate and its import event", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        rid,
+        JSON.stringify([linkedinRow("upwork-source", { sourceDetail: "Upwork - August shortlist" })]),
+        "csv",
+      ]),
+    );
+    expect(
+      (await sql("select source,source_detail from public.role_candidates where role_id=$1", [rid]))
+        .rows[0],
+    ).toEqual({ source: "csv", source_detail: "Upwork - August shortlist" });
+    expect(
+      (
+        await sql(
+          "select detail->>'sourceDetail' as source_detail from public.role_candidate_events where role_candidate_id=(select id from public.role_candidates where role_id=$1)",
+          [rid],
+        )
+      ).rows[0].source_detail,
+    ).toBe("Upwork - August shortlist");
+  });
   it("resolves a candidate already in the master database as matchedExisting, never duplicating it", async () => {
     const cid = await client();
     const rid = await role(cid);

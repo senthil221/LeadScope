@@ -33,6 +33,18 @@ export const candidateSources = [
   "other",
 ] as const;
 export type CandidateSource = (typeof candidateSources)[number];
+export const candidateSourceLabels: Record<CandidateSource, string> = {
+  linkedin: "LinkedIn",
+  naukri: "Naukri",
+  manual: "Manual entry",
+  url_paste: "Pasted profile URLs",
+  csv: "CSV import",
+  sourcing_import: "Sourcing workspace",
+  other: "Other source",
+};
+export function candidateSourceLabel(source: string, detail = "") {
+  return detail.trim() || candidateSourceLabels[source as CandidateSource] || "Imported profile";
+}
 export const outcomes = {
   offer_sent: "Offer sent",
   offer_accepted: "Offer accepted",

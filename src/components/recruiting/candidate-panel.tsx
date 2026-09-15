@@ -6,6 +6,7 @@ import {
   isStage,
   nextStage,
   stageLabels,
+  candidateSourceLabel,
   type Stage,
 } from "@/lib/recruiting/stages";
 import { RejectDialog } from "./reject-dialog";
@@ -226,6 +227,9 @@ export function CandidatePanel({
           {message}
         </p>
       )}
+      <p className="candidate-source">
+        Added from {candidateSourceLabel(rc.source, rc.source_detail)}
+      </p>
 
       <section className="candidate-client-response" aria-labelledby="client-response-heading">
         <div className="candidate-panel-section-heading">

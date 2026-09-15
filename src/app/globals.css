@@ -578,6 +578,12 @@ label small {
   list-style: none;
   font-size: 13px;
 }
+.candidate-source {
+  display: block;
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
 .loading-page {
   min-height: 100vh;
   display: flex;

@@ -24,6 +24,7 @@ export type ImportRow = {
   name: string;
   identities: Identity[];
   fields: Record<string, string | number>;
+  sourceDetail?: string;
 };
 export type RowError = { row: DraftRow; reason: string };
 export function isRowError(x: ImportRow | RowError): x is RowError {
