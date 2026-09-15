@@ -110,6 +110,7 @@ export function CandidatePanel({
   const [savingScreening, setSavingScreening] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [advancing, setAdvancing] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -206,6 +207,24 @@ export function CandidatePanel({
       setError((e as Error).message);
     } finally {
       setAdvancing(false);
+    }
+  }
+  async function restoreCandidate() {
+    setRestoring(true);
+    setError("");
+    try {
+      await act("moveStage", {
+        clientId,
+        ids: [rc.id],
+        toStage: "recruiter_shortlisted",
+        reason: "Restored for recruiter review.",
+      });
+      onChanged();
+      onClose();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setRestoring(false);
     }
   }
 
@@ -450,18 +469,30 @@ export function CandidatePanel({
       </button>
 
       <div className="row">
-        {advanceTo && (
+        {currentStage === "rejected" ? (
           <button
             className="primary"
-            disabled={advancing}
-            onClick={() => void markSuitable()}
+            disabled={restoring}
+            onClick={() => void restoreCandidate()}
           >
-            {advancing ? "Advancing…" : `Suitable → ${stageLabels[advanceTo]}`}
+            {restoring ? "Restoring…" : "Restore to recruiter review"}
           </button>
+        ) : (
+          <>
+            {advanceTo && (
+              <button
+                className="primary"
+                disabled={advancing}
+                onClick={() => void markSuitable()}
+              >
+                {advancing ? "Advancing…" : `Suitable → ${stageLabels[advanceTo]}`}
+              </button>
+            )}
+            <button type="button" onClick={() => setRejecting(true)}>
+              Not suitable → Reject
+            </button>
+          </>
         )}
-        <button type="button" onClick={() => setRejecting(true)}>
-          Not suitable → Reject
-        </button>
       </div>
 
       {rejecting && (
