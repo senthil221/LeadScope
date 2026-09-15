@@ -211,12 +211,27 @@ export default async function Page({
             Math.min(100000, Math.floor(Number(filter.page) || 1)),
           );
           data.page = page;
+          const term = filter.q
+            ?.trim()
+            .slice(0, 200)
+            .replace(/[\\%_,().]/g, "\\$&");
+          let candidateQuery = db
+            .from("role_candidates")
+            .select("*,candidates!inner(*)", { count: "exact" })
+            .eq("role_id", data.role!.id)
+            .eq("stage", stage);
+          if (term)
+            candidateQuery = candidateQuery.or(
+              [
+                `full_name.ilike.%${term}%`,
+                `headline.ilike.%${term}%`,
+                `current_company.ilike.%${term}%`,
+                `current_designation.ilike.%${term}%`,
+              ].join(","),
+              { referencedTable: "candidates" },
+            );
           const [rows, stageCounts, fields] = await Promise.all([
-            db
-              .from("role_candidates")
-              .select("*,candidates(*)", { count: "exact" })
-              .eq("role_id", data.role!.id)
-              .eq("stage", stage)
+            candidateQuery
               .order("stage_entered_at", { ascending: false })
               .order("id")
               .range((page - 1) * 50, page * 50 - 1),

@@ -73,7 +73,8 @@ const date = (s: string | null | undefined) =>
       })
     : "—";
 
-function candidateEmptyMessage(tab: Tab) {
+function candidateEmptyMessage(tab: Tab, query = "") {
+  if (query) return "No candidates match this search.";
   if (tab === "master_db") return "No candidates in the master database yet.";
   if (tab === "rejected") return "No candidates rejected yet.";
   if (tab === "all_profiles")
@@ -128,6 +129,7 @@ export function RolePipeline({
   const router = useRouter();
   const params = useSearchParams();
   const rawStage = params.get("stage") ?? "";
+  const query = params.get("q")?.trim() ?? "";
   const tab: Tab = isStage(rawStage)
     ? (rawStage as Tab)
     : rawStage === "master_db" || rawStage === "analytics"
@@ -168,6 +170,14 @@ export function RolePipeline({
     const p = new URLSearchParams(params);
     p.set("stage", tab);
     p.set("page", String(nextPage));
+    return `${path}?${p}`;
+  };
+  const stageSearchUrl = (nextQuery: string) => {
+    const p = new URLSearchParams(params);
+    p.set("stage", tab);
+    p.delete("page");
+    if (nextQuery.trim()) p.set("q", nextQuery.trim());
+    else p.delete("q");
     return `${path}?${p}`;
   };
   const masterDbUrl = (changes: Record<string, string>) => {
@@ -366,6 +376,26 @@ export function RolePipeline({
           </button>
         </div>
       )}
+      {tab !== "master_db" && tab !== "analytics" && (
+        <form
+          className="sheet-toolbar candidate-search"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            router.push(stageSearchUrl(String(form.get("q") ?? "")));
+          }}
+        >
+          <input
+            name="q"
+            aria-label="Search candidates in this stage"
+            placeholder="Search name, title, or company…"
+            defaultValue={query}
+            maxLength={200}
+          />
+          <button>Search</button>
+          {query && <Link href={stageSearchUrl("")}>Clear</Link>}
+        </form>
+      )}
       {tab === "analytics" ? (
         <>
           <div className="section-heading">
@@ -431,7 +461,7 @@ export function RolePipeline({
             </table>
             {!masterCandidates.length && (
               <div className="empty">
-                <h3>{candidateEmptyMessage(tab)}</h3>
+                <h3>{candidateEmptyMessage(tab, query)}</h3>
               </div>
             )}
           </div>
@@ -606,7 +636,7 @@ export function RolePipeline({
             </table>
             {!roleCandidates.length && (
               <div className="empty">
-                <h3>{candidateEmptyMessage(tab)}</h3>
+                <h3>{candidateEmptyMessage(tab, query)}</h3>
               </div>
             )}
           </div>
