@@ -60,6 +60,13 @@ export function buildImportRow(draft: DraftRow): ImportRow | RowError {
       reason: "Add a valid LinkedIn, Naukri, or email identity.",
     };
   const fields: Record<string, string | number> = {};
+  // Contact identity is also candidate data. Keeping it in fields lets the
+  // import RPC populate the master record, while identities continue to own
+  // duplicate detection.
+  const email = deduped.find((identity) => identity.kind === "email");
+  const phone = deduped.find((identity) => identity.kind === "phone");
+  if (email) fields.email = email.value;
+  if (phone) fields.phone = phone.value;
   if (draft.currentCompany?.trim())
     fields.currentCompany = draft.currentCompany.trim().slice(0, 200);
   if (draft.currentDesignation?.trim())

@@ -56,6 +56,7 @@ describe("buildImportRow", () => {
     expect(isRowError(result)).toBe(false);
     if (!isRowError(result)) {
       expect(result.fields).toEqual({
+        email: "sana@example.com",
         currentCompany: "Lumenbase",
         totalExperienceYears: 12,
       });
@@ -66,6 +67,15 @@ describe("buildImportRow", () => {
     const result = buildImportRow(bad);
     expect(isRowError(result)).toBe(false);
     if (!isRowError(result)) expect(result.fields.totalExperienceYears).toBeUndefined();
+  });
+  it("persists a normalized phone number with the candidate details", () => {
+    const result = buildImportRow({
+      name: "Arjun Mehta",
+      email: "arjun@example.com",
+      phone: "+91 90000 00000",
+    });
+    expect(isRowError(result)).toBe(false);
+    if (!isRowError(result)) expect(result.fields.phone).toBe("+919000000000");
   });
 });
 
