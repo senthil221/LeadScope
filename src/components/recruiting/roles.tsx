@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowRight, Plus } from "lucide-react";
+import { ArrowRight, Layers, Plus } from "lucide-react";
 import type { Client, Role } from "@/lib/types";
 import { RoleFormDialog } from "./role-form";
 
@@ -62,11 +62,15 @@ export function RolesPage({
           <div className="eyebrow">{client.name}</div>
           <h1>Roles</h1>
           <p className="muted">
-            Each role has its own candidate pipeline, rating threshold, and
-            client sharing.
+            Choose a role to review candidates, shortlist them, and prepare
+            profiles for your client.
           </p>
         </div>
         <div className="header-actions">
+          <Link className="button" href={`/clients/${client.id}/campaigns`}>
+            <Layers size={16} />
+            Campaigns
+          </Link>
           <button className="primary" onClick={() => setForm("new")}>
             <Plus size={17} />
             New role
@@ -80,7 +84,7 @@ export function RolesPage({
       )}
       <div className="section-heading">
         <h2>
-          Open roles <span className="count">{active.length}</span>
+          Roles <span className="count">{active.length}</span>
         </h2>
       </div>
       <div className="card">

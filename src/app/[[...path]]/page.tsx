@@ -76,7 +76,9 @@ export default async function Page({
             ? "prospects"
             : path[2] === "roles"
               ? "roles"
-              : "client";
+              : path[2] === "campaigns"
+                ? "client"
+                : "roles";
     }
     if (path[0] === "campaigns") {
       data.view =
@@ -182,7 +184,7 @@ export default async function Page({
           data.masterCandidates = checked(result);
           data.total = result.count ?? 0;
         } else if (stageParam === "analytics") {
-          const [funnel, durations, allStages] = await Promise.all([
+          const [funnel, durations, stageCounts] = await Promise.all([
             db
               .from("role_stage_funnel")
               .select("*")
@@ -191,30 +193,34 @@ export default async function Page({
               .from("role_stage_durations")
               .select("*")
               .eq("role_id", data.role!.id),
-            db
-              .from("role_candidates")
-              .select("stage")
-              .eq("role_id", data.role!.id),
+            db.rpc("role_candidate_stage_counts", { p_role: data.role!.id }),
           ]);
           data.roleStageFunnel = checked(funnel);
           data.roleStageDurations = checked(durations);
           const counts: Record<string, number> = {};
-          for (const row of checked(allStages) as { stage: string }[])
-            counts[row.stage] = (counts[row.stage] ?? 0) + 1;
+          for (const row of checked(stageCounts) as {
+            stage: string;
+            candidate_count: number;
+          }[])
+            counts[row.stage] = row.candidate_count;
           data.roleCandidateCounts = counts;
         } else {
           const stage = isStage(stageParam) ? stageParam : "all_profiles";
-          const [rows, allStages, fields] = await Promise.all([
+          const page = Math.max(
+            1,
+            Math.min(100000, Math.floor(Number(filter.page) || 1)),
+          );
+          data.page = page;
+          const [rows, stageCounts, fields] = await Promise.all([
             db
               .from("role_candidates")
-              .select("*,candidates(*)")
+              .select("*,candidates(*)", { count: "exact" })
               .eq("role_id", data.role!.id)
               .eq("stage", stage)
-              .order("stage_entered_at", { ascending: false }),
-            db
-              .from("role_candidates")
-              .select("stage")
-              .eq("role_id", data.role!.id),
+              .order("stage_entered_at", { ascending: false })
+              .order("id")
+              .range((page - 1) * 50, page * 50 - 1),
+            db.rpc("role_candidate_stage_counts", { p_role: data.role!.id }),
             db
               .from("role_fields")
               .select("*")
@@ -223,9 +229,13 @@ export default async function Page({
               .order("ordinal"),
           ]);
           data.roleCandidates = checked(rows) as unknown as RoleCandidate[];
+          data.total = rows.count ?? 0;
           const counts: Record<string, number> = {};
-          for (const row of checked(allStages) as { stage: string }[])
-            counts[row.stage] = (counts[row.stage] ?? 0) + 1;
+          for (const row of checked(stageCounts) as {
+            stage: string;
+            candidate_count: number;
+          }[])
+            counts[row.stage] = row.candidate_count;
           data.roleCandidateCounts = counts;
           data.roleFields = checked(fields);
           // token_hash is never selected; the app has no use for it and a
@@ -288,15 +298,21 @@ export default async function Page({
       uuid.parse(clientId);
       data.client = data.clients.find((c) => c.id === clientId);
       if (!data.client) notFound();
-      loads.push(async () => {
-        data.campaigns = checked(
-          await db
-            .from("campaigns")
-            .select("*")
-            .eq("client_id", clientId)
-            .order("created_at", { ascending: false }),
-        );
-      });
+      if (
+        ["client", "builder", "campaign", "runs", "leads", "lead"].includes(
+          data.view,
+        )
+      ) {
+        loads.push(async () => {
+          data.campaigns = checked(
+            await db
+              .from("campaigns")
+              .select("*")
+              .eq("client_id", clientId)
+              .order("created_at", { ascending: false }),
+          );
+        });
+      }
     }
     if (
       [

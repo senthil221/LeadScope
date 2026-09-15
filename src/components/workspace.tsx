@@ -325,7 +325,9 @@ export function Workspace({ data }: { data: PageData }) {
   const actions = { run, busy, setError, setMessage };
   return (
     <AppShell data={data}>
-      <WorkspaceSearches data={data} />
+      {["client", "builder", "campaign", "runs", "leads"].includes(
+        data.view,
+      ) && <WorkspaceSearches data={data} />}
           {error && (
             <div className="toast error" role="alert">
               {error}
@@ -1863,7 +1865,7 @@ function LeadsPage({
               Run a campaign to collect real public profile references, or
               adjust your filters.
             </p>
-            <Link className="button" href={`/clients/${client.id}`}>
+            <Link className="button" href={`/clients/${client.id}/campaigns`}>
               Open campaigns <ArrowRight size={15} />
             </Link>
           </Empty>

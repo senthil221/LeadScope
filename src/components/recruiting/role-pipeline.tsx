@@ -140,8 +140,15 @@ export function RolePipeline({
     .reduce((sum, [, n]) => sum + n, 0);
 
   const tabUrl = (key: Tab) => {
-    const p = new URLSearchParams();
+    const p = new URLSearchParams(params);
     p.set("stage", key);
+    p.delete("page");
+    return `${path}?${p}`;
+  };
+  const stagePageUrl = (nextPage: number) => {
+    const p = new URLSearchParams(params);
+    p.set("stage", tab);
+    p.set("page", String(nextPage));
     return `${path}?${p}`;
   };
   const masterDbUrl = (changes: Record<string, string>) => {
@@ -213,8 +220,8 @@ export function RolePipeline({
       setApplying(false);
       setMessage(
         result.moved
-          ? `${result.moved} candidate${result.moved > 1 ? "s" : ""} moved to Profile shortlisted.`
-          : "No candidates in All profiles currently meet the threshold.",
+          ? `${result.moved} candidate${result.moved > 1 ? "s" : ""} moved to AI shortlisted.`
+          : "No candidates in New profiles currently meet the threshold.",
       );
       router.refresh();
     } catch (e) {
@@ -265,12 +272,12 @@ export function RolePipeline({
         {[
           ["In pipeline", pipelineTotal, "Not yet rejected"],
           [
-            "All profiles",
+            "New profiles",
             counts.all_profiles ?? 0,
-            "Awaiting a rating",
+            "Awaiting a manual rating",
           ],
           ["Rejected", counts.rejected ?? 0, "Kept for history"],
-          ["Rating threshold", `${role.rating_threshold} / 5`, "To advance"],
+          ["Shortlist threshold", `${role.rating_threshold} / 5`, "Manual rating"],
         ].map(([label, value, hint]) => (
           <div className="metric" key={label as string}>
             <span>{label}</span>
@@ -436,10 +443,11 @@ export function RolePipeline({
           </div>
         </>
       ) : (
-        <div className="card table-wrap">
-          <table>
-            <thead>
-              <tr>
+        <>
+          <div className="card table-wrap">
+            <table>
+              <thead>
+                <tr>
                 {isPipelineTab && (
                   <th className="select-cell">
                     <input
@@ -474,9 +482,9 @@ export function RolePipeline({
                 {roleFields.map((f) => (
                   <th key={f.id}>{f.label}</th>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
+                </tr>
+              </thead>
+              <tbody>
               {roleCandidates.map((rc) => (
                 <tr
                   key={rc.id}
@@ -564,14 +572,34 @@ export function RolePipeline({
                   ))}
                 </tr>
               ))}
-            </tbody>
-          </table>
-          {!roleCandidates.length && (
-            <div className="empty">
-              <h3>{candidateEmptyMessage(tab)}</h3>
+              </tbody>
+            </table>
+            {!roleCandidates.length && (
+              <div className="empty">
+                <h3>{candidateEmptyMessage(tab)}</h3>
+              </div>
+            )}
+          </div>
+          <div className="sheet-footer">
+            <span>
+              {total
+                ? `${(page - 1) * 50 + 1}–${Math.min(page * 50, total)} of ${total}`
+                : "0 candidates"}
+            </span>
+            <div className="row">
+              {page > 1 && (
+                <Link className="button small" href={stagePageUrl(page - 1)}>
+                  Previous
+                </Link>
+              )}
+              {page * 50 < total && (
+                <Link className="button small" href={stagePageUrl(page + 1)}>
+                  Next
+                </Link>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        </>
       )}
       {editing && (
         <RoleFormDialog
@@ -647,9 +675,9 @@ export function RolePipeline({
             <h2>Apply rating threshold</h2>
           </div>
           <p className="muted">
-            Moves every candidate still in All profiles whose rating already
+            Moves every candidate still in New profiles whose manually entered rating already
             meets the current threshold ({role.rating_threshold} / 5) to
-            Profile shortlisted. Candidates rated below the threshold, or not
+            AI shortlisted. Candidates rated below the threshold, or not
             yet rated, are left where they are.
           </p>
           {error && (

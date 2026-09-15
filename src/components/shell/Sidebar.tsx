@@ -72,7 +72,7 @@ export function Sidebar({ data }: { data: PageData }) {
                   "campaign",
                   "runs",
                 ])}
-                href={`/clients/${client.id}`}
+                href={`/clients/${client.id}/campaigns`}
               >
                 <Layers size={17} aria-hidden="true" />
                 Campaigns

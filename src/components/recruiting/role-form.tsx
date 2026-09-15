@@ -87,7 +87,7 @@ export function RoleFormDialog({
           />
         </label>
         <label>
-          Rating threshold
+          Shortlist threshold
           <select
             name="ratingThreshold"
             defaultValue={role === "new" ? 3 : role.rating_threshold}
@@ -100,8 +100,9 @@ export function RoleFormDialog({
           </select>
         </label>
         <p className="muted">
-          Candidates rated at or above this threshold move to Profile
-          shortlisted. Changing this later never moves existing candidates.
+          Candidates with a manually entered rating at or above this threshold
+          move to AI shortlisted. Changing this later never moves existing
+          candidates automatically.
         </p>
         {error && (
           <p className="error" role="alert">

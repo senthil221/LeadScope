@@ -3099,3 +3099,30 @@ describe("role_stage_funnel and role_stage_durations: read-only analytics views"
     expect(byStage.all_profiles).toMatchObject({ ever_reached: 1, currently_here: 0 });
   });
 });
+
+describe("role_candidate_stage_counts", () => {
+  it("returns complete current-stage totals through the existing RLS boundary", async () => {
+    const { cid, rid, rcId } = await pipeline("pipeline-stage-counts", 0);
+    await asUser(actor, () =>
+      rpc("move_stage", [cid, [rcId], "recruiter_shortlisted", "Reviewed"]),
+    );
+    const rows = await asUser(actor, () =>
+      sql(
+        "select stage,candidate_count from public.role_candidate_stage_counts($1)",
+        [rid],
+      ),
+    );
+    expect(rows.rows).toEqual([
+      { stage: "recruiter_shortlisted", candidate_count: 1 },
+    ]);
+  });
+
+  it("does not expose pipeline counts to anonymous callers", async () => {
+    await sql("begin");
+    await sql("set local role anon");
+    await expect(
+      sql("select * from public.role_candidate_stage_counts($1)", [randomUUID()]),
+    ).rejects.toThrow();
+    await sql("rollback");
+  });
+});
