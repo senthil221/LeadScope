@@ -4,10 +4,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import {
   Archive,
+  CalendarClock,
   CircleHelp,
+  FileCheck2,
   Link as LinkIcon,
   Plus,
   SlidersHorizontal,
+  UsersRound,
 } from "lucide-react";
 import type {
   Client,
@@ -15,6 +18,7 @@ import type {
   Role,
   RoleCandidate,
   RoleField,
+  RoleWorkQueueCount,
   ShareLink,
   StageDurationRow,
   StageFunnelRow,
@@ -139,6 +143,7 @@ function followUpDate(value: string | null) {
 export function RolePipeline({
   client,
   role,
+  workQueue,
   roleCandidates,
   counts,
   masterCandidates,
@@ -154,6 +159,7 @@ export function RolePipeline({
 }: {
   client: Client;
   role: Role;
+  workQueue?: RoleWorkQueueCount;
   roleCandidates: RoleCandidate[];
   counts: Record<string, number>;
   masterCandidates: MasterCandidate[];
@@ -276,6 +282,33 @@ export function RolePipeline({
     p.delete("page");
     return `${path}?${p}`;
   };
+  const dailyWork = [
+    {
+      key: "follow-ups",
+      label: "Due follow-ups",
+      description: "Due today or overdue",
+      count: workQueue?.due_follow_ups ?? 0,
+      href: tabUrl("follow_ups"),
+      Icon: CalendarClock,
+    },
+    {
+      key: "client-review",
+      label: "Waiting on client",
+      description: "Profiles sent for review",
+      count: workQueue?.client_review ?? 0,
+      href: tabUrl("client_shortlisted"),
+      Icon: UsersRound,
+    },
+    {
+      key: "offers",
+      label: "Open offers",
+      description: "Offers still in progress",
+      count: workQueue?.offers_in_progress ?? 0,
+      href: tabUrl("offer_sent"),
+      Icon: FileCheck2,
+    },
+  ];
+  const dailyWorkTotal = dailyWork.reduce((sum, item) => sum + item.count, 0);
   const stagePageUrl = (nextPage: number) => {
     const p = new URLSearchParams(params);
     p.set("stage", tab);
@@ -442,6 +475,30 @@ export function RolePipeline({
         <span>Rating floor <strong>{role.rating_threshold} / 5</strong></span>
         <span><strong>{counts.rejected ?? 0}</strong> rejected</span>
       </div>
+      <section className="role-action-queue" aria-labelledby="role-action-queue-heading">
+        <div className="role-action-queue-heading">
+          <div>
+            <h2 id="role-action-queue-heading">Next actions</h2>
+            <p className="muted">
+              {dailyWorkTotal
+                ? `${dailyWorkTotal} candidate${dailyWorkTotal === 1 ? "" : "s"} need attention.`
+                : "No urgent recruiter work right now."}
+            </p>
+          </div>
+        </div>
+        <div className="role-action-queue-grid">
+          {dailyWork.map(({ key, label, description, count, href, Icon }) => (
+            <Link className="role-action-card" href={href} key={key}>
+              <span className="role-action-icon"><Icon size={17} aria-hidden="true" /></span>
+              <span>
+                <strong>{label}</strong>
+                <small>{description}</small>
+              </span>
+              <b>{count}</b>
+            </Link>
+          ))}
+        </div>
+      </section>
       <div className="tabs role-stage-tabs" aria-label="Candidate stages">
         {pipelineTabs.map(({ key, label }) => (
           <Link

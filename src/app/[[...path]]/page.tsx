@@ -169,6 +169,15 @@ export default async function Page({
           .single(),
       );
       clientId = data.role!.client_id;
+      // This compact aggregate powers the role's daily-action strip without
+      // fetching its entire candidate pipeline a second time.
+      loads.push(async () => {
+        data.roleWorkQueueCounts = checked(
+          await db.rpc("role_work_queue_counts", {
+            p_client: data.role!.client_id,
+          }),
+        );
+      });
       loads.push(async () => {
         const stageParam = filter.stage ?? "all_profiles";
         if (stageParam === "master_db") {

@@ -1492,6 +1492,62 @@ tbody tr:hover td.col-arrow a {
 }
 .role-summary span:last-child { border-right: 0; }
 .role-summary strong { color: var(--ink); font-weight: 650; }
+.role-action-queue {
+  margin: 16px 0 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.role-action-queue-heading { margin-bottom: 12px; }
+.role-action-queue-heading h2 { margin: 0; font-size: 15px; }
+.role-action-queue-heading .muted { margin: 3px 0 0; font-size: 12px; }
+.role-action-queue-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.role-action-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 62px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  background: var(--bg);
+}
+.role-action-card:hover {
+  border-color: #bdcbbd;
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+}
+.role-action-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 7px;
+  background: #eaf0e8;
+  color: var(--brand);
+}
+.role-action-card strong,
+.role-action-card small { display: block; }
+.role-action-card strong { font-size: 12px; font-weight: 650; }
+.role-action-card small { margin-top: 2px; color: var(--muted); font-size: 11px; }
+.role-action-card b {
+  min-width: 24px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1;
+  text-align: center;
+}
+.role-action-card:hover b { color: var(--brand-ink); }
 .role-table-heading { margin: 18px 0 10px; }
 .role-table-heading p { margin-top: 2px; }
 .metric {
@@ -2974,6 +3030,7 @@ details h3 {
     width: 100%;
     flex-basis: 100%;
   }
+  .role-action-queue-grid { grid-template-columns: 1fr; }
   .candidate-drawer-heading {
     padding: 16px;
   }
