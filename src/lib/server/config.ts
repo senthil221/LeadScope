@@ -7,6 +7,9 @@ export function setup() {
   const secret =
     process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   const appUrl = process.env.APP_URL;
+  const openAiApiKey = process.env.OPENAI_API_KEY;
+  const openAiRecruitingModel =
+    process.env.OPENAI_RECRUITING_MODEL?.trim() || "gpt-5-mini";
   const cap = Number(process.env.SERPER_MAX_REQUESTS_PER_RUN || 50);
   const database = Boolean(url && key);
   const live =
@@ -19,6 +22,8 @@ export function setup() {
     key,
     secret,
     appUrl,
+    openAiApiKey,
+    openAiRecruitingModel,
     database,
     live,
     serverCap: Number.isInteger(cap) && cap > 0 ? Math.min(cap, 50) : 50,
@@ -29,6 +34,7 @@ export function setup() {
       "Server integration key": Boolean(secret),
       "Serper API key": Boolean(process.env.SERPER_API_KEY),
       "Live searches enabled": process.env.SERPER_LIVE_ENABLED === "true",
+      "OpenAI API key": Boolean(openAiApiKey),
     },
   };
 }

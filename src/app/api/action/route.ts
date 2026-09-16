@@ -9,6 +9,7 @@ import { canonicalLinkedIn } from "@/lib/urls";
 import { parseExcludedUrls } from "@/lib/exclusions";
 import { processNext } from "@/lib/server/process";
 import { qualify, mergeAssessment } from "@/lib/qualification";
+import { reviewCandidatesWithAi } from "@/lib/server/recruiting-ai";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 const note = z.string().max(4000).default("");
@@ -205,6 +206,127 @@ export async function POST(request: Request) {
             p_rating: p.rating,
           }),
         );
+        break;
+      }
+      case "reviewCandidatesWithAi": {
+        const p = z
+          .object({
+            clientId: uuid,
+            roleId: uuid,
+            ids: z.array(uuid).min(1).max(20),
+          })
+          .parse(payload);
+        const ids = [...new Set(p.ids)];
+        const [roleResult, candidateResult] = await Promise.all([
+          db
+            .from("roles")
+            .select("id,name,description,rating_threshold")
+            .eq("id", p.roleId)
+            .eq("client_id", p.clientId)
+            .single(),
+          db
+            .from("role_candidates")
+            .select(
+              "id,stage,candidates!inner(full_name,headline,current_company,current_designation,total_experience_years)",
+            )
+            .eq("client_id", p.clientId)
+            .eq("role_id", p.roleId)
+            .eq("stage", "all_profiles")
+            .in("id", ids),
+        ]);
+        const role = checked(roleResult);
+        const candidates = checked(candidateResult) as unknown as {
+          id: string;
+          stage: string;
+          candidates: {
+            full_name: string;
+            headline: string;
+            current_company: string;
+            current_designation: string;
+            total_experience_years: number | null;
+          };
+        }[];
+        if (candidates.length !== ids.length)
+          throw new AppError(
+            "One or more candidates are no longer in New profiles. Reload and try again.",
+          );
+        const suggestions = await reviewCandidatesWithAi({
+          actorId: user.id,
+          role: {
+            name: role.name,
+            description: role.description,
+            ratingThreshold: role.rating_threshold,
+          },
+          candidates: candidates.map((candidate) => ({
+            id: candidate.id,
+            headline: candidate.candidates.headline,
+            currentCompany: candidate.candidates.current_company,
+            currentDesignation: candidate.candidates.current_designation,
+            totalExperienceYears: candidate.candidates.total_experience_years,
+          })),
+        });
+        const names = new Map(
+          candidates.map((candidate) => [candidate.id, candidate.candidates.full_name]),
+        );
+        result = {
+          suggestions: suggestions.map((suggestion) => ({
+            ...suggestion,
+            name: names.get(suggestion.id) ?? "Candidate",
+          })),
+        };
+        break;
+      }
+      case "applyAiSuggestions": {
+        const p = z
+          .object({
+            clientId: uuid,
+            roleId: uuid,
+            suggestions: z
+              .array(
+                z.object({ id: uuid, rating: z.number().int().min(0).max(5) }),
+              )
+              .min(1)
+              .max(20),
+          })
+          .parse(payload);
+        const ids = p.suggestions.map((suggestion) => suggestion.id);
+        if (new Set(ids).size !== ids.length)
+          throw new AppError("A candidate can only be rated once per review.");
+        const [roleResult, candidateResult] = await Promise.all([
+          db
+            .from("roles")
+            .select("rating_threshold")
+            .eq("id", p.roleId)
+            .eq("client_id", p.clientId)
+            .single(),
+          db
+            .from("role_candidates")
+            .select("id")
+            .eq("client_id", p.clientId)
+            .eq("role_id", p.roleId)
+            .eq("stage", "all_profiles")
+            .in("id", ids),
+        ]);
+        const role = checked(roleResult);
+        const candidates = checked(candidateResult);
+        if (candidates.length !== ids.length)
+          throw new AppError(
+            "One or more candidates changed stage. Reload before applying suggestions.",
+          );
+        for (const suggestion of p.suggestions)
+          checked(
+            await db.rpc("rate_candidate", {
+              p_client: p.clientId,
+              p_id: suggestion.id,
+              p_rating: suggestion.rating,
+            }),
+          );
+        result = {
+          applied: p.suggestions.length,
+          autoShortlisted: p.suggestions.filter(
+            (suggestion) => suggestion.rating >= role.rating_threshold,
+          ).length,
+        };
         break;
       }
       case "moveStage": {
