@@ -24,6 +24,7 @@ export function RoleWorkspace({ data }: { data: PageData }) {
         shareLinks={data.shareLinks ?? []}
         stageFunnel={data.roleStageFunnel ?? []}
         stageDurations={data.roleStageDurations ?? []}
+        sourcePerformance={data.roleSourcePerformance ?? []}
       />
     </AppShell>
   );

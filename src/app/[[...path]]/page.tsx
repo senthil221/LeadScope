@@ -207,7 +207,7 @@ export default async function Page({
               ).map((membership) => membership.candidate_id)
             : [];
         } else if (stageParam === "analytics") {
-          const [funnel, durations, stageCounts] = await Promise.all([
+          const [funnel, durations, stageCounts, sourcePerformance] = await Promise.all([
             db
               .from("role_stage_funnel")
               .select("*")
@@ -217,6 +217,7 @@ export default async function Page({
               .select("*")
               .eq("role_id", data.role!.id),
             db.rpc("role_candidate_stage_counts", { p_role: data.role!.id }),
+            db.rpc("role_source_performance", { p_role: data.role!.id }),
           ]);
           data.roleStageFunnel = checked(funnel);
           data.roleStageDurations = checked(durations);
@@ -227,6 +228,7 @@ export default async function Page({
           }[])
             counts[row.stage] = row.candidate_count;
           data.roleCandidateCounts = counts;
+          data.roleSourcePerformance = checked(sourcePerformance);
         } else if (stageParam === "follow_ups") {
           const page = Math.max(
             1,

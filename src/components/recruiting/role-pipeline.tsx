@@ -19,6 +19,7 @@ import type {
   ShareLink,
   StageDurationRow,
   StageFunnelRow,
+  SourcePerformanceRow,
 } from "@/lib/types";
 import {
   stages,
@@ -135,6 +136,7 @@ export function RolePipeline({
   shareLinks,
   stageFunnel,
   stageDurations,
+  sourcePerformance,
 }: {
   client: Client;
   role: Role;
@@ -149,6 +151,7 @@ export function RolePipeline({
   shareLinks: ShareLink[];
   stageFunnel: StageFunnelRow[];
   stageDurations: StageDurationRow[];
+  sourcePerformance: SourcePerformanceRow[];
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -532,7 +535,11 @@ export function RolePipeline({
           <div className="section-heading">
             <h2>Analytics</h2>
           </div>
-          <RoleAnalytics funnel={stageFunnel} durations={stageDurations} />
+          <RoleAnalytics
+            funnel={stageFunnel}
+            durations={stageDurations}
+            sourcePerformance={sourcePerformance}
+          />
         </>
       ) : isFollowUpsTab ? (
         <>

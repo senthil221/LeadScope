@@ -1,5 +1,14 @@
-import type { StageDurationRow, StageFunnelRow } from "@/lib/types";
-import { pipelineStages, stageLabels, type Stage } from "@/lib/recruiting/stages";
+import type {
+  SourcePerformanceRow,
+  StageDurationRow,
+  StageFunnelRow,
+} from "@/lib/types";
+import {
+  candidateSourceLabel,
+  pipelineStages,
+  stageLabels,
+  type Stage,
+} from "@/lib/recruiting/stages";
 
 function formatDays(days: number | null): string {
   if (days == null) return "—";
@@ -16,9 +25,11 @@ function formatPct(n: number): string {
 export function RoleAnalytics({
   funnel,
   durations,
+  sourcePerformance,
 }: {
   funnel: StageFunnelRow[];
   durations: StageDurationRow[];
+  sourcePerformance: SourcePerformanceRow[];
 }) {
   const byStage = new Map(funnel.map((r) => [r.stage, r]));
   const durationByStage = new Map(durations.map((r) => [r.stage, r]));
@@ -70,6 +81,40 @@ export function RoleAnalytics({
           </tr>
         </tbody>
       </table>
+      <h3>Source performance</h3>
+      <p className="muted">
+        Counts show candidates from each source who ever reached a stage, even
+        if they later moved on or were rejected.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th>Profiles</th>
+            <th>AI shortlist</th>
+            <th>Recruiter</th>
+            <th>Client</th>
+            <th>Offer</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sourcePerformance.map((row) => (
+            <tr key={`${row.source}:${row.source_detail}`}>
+              <td className="strong">
+                {candidateSourceLabel(row.source, row.source_detail)}
+              </td>
+              <td>{row.total_profiles}</td>
+              <td>{row.ai_shortlisted}</td>
+              <td>{row.recruiter_shortlisted}</td>
+              <td>{row.client_shortlisted}</td>
+              <td>{row.offer_sent}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {!sourcePerformance.length && (
+        <p className="muted">Source performance will appear after candidates are added.</p>
+      )}
       <h3>Median time in stage</h3>
       <p className="muted">
         Only completed stays count — a candidate still sitting in a stage

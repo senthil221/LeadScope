@@ -221,6 +221,15 @@ export type StageDurationRow = {
   completed_count: number;
   median_days: number | null;
 };
+export type SourcePerformanceRow = {
+  source: string;
+  source_detail: string;
+  total_profiles: number;
+  ai_shortlisted: number;
+  recruiter_shortlisted: number;
+  client_shortlisted: number;
+  offer_sent: number;
+};
 export type ShareLink = {
   id: string;
   stage: string;
@@ -298,4 +307,5 @@ export type PageData = {
   shareLinks?: ShareLink[];
   roleStageFunnel?: StageFunnelRow[];
   roleStageDurations?: StageDurationRow[];
+  roleSourcePerformance?: SourcePerformanceRow[];
 };

@@ -32,6 +32,10 @@ const offerMigration = readFileSync(
   resolve("supabase/migrations/20260916044004_offer_closing_workspace.sql"),
   "utf8",
 );
+const sourcePerformanceMigration = readFileSync(
+  resolve("supabase/migrations/20260916044546_source_performance_analytics.sql"),
+  "utf8",
+);
 // Pulls the list out of `check(<column> in ('a','b'))` in the migration itself,
 // so the constraint and the TypeScript union can never drift apart silently.
 function checkList(column: string, sql = migration): string[] {
@@ -128,5 +132,13 @@ describe("offer closing workspace", () => {
     expect(offerMigration).toContain("add column offer_response_due_at date");
     expect(offerMigration).toContain("create function private.save_offer_details");
     expect(offerMigration).toContain("rc.offer_response_due_at<=current_date");
+  });
+});
+
+describe("source performance analytics", () => {
+  it("counts every source through the recruiting stages", () => {
+    expect(sourcePerformanceMigration).toContain("create function public.role_source_performance");
+    expect(sourcePerformanceMigration).toContain("reached_ai");
+    expect(sourcePerformanceMigration).toContain("reached_offer");
   });
 });
