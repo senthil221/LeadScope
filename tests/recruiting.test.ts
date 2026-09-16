@@ -48,6 +48,10 @@ const clientDirectoryMigration = readFileSync(
   resolve("supabase/migrations/20260916103000_client_directory_counts.sql"),
   "utf8",
 );
+const candidateListIndexesMigration = readFileSync(
+  resolve("supabase/migrations/20260916104000_candidate_list_filter_indexes.sql"),
+  "utf8",
+);
 // Pulls the list out of `check(<column> in ('a','b'))` in the migration itself,
 // so the constraint and the TypeScript union can never drift apart silently.
 function checkList(column: string, sql = migration): string[] {
@@ -181,5 +185,19 @@ describe("client directory counts", () => {
     expect(clientDirectoryMigration).toContain("count(distinct r.id)");
     expect(clientDirectoryMigration).toContain("left join public.roles r");
     expect(clientDirectoryMigration).toContain("rc.follow_up_at<=current_date");
+  });
+});
+
+describe("candidate list indexes", () => {
+  it("covers source filtering and both manual-rating sort orders", () => {
+    expect(candidateListIndexesMigration).toContain(
+      "role_candidates_role_stage_source_entered",
+    );
+    expect(candidateListIndexesMigration).toContain(
+      "role_candidates_role_stage_rating_ascending",
+    );
+    expect(candidateListIndexesMigration).toContain(
+      "role_candidates_role_stage_rating_descending",
+    );
   });
 });
