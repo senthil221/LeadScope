@@ -1067,12 +1067,33 @@ export function RolePipeline({
         />
       )}
       {panelId && (
-        <CandidatePanel
-          clientId={client.id}
-          roleCandidate={roleCandidates.find((rc) => rc.id === panelId)!}
-          onClose={() => setPanelId(null)}
-          onChanged={() => router.refresh()}
-        />
+        (() => {
+          const panelIndex = roleCandidates.findIndex((rc) => rc.id === panelId);
+          const panelCandidate = roleCandidates[panelIndex];
+          if (!panelCandidate) return null;
+          const previous = roleCandidates[panelIndex - 1];
+          const next = roleCandidates[panelIndex + 1];
+          return (
+            <CandidatePanel
+              key={panelCandidate.id}
+              clientId={client.id}
+              roleCandidate={panelCandidate}
+              previousCandidate={
+                previous
+                  ? { id: previous.id, name: previous.candidates.full_name }
+                  : null
+              }
+              nextCandidate={
+                next ? { id: next.id, name: next.candidates.full_name } : null
+              }
+              position={panelIndex + 1}
+              totalInView={roleCandidates.length}
+              onNavigate={setPanelId}
+              onClose={() => setPanelId(null)}
+              onChanged={() => router.refresh()}
+            />
+          );
+        })()
       )}
       {managingFields && (
         <RoleFieldsDialog

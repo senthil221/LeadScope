@@ -1,6 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, History, MessageSquareText, X } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  History,
+  MessageSquareText,
+  X,
+} from "lucide-react";
 import type { RoleCandidate } from "@/lib/types";
 import {
   isStage,
@@ -165,11 +172,21 @@ function activityCopy(event: CandidateActivity) {
 export function CandidatePanel({
   clientId,
   roleCandidate,
+  previousCandidate,
+  nextCandidate,
+  position,
+  totalInView,
+  onNavigate,
   onClose,
   onChanged,
 }: {
   clientId: string;
   roleCandidate: RoleCandidate;
+  previousCandidate: { id: string; name: string } | null;
+  nextCandidate: { id: string; name: string } | null;
+  position: number;
+  totalInView: number;
+  onNavigate: (id: string) => void;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -374,6 +391,38 @@ export function CandidatePanel({
     } finally {
       setRestoring(false);
     }
+  }
+  function navigate(id: string) {
+    const detailsChanged =
+      details.fullName !== c.full_name ||
+      details.headline !== c.headline ||
+      details.currentCompany !== c.current_company ||
+      details.currentDesignation !== c.current_designation ||
+      details.location !== c.location ||
+      details.totalExperienceYears !==
+        (c.total_experience_years != null ? String(c.total_experience_years) : "") ||
+      details.phone !== (c.phone ?? "") ||
+      details.email !== (c.email ?? "");
+    const screeningChanged =
+      JSON.stringify(screening) !== JSON.stringify((rc.screening as Screening) ?? {}) ||
+      internalNotes !== rc.internal_notes;
+    const offerChanged =
+      offer.amount !== (rc.offer_amount != null ? String(rc.offer_amount) : "") ||
+      offer.currency !== rc.offer_currency ||
+      offer.sentOn !== (rc.offer_sent_on ?? "") ||
+      offer.responseDueAt !== (rc.offer_response_due_at ?? "") ||
+      offer.expectedStartAt !== (rc.expected_start_at ?? "") ||
+      offer.notes !== rc.offer_notes;
+    if (
+      !detailsChanged &&
+      !screeningChanged &&
+      !offerChanged
+    ) {
+      onNavigate(id);
+      return;
+    }
+    if (window.confirm("Discard unsaved changes and open another candidate?"))
+      onNavigate(id);
   }
 
   return (
@@ -754,6 +803,37 @@ export function CandidatePanel({
       </section>
 
       </div>
+      {totalInView > 1 && (
+        <nav className="candidate-drawer-navigation" aria-label="Candidate navigation">
+          <button
+            type="button"
+            disabled={!previousCandidate}
+            aria-label={
+              previousCandidate
+                ? `Previous candidate: ${previousCandidate.name}`
+                : "No previous candidate"
+            }
+            onClick={() => previousCandidate && navigate(previousCandidate.id)}
+          >
+            <ChevronLeft size={16} />
+            Previous
+          </button>
+          <span>{position} of {totalInView} in this view</span>
+          <button
+            type="button"
+            disabled={!nextCandidate}
+            aria-label={
+              nextCandidate
+                ? `Next candidate: ${nextCandidate.name}`
+                : "No next candidate"
+            }
+            onClick={() => nextCandidate && navigate(nextCandidate.id)}
+          >
+            Next
+            <ChevronRight size={16} />
+          </button>
+        </nav>
+      )}
       <footer className="candidate-drawer-actions">
         {currentStage === "rejected" ? (
           <button
