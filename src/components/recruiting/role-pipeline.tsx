@@ -1076,21 +1076,27 @@ export function RolePipeline({
                   )}
                   {tab === "offer_sent" && (
                     <td className="offer-details-cell">
-                      {rc.offer_amount != null ? (
-                        <strong>
-                          {[rc.offer_currency, rc.offer_amount]
-                            .filter(Boolean)
-                            .join(" ")}
-                        </strong>
-                      ) : (
-                        <span className="muted">Add details</span>
-                      )}
-                      {rc.offer_response_due_at && (
-                        <small>Response due {date(rc.offer_response_due_at)}</small>
-                      )}
-                      {rc.expected_start_at && (
-                        <small>Start {date(rc.expected_start_at)}</small>
-                      )}
+                      <button
+                        className="offer-details-trigger"
+                        onClick={() => setPanelId(rc.id)}
+                        type="button"
+                      >
+                        {rc.offer_amount != null ? (
+                          <strong>
+                            {[rc.offer_currency, rc.offer_amount]
+                              .filter(Boolean)
+                              .join(" ")}
+                          </strong>
+                        ) : (
+                          <span>Add offer details</span>
+                        )}
+                        {rc.offer_response_due_at && (
+                          <small>Response due {date(rc.offer_response_due_at)}</small>
+                        )}
+                        {rc.expected_start_at && (
+                          <small>Start {date(rc.expected_start_at)}</small>
+                        )}
+                      </button>
                     </td>
                   )}
                   {tab === "offer_sent" && (

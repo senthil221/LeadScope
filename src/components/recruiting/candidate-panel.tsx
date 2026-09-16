@@ -53,16 +53,6 @@ const screeningLabels: Record<keyof Screening, string> = {
   recruiterAssessment: "Recruiter assessment",
   followUpAt: "Follow-up date",
 };
-const clientDecisionLabels = {
-  shortlisted: "Client shortlisted",
-  hold: "Client is holding",
-  rejected: "Client rejected",
-} as const;
-const clientDecisionBadge = {
-  shortlisted: "accepted",
-  hold: "review",
-  rejected: "rejected",
-} as const;
 function formatDateTime(value: string | null) {
   if (!value) return null;
   return new Date(value).toLocaleString(undefined, {
@@ -567,31 +557,17 @@ export function CandidatePanel({
       </section>
 
       <section
-        className="candidate-client-response candidate-client-response-section"
-        aria-labelledby="client-response-heading"
+        className="candidate-client-notes candidate-client-notes-section"
+        aria-labelledby="client-notes-heading"
       >
         <div className="candidate-panel-section-heading">
           <MessageSquareText size={16} aria-hidden="true" />
-          <h3 id="client-response-heading">Client response</h3>
+          <h3 id="client-notes-heading">Client notes</h3>
         </div>
-        {rc.client_decision ? (
-          <span className={`badge ${clientDecisionBadge[rc.client_decision]}`}>
-            {clientDecisionLabels[rc.client_decision]}
-          </span>
+        {rc.client_notes ? (
+          <p className="candidate-client-note">{rc.client_notes}</p>
         ) : (
-          <p className="muted">No client decision recorded yet.</p>
-        )}
-        {rc.client_notes && (
-          <p className="candidate-client-note">
-            <strong>Notes</strong>
-            {rc.client_notes}
-          </p>
-        )}
-        {rc.interview_at && (
-          <p className="candidate-client-interview">
-            <CalendarDays size={15} aria-hidden="true" />
-            Interview {formatDateTime(rc.interview_at)}
-          </p>
+          <p className="muted">No client notes yet.</p>
         )}
       </section>
 

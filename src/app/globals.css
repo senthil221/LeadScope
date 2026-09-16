@@ -578,10 +578,10 @@ label small {
 .candidate-profile-section { order: 1; }
 .candidate-resume-section { order: 2; }
 .candidate-screening-section { order: 3; }
-.candidate-client-response-section { order: 4; }
+.candidate-client-notes-section { order: 4; }
 .candidate-drawer-body > .candidate-activity { order: 5; }
 .candidate-drawer-section,
-.candidate-drawer .candidate-client-response,
+.candidate-drawer .candidate-client-notes,
 .candidate-drawer .candidate-activity {
   margin: 0;
   padding: 18px 0;
@@ -671,6 +671,16 @@ label small {
 .offer-details-cell small {
   display: block;
 }
+.offer-details-trigger {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--brand-ink);
+  text-align: left;
+}
+.offer-details-trigger:hover { text-decoration: underline; }
+.offer-details-trigger span { font-size: 12px; }
 .offer-details-cell small {
   margin-top: 3px;
   color: var(--muted);
@@ -2467,7 +2477,7 @@ details h3 {
   color: var(--muted);
 }
 
-.candidate-client-response {
+.candidate-client-notes {
   padding: 14px 0;
   margin: 0 0 20px;
   border-block: 1px solid var(--line);
@@ -2478,8 +2488,7 @@ details h3 {
   gap: 7px;
   margin-bottom: 8px;
 }
-.candidate-panel-section-heading svg,
-.candidate-client-interview svg {
+.candidate-panel-section-heading svg {
   color: var(--brand);
   flex-shrink: 0;
 }
@@ -2487,23 +2496,9 @@ details h3 {
   margin: 0;
 }
 .candidate-client-note {
-  display: grid;
-  gap: 3px;
-  margin: 12px 0 0;
+  margin: 0;
   color: var(--ink-soft);
   white-space: pre-wrap;
-}
-.candidate-client-note strong {
-  color: var(--ink);
-  font-size: 12px;
-}
-.candidate-client-interview {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 12px 0 0;
-  font-size: 13px;
-  color: var(--ink-soft);
 }
 .candidate-client-notes-cell { min-width: 180px; max-width: 260px; }
 .client-note-preview {
