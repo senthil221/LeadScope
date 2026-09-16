@@ -17,6 +17,11 @@ import {
   hasMergeableIdentity,
   type Identity,
 } from "../src/lib/recruiting/identity";
+import {
+  roleCandidateExportCells,
+  roleCandidateExportColumns,
+} from "../src/lib/recruiting/export";
+import type { RoleCandidate } from "../src/lib/types";
 
 const migration = readFileSync(
   resolve("supabase/migrations/20260910061500_recruiting_foundation.sql"),
@@ -158,6 +163,43 @@ describe("offer closing workspace", () => {
     expect(offerMigration).toContain("add column offer_response_due_at date");
     expect(offerMigration).toContain("create function private.save_offer_details");
     expect(offerMigration).toContain("rc.offer_response_due_at<=current_date");
+  });
+});
+
+describe("candidate exports", () => {
+  it("exports the current role journey without exposing private recruiter notes", () => {
+    const row = {
+      stage_entered_at: "2026-09-16T00:00:00.000Z",
+      stage: "offer_sent",
+      rating: 4.5,
+      source: "linkedin",
+      source_detail: "Recruiter seat",
+      client_notes: "Available from October",
+      internal_notes: "Do not export this",
+      offer_amount: 1500000,
+      offer_currency: "INR",
+      offer_sent_on: "2026-09-15",
+      offer_response_due_at: "2026-09-20",
+      expected_start_at: "2026-10-01",
+      outcome: "offer_sent",
+      rejection_type: null,
+      rejection_reason: "",
+      candidates: {
+        full_name: "Priya Nair",
+        headline: "Senior recruiter",
+        current_designation: "Recruiter",
+        current_company: "Example Co",
+        location: "Chennai",
+        total_experience_years: 7,
+        phone: "+919999999999",
+        email: "priya@example.com",
+      },
+    } as unknown as RoleCandidate;
+
+    expect(roleCandidateExportColumns).not.toContain("Internal recruiter notes");
+    expect(roleCandidateExportCells(row)).toContain("Offer sent");
+    expect(roleCandidateExportCells(row)).toContain("Available from October");
+    expect(roleCandidateExportCells(row)).not.toContain("Do not export this");
   });
 });
 

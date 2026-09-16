@@ -10,7 +10,11 @@ import { prospectFilters } from "@/lib/prospects";
 import { prospectQuery } from "@/lib/server/prospects";
 import { uuid } from "@/lib/domain";
 import type { PageData, Discovery, Lead, RoleCandidate } from "@/lib/types";
-import { candidateSources, isRatingFilter, isStage } from "@/lib/recruiting/stages";
+import { isStage } from "@/lib/recruiting/stages";
+import {
+  roleCandidateListFilters,
+  roleCandidateListQuery,
+} from "@/lib/server/recruiting";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -307,57 +311,15 @@ export default async function Page({
             Math.min(100000, Math.floor(Number(filter.page) || 1)),
           );
           data.page = page;
-          const term = filter.q
-            ?.trim()
-            .slice(0, 200)
-            .replace(/[\\%_,().]/g, "\\$&");
-          let candidateQuery = db
-            .from("role_candidates")
-            .select("*,candidates!inner(*)", { count: "exact" })
-            .eq("role_id", data.role!.id)
-            .eq("stage", stage);
-          const source = candidateSources.includes(filter.source as (typeof candidateSources)[number])
-            ? filter.source
-            : undefined;
-          if (source) candidateQuery = candidateQuery.eq("source", source);
-          const ratingFilter = isRatingFilter(filter.rating)
-            ? filter.rating
-            : undefined;
-          if (ratingFilter === "unrated")
-            candidateQuery = candidateQuery.is("rating", null);
-          else if (ratingFilter === "meets_floor")
-            candidateQuery = candidateQuery.gte("rating", data.role!.rating_threshold);
-          else if (ratingFilter === "below_floor")
-            candidateQuery = candidateQuery.lt("rating", data.role!.rating_threshold);
-          if (term)
-            candidateQuery = candidateQuery.or(
-              [
-                `full_name.ilike.%${term}%`,
-                `headline.ilike.%${term}%`,
-                `current_company.ilike.%${term}%`,
-                `current_designation.ilike.%${term}%`,
-              ].join(","),
-              { referencedTable: "candidates" },
-            );
-          const sort = ["oldest", "rating_high", "rating_low"].includes(filter.sort ?? "")
-            ? filter.sort
-            : "newest";
-          if (sort === "rating_high")
-            candidateQuery = candidateQuery.order("rating", {
-              ascending: false,
-              nullsFirst: false,
-            });
-          else if (sort === "rating_low")
-            candidateQuery = candidateQuery.order("rating", {
-              ascending: true,
-              nullsFirst: false,
-            });
-          else
-            candidateQuery = candidateQuery.order("stage_entered_at", {
-              ascending: sort !== "oldest",
-            });
+          const candidateQuery = roleCandidateListQuery(
+            db,
+            data.role!.id,
+            stage,
+            data.role!.rating_threshold,
+            roleCandidateListFilters(filter),
+          );
           const [rows, stageCounts, fields] = await Promise.all([
-            candidateQuery.order("id").range((page - 1) * 50, page * 50 - 1),
+            candidateQuery.range((page - 1) * 50, page * 50 - 1),
             db.rpc("role_candidate_stage_counts", { p_role: data.role!.id }),
             db
               .from("role_fields")

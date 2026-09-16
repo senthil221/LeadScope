@@ -186,6 +186,7 @@ export function RolePipeline({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [savingFollowUpId, setSavingFollowUpId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
@@ -465,6 +466,33 @@ export function RolePipeline({
       setSavingFollowUpId(null);
     }
   }
+  async function exportCandidates() {
+    if (exporting || !isStage(tab)) return;
+    setExporting(true);
+    setError("");
+    try {
+      const exportParams = new URLSearchParams(params);
+      exportParams.set("client", client.id);
+      exportParams.set("role", role.id);
+      exportParams.set("stage", tab);
+      exportParams.set("format", "csv");
+      const response = await fetch(`/api/export?${exportParams}`);
+      if (!response.ok) throw new Error((await response.json()).error);
+      const blob = URL.createObjectURL(
+        new Blob([await response.text()], { type: "text/csv;charset=utf-8" }),
+      );
+      const link = document.createElement("a");
+      link.href = blob;
+      link.download = `${role.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "role"}-candidates.csv`;
+      link.click();
+      URL.revokeObjectURL(blob);
+      setMessage("Exported all matching candidates.");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  }
   return (
     <>
       <header className="page-header role-workspace-header">
@@ -569,6 +597,12 @@ export function RolePipeline({
             <p className="muted">{total} candidate{total === 1 ? "" : "s"}</p>
           </div>
           <div className="row">
+            <button
+              disabled={!total || exporting}
+              onClick={() => void exportCandidates()}
+            >
+              {exporting ? "Preparing…" : "Export CSV"}
+            </button>
             {tab === "recruiter_shortlisted" && (
               <button onClick={() => setManagingFields(true)}>Manage columns</button>
             )}

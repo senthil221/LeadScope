@@ -1,16 +1,40 @@
 import { z } from "zod";
-import { admin, checked } from "@/lib/server/db";
+import { admin, AppError, checked } from "@/lib/server/db";
 import { failure } from "@/lib/server/http";
 import { uuid } from "@/lib/domain";
 import { serializeExport } from "@/lib/export";
-import type { Lead } from "@/lib/types";
+import type { Lead, RoleCandidate } from "@/lib/types";
 import {
   prospectFilters,
   prospectCells,
   prospectColumns,
   type Prospect,
 } from "@/lib/prospects";
+import { isStage } from "@/lib/recruiting/stages";
+import { roleCandidateExportCells, roleCandidateExportColumns } from "@/lib/recruiting/export";
+import { roleCandidateListFilters, roleCandidateListQuery } from "@/lib/server/recruiting";
 export const runtime = "nodejs";
+
+function contentHeaders(filename: string, format: "csv" | "tsv") {
+  return {
+    "Content-Type":
+      format === "csv"
+        ? "text/csv; charset=utf-8"
+        : "text/tab-separated-values; charset=utf-8",
+    "Content-Disposition": `attachment; filename="${filename}.${format}"`,
+    "Cache-Control": "private, no-store",
+  };
+}
+
+function exportFilename(name: string) {
+  const slug = name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `leadscope-${slug || "role"}-candidates`;
+}
+
 export async function GET(request: Request) {
   try {
     const { db } = await admin();
@@ -20,6 +44,44 @@ export async function GET(request: Request) {
       ? uuid.parse(params.get("campaign"))
       : undefined;
     const format = z.enum(["csv", "tsv"]).parse(params.get("format") ?? "csv");
+    const roleId = params.get("role");
+    if (roleId) {
+      const stage = params.get("stage");
+      if (!isStage(stage)) throw new AppError("Choose a valid candidate stage.");
+      const role = checked(
+        await db
+          .from("roles")
+          .select("id,name,rating_threshold")
+          .eq("id", uuid.parse(roleId))
+          .eq("client_id", clientId)
+          .single(),
+      );
+      const result = await roleCandidateListQuery(
+        db,
+        role.id,
+        stage,
+        role.rating_threshold,
+        roleCandidateListFilters({
+          q: params.get("q") ?? undefined,
+          source: params.get("source") ?? undefined,
+          rating: params.get("rating") ?? undefined,
+          sort: params.get("sort") ?? undefined,
+        }),
+      ).range(0, 9999);
+      const rows = checked(result) as unknown as RoleCandidate[];
+      if ((result.count ?? 0) > 10_000)
+        throw new AppError(
+          "Export fewer than 10,000 candidates at a time. Narrow the filters and try again.",
+        );
+      return new Response(
+        serializeExport(
+          rows.map(roleCandidateExportCells),
+          format,
+          roleCandidateExportColumns,
+        ),
+        { headers: contentHeaders(exportFilename(role.name), format) },
+      );
+    }
     if (params.get("sheet") === "1") {
       const filters = prospectFilters(params);
       const rows = checked(
@@ -32,14 +94,7 @@ export async function GET(request: Request) {
       return new Response(
         serializeExport(rows.map(prospectCells), format, prospectColumns),
         {
-          headers: {
-            "Content-Type":
-              format === "csv"
-                ? "text/csv; charset=utf-8"
-                : "text/tab-separated-values; charset=utf-8",
-            "Content-Disposition": `attachment; filename="leadscope-prospects.${format}"`,
-            "Cache-Control": "private, no-store",
-          },
+          headers: contentHeaders("leadscope-prospects", format),
         },
       );
     }
@@ -74,14 +129,7 @@ export async function GET(request: Request) {
         [row.notes, row.decision_note].filter(Boolean).join(" | "),
       ]);
     return new Response(serializeExport(rows, format), {
-      headers: {
-        "Content-Type":
-          format === "csv"
-            ? "text/csv; charset=utf-8"
-            : "text/tab-separated-values; charset=utf-8",
-        "Content-Disposition": `attachment; filename="leadscope-accepted.${format}"`,
-        "Cache-Control": "private, no-store",
-      },
+      headers: contentHeaders("leadscope-accepted", format),
     });
   } catch (e) {
     return failure(e);
