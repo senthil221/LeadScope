@@ -198,7 +198,7 @@ export function RolePipeline({
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
   const [columnPreference, setColumnPreference] = useState<string | null>(null);
   const path = `/roles/${role.id}`;
-  const columnStorageKey = `leadscope:role-columns:${role.id}`;
+  const columnStorageKey = `leadscope:role-columns:${role.id}:${tab}`;
   // The bulk bar and rating cells only apply to the five pipeline stages.
   const isPipelineTab = isStage(tab) && tab !== "rejected";
   const isFollowUpsTab = tab === "follow_ups";
@@ -209,6 +209,12 @@ export function RolePipeline({
   ].includes(tab);
   const showsClientResponse =
     tab === "client_shortlisted" || tab === "offer_sent" || tab === "rejected";
+  const showsCustomColumns = [
+    "recruiter_shortlisted",
+    "client_shortlisted",
+    "offer_sent",
+    "rejected",
+  ].includes(tab);
   const advanceTo = isPipelineTab ? nextStage(tab as PipelineStage) : null;
   const pipelineTotal = Object.entries(counts)
     .filter(([stage]) => stage !== "rejected")
@@ -856,7 +862,7 @@ export function RolePipeline({
                 {tab === "offer_sent" && <th>Offer details</th>}
                 {tab === "offer_sent" && <th>Outcome</th>}
                 {showsClientResponse && <th>Client response</th>}
-                {roleFields.map((f) => (
+                {showsCustomColumns && roleFields.map((f) => (
                   <th key={f.id}>{f.label}</th>
                 ))}
                 </tr>
@@ -982,7 +988,7 @@ export function RolePipeline({
                       )}
                     </td>
                   )}
-                  {roleFields.map((f) => (
+                  {showsCustomColumns && roleFields.map((f) => (
                     <td key={f.id}>
                       <CustomFieldCell
                         key={`${f.id}:${rc.id}:${JSON.stringify(rc.custom[f.key])}`}
