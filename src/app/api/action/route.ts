@@ -208,7 +208,7 @@ export async function POST(request: Request) {
         );
         break;
       }
-      case "reviewCandidatesWithAi": {
+      case "scoreCandidatesWithAi": {
         const p = z
           .object({
             clientId: uuid,
@@ -227,7 +227,7 @@ export async function POST(request: Request) {
           db
             .from("role_candidates")
             .select(
-              "id,stage,candidates!inner(full_name,headline,current_company,current_designation,total_experience_years)",
+              "id,stage,candidates!inner(headline,current_company,current_designation,total_experience_years)",
             )
             .eq("client_id", p.clientId)
             .eq("role_id", p.roleId)
@@ -239,7 +239,6 @@ export async function POST(request: Request) {
           id: string;
           stage: string;
           candidates: {
-            full_name: string;
             headline: string;
             current_company: string;
             current_designation: string;
@@ -265,55 +264,13 @@ export async function POST(request: Request) {
             totalExperienceYears: candidate.candidates.total_experience_years,
           })),
         });
-        const names = new Map(
-          candidates.map((candidate) => [candidate.id, candidate.candidates.full_name]),
-        );
         result = {
-          suggestions: suggestions.map((suggestion) => ({
-            ...suggestion,
-            name: names.get(suggestion.id) ?? "Candidate",
-          })),
+          scored: suggestions.length,
+          autoShortlisted: suggestions.filter(
+            (suggestion) => suggestion.rating >= role.rating_threshold,
+          ).length,
         };
-        break;
-      }
-      case "applyAiSuggestions": {
-        const p = z
-          .object({
-            clientId: uuid,
-            roleId: uuid,
-            suggestions: z
-              .array(
-                z.object({ id: uuid, rating: z.number().int().min(0).max(5) }),
-              )
-              .min(1)
-              .max(20),
-          })
-          .parse(payload);
-        const ids = p.suggestions.map((suggestion) => suggestion.id);
-        if (new Set(ids).size !== ids.length)
-          throw new AppError("A candidate can only be rated once per review.");
-        const [roleResult, candidateResult] = await Promise.all([
-          db
-            .from("roles")
-            .select("rating_threshold")
-            .eq("id", p.roleId)
-            .eq("client_id", p.clientId)
-            .single(),
-          db
-            .from("role_candidates")
-            .select("id")
-            .eq("client_id", p.clientId)
-            .eq("role_id", p.roleId)
-            .eq("stage", "all_profiles")
-            .in("id", ids),
-        ]);
-        const role = checked(roleResult);
-        const candidates = checked(candidateResult);
-        if (candidates.length !== ids.length)
-          throw new AppError(
-            "One or more candidates changed stage. Reload before applying suggestions.",
-          );
-        for (const suggestion of p.suggestions)
+        for (const suggestion of suggestions)
           checked(
             await db.rpc("rate_candidate", {
               p_client: p.clientId,
@@ -321,12 +278,6 @@ export async function POST(request: Request) {
               p_rating: suggestion.rating,
             }),
           );
-        result = {
-          applied: p.suggestions.length,
-          autoShortlisted: p.suggestions.filter(
-            (suggestion) => suggestion.rating >= role.rating_threshold,
-          ).length,
-        };
         break;
       }
       case "moveStage": {

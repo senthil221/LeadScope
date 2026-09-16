@@ -57,12 +57,6 @@ async function act<T = { id: string }>(
 }
 
 type Tab = Stage | "follow_ups" | "master_db" | "analytics";
-type AiSuggestion = {
-  id: string;
-  name: string;
-  rating: number;
-  rationale: string;
-};
 const pipelineTabs: { key: Tab; label: string }[] = [
   ...stages
     .filter((s) => s !== "rejected")
@@ -171,10 +165,7 @@ export function RolePipeline({
   const [importing, setImporting] = useState(false);
   const [applying, setApplying] = useState(false);
   const [applyBusy, setApplyBusy] = useState(false);
-  const [aiReview, setAiReview] = useState<AiSuggestion[] | null>(null);
-  const [aiSelected, setAiSelected] = useState<string[]>([]);
   const [aiScoring, setAiScoring] = useState(false);
-  const [aiApplying, setAiApplying] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [masterSelection, setMasterSelection] = useState({
     scope: "",
@@ -348,50 +339,27 @@ export function RolePipeline({
     setAiScoring(true);
     setError("");
     try {
-      const result = await act<{ suggestions: AiSuggestion[] }>(
-        "reviewCandidatesWithAi",
+      const result = await act<{ scored: number; autoShortlisted: number }>(
+        "scoreCandidatesWithAi",
         {
           clientId: client.id,
           roleId: role.id,
           ids: aiCandidates.map((candidate) => candidate.id),
         },
       );
-      setAiReview(result.suggestions);
-      setAiSelected(result.suggestions.map((suggestion) => suggestion.id));
+      setSelected([]);
+      setMessage(
+        result.autoShortlisted
+          ? `AI scored ${result.scored} profile${result.scored === 1 ? "" : "s"} on a 0–5 scale. ${result.autoShortlisted} moved to AI shortlisted after meeting the threshold.`
+          : `AI scored ${result.scored} profile${result.scored === 1 ? "" : "s"} on a 0–5 scale. None meet the current threshold yet.`,
+      );
+      router.refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setAiScoring(false);
     }
   }
-  async function applyAiSuggestions() {
-    if (aiApplying || !aiReview || !aiSelected.length) return;
-    setAiApplying(true);
-    setError("");
-    try {
-      const suggestions = aiReview
-        .filter((suggestion) => aiSelected.includes(suggestion.id))
-        .map(({ id, rating }) => ({ id, rating }));
-      const result = await act<{ applied: number; autoShortlisted: number }>(
-        "applyAiSuggestions",
-        { clientId: client.id, roleId: role.id, suggestions },
-      );
-      setAiReview(null);
-      setAiSelected([]);
-      setSelected([]);
-      setMessage(
-        result.autoShortlisted
-          ? `Applied ${result.applied} recruiter-approved rating${result.applied === 1 ? "" : "s"}. ${result.autoShortlisted} moved to AI shortlisted after meeting the threshold.`
-          : `Applied ${result.applied} recruiter-approved rating${result.applied === 1 ? "" : "s"}.`,
-      );
-      router.refresh();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setAiApplying(false);
-    }
-  }
-
   return (
     <>
       <header className="page-header">
@@ -1070,67 +1038,6 @@ export function RolePipeline({
               type="button"
               disabled={applyBusy}
               onClick={() => setApplying(false)}
-            >
-              Cancel
-            </button>
-          </div>
-        </dialog>
-      )}
-      {aiReview && (
-        <dialog open className="modal ai-review-modal">
-          <div className="modal-heading">
-            <h2>Review AI suggestions</h2>
-          </div>
-          <p className="muted">
-            These are job-evidence suggestions, not hiring decisions. Review the
-            rationale for each candidate, then choose which ratings to apply.
-            Ratings that meet {role.rating_threshold} / 5 move to AI shortlisted.
-          </p>
-          <div className="ai-review-list">
-            {aiReview.map((suggestion) => (
-              <label key={suggestion.id} className="ai-review-item">
-                <input
-                  type="checkbox"
-                  checked={aiSelected.includes(suggestion.id)}
-                  disabled={aiApplying}
-                  onChange={(event) =>
-                    setAiSelected((current) =>
-                      event.target.checked
-                        ? [...current, suggestion.id]
-                        : current.filter((id) => id !== suggestion.id),
-                    )
-                  }
-                />
-                <span>
-                  <strong>{suggestion.name}</strong>
-                  <small>{suggestion.rationale}</small>
-                </span>
-                <b>{suggestion.rating} / 5</b>
-              </label>
-            ))}
-          </div>
-          {error && (
-            <p className="error" role="alert">
-              {error}
-            </p>
-          )}
-          <div className="row">
-            <button
-              className="primary"
-              disabled={aiApplying || !aiSelected.length}
-              onClick={() => void applyAiSuggestions()}
-            >
-              {aiApplying
-                ? "Applying…"
-                : `Apply ${aiSelected.length} rating${aiSelected.length === 1 ? "" : "s"}`}
-            </button>
-            <button
-              type="button"
-              disabled={aiApplying}
-              onClick={() => {
-                setAiReview(null);
-                setAiSelected([]);
-              }}
             >
               Cancel
             </button>
