@@ -101,24 +101,6 @@ function candidateEmptyMessage(tab: Tab, query = "") {
     return "No candidates yet. Add candidates from LinkedIn, Naukri, manual entry, or a CSV import.";
   return `No candidates in ${stageLabels[tab as Stage].toLowerCase()} yet.`;
 }
-const clientDecisionLabels = {
-  shortlisted: "Shortlisted",
-  hold: "On hold",
-  rejected: "Rejected",
-} as const;
-const clientDecisionBadge = {
-  shortlisted: "accepted",
-  hold: "review",
-  rejected: "rejected",
-} as const;
-function formatInterview(value: string | null) {
-  if (!value) return null;
-  return new Date(value).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
-
 function followUpStatus(value: string) {
   const today = new Date();
   const localToday = [
@@ -217,8 +199,12 @@ export function RolePipeline({
     "client_shortlisted",
     "offer_sent",
   ].includes(tab);
-  const showsClientResponse =
-    tab === "client_shortlisted" || tab === "offer_sent" || tab === "rejected";
+  const showsClientNotes = [
+    "recruiter_shortlisted",
+    "client_shortlisted",
+    "offer_sent",
+    "rejected",
+  ].includes(tab);
   const showsCustomColumns = [
     "recruiter_shortlisted",
     "client_shortlisted",
@@ -1004,7 +990,7 @@ export function RolePipeline({
                 )}
                 {tab === "offer_sent" && <th>Offer details</th>}
                 {tab === "offer_sent" && <th>Outcome</th>}
-                {showsClientResponse && <th>Client response</th>}
+                {showsClientNotes && <th>Client notes</th>}
                 {showsCustomColumns && roleFields.map((f) => (
                   <th key={f.id}>{f.label}</th>
                 ))}
@@ -1118,17 +1104,19 @@ export function RolePipeline({
                       />
                     </td>
                   )}
-                  {showsClientResponse && (
-                    <td className="candidate-client-response-cell">
-                      {rc.client_decision ? (
-                        <span className={`badge ${clientDecisionBadge[rc.client_decision]}`}>
-                          {clientDecisionLabels[rc.client_decision]}
-                        </span>
+                  {showsClientNotes && (
+                    <td className="candidate-client-notes-cell">
+                      {rc.client_notes ? (
+                        <button
+                          className="client-note-preview text-button"
+                          onClick={() => setPanelId(rc.id)}
+                          title="Open candidate to read the full client note"
+                          type="button"
+                        >
+                          {rc.client_notes}
+                        </button>
                       ) : (
-                        <span className="muted">Awaiting response</span>
-                      )}
-                      {rc.interview_at && (
-                        <small>Interview {formatInterview(rc.interview_at)}</small>
+                        <span className="muted">No notes yet</span>
                       )}
                     </td>
                   )}

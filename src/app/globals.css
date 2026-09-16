@@ -2505,13 +2505,18 @@ details h3 {
   font-size: 13px;
   color: var(--ink-soft);
 }
-.candidate-client-response-cell {
-  min-width: 142px;
-}
-.candidate-client-response-cell small {
+.candidate-client-notes-cell { min-width: 180px; max-width: 260px; }
+.client-note-preview {
   display: block;
-  margin-top: 5px;
+  max-width: 240px;
+  overflow: hidden;
+  color: var(--ink-soft);
+  line-height: 1.35;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+.client-note-preview:hover { color: var(--brand-ink); text-decoration: underline; }
 .client-review-handoff {
   padding: 14px 0 4px;
 }
