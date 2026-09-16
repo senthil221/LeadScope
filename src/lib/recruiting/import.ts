@@ -140,6 +140,31 @@ export function parseCsv(text: string): string[][] {
   return rows.filter((r) => r.some((cell) => cell.trim().length));
 }
 
+// Excel uploads are converted to the same CSV-shaped input as pasted CSV
+// before validation. This keeps column aliases, custom-field mapping, and
+// duplicate handling identical across both file formats.
+export function spreadsheetRowsToCsv(
+  rows: unknown[][],
+): string {
+  return rows
+    .map((row) =>
+      row
+        .map((value) => {
+          const text =
+            value == null
+              ? ""
+              : value instanceof Date
+                ? value.toISOString().slice(0, 10)
+                : String(value);
+          return /[",\r\n]/.test(text)
+            ? `"${text.replaceAll('"', '""')}"`
+            : text;
+        })
+        .join(","),
+    )
+    .join("\n");
+}
+
 const csvColumnAliases: Record<string, keyof DraftRow> = {
   name: "name",
   "full name": "name",

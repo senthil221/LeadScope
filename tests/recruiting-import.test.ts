@@ -8,6 +8,7 @@ import {
   csvToDraftRows,
   csvHeaders,
   automaticCustomColumnMappings,
+  spreadsheetRowsToCsv,
   type DraftRow,
 } from "../src/lib/recruiting/import";
 
@@ -119,6 +120,24 @@ describe("parseCsv", () => {
       ["a", "b"],
       ["1", "2"],
     ]);
+  });
+});
+
+describe("spreadsheetRowsToCsv", () => {
+  it("preserves values that need CSV quoting before shared import validation", () => {
+    const text = spreadsheetRowsToCsv([
+      ["Full Name", "Email", "Notes"],
+      ["Priya, Nair", "priya@example.com", 'Called "last week"'],
+    ]);
+    expect(parseCsv(text)).toEqual([
+      ["Full Name", "Email", "Notes"],
+      ["Priya, Nair", "priya@example.com", 'Called "last week"'],
+    ]);
+  });
+  it("serializes an Excel date as an ISO date string", () => {
+    expect(spreadsheetRowsToCsv([[new Date("2026-09-16T00:00:00Z")]])).toBe(
+      "2026-09-16",
+    );
   });
 });
 

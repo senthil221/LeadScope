@@ -1,12 +1,14 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
+import { readSheet } from "read-excel-file/browser";
 import {
   buildImportRow,
   isRowError,
   nameFromProfileUrl,
   csvImportPreview,
   csvHeaders,
+  spreadsheetRowsToCsv,
   automaticCustomColumnMappings,
   csvTemplateColumns,
   type DraftRow,
@@ -39,7 +41,7 @@ type Mode = "paste" | "manual" | "csv" | "sourcing";
 const modeLabels: Record<Mode, string> = {
   paste: "Paste URLs",
   manual: "Manual entry",
-  csv: "CSV",
+  csv: "CSV / Excel",
   sourcing: "From sourcing",
 };
 const emptyManual: DraftRow = { name: "" };
@@ -100,21 +102,33 @@ export function AddCandidatesDialog({
     setError("");
   }
 
-  async function chooseCsvFile(file: File | undefined) {
+  async function chooseImportFile(file: File | undefined) {
     if (!file) return;
-    if (file.size > 60_000) {
-      setError("Choose a CSV file smaller than 60 KB. Split larger files into batches of 200 candidates.");
+    const isExcel = /\.xlsx$/i.test(file.name);
+    const maxBytes = isExcel ? 5_000_000 : 60_000;
+    if (file.size > maxBytes) {
+      setError(
+        isExcel
+          ? "Choose an Excel file smaller than 5 MB. Split larger files into batches of 200 candidates."
+          : "Choose a CSV file smaller than 60 KB. Split larger files into batches of 200 candidates.",
+      );
       return;
     }
-    const text = await file.text();
-    if (text.length > 60_000) {
-      setError("Choose a CSV file smaller than 60 KB. Split larger files into batches of 200 candidates.");
-      return;
+    try {
+      const text = isExcel
+        ? spreadsheetRowsToCsv(await readSheet(file))
+        : await file.text();
+      if (!isExcel && text.length > 60_000) {
+        setError("Choose a CSV file smaller than 60 KB. Split larger files into batches of 200 candidates.");
+        return;
+      }
+      setCsvFileName(file.name);
+      setCustomColumnOverrides({});
+      setCsvText(text);
+      setError("");
+    } catch {
+      setError("Could not read that Excel file. Export the first sheet as CSV and try again.");
     }
-    setCsvFileName(file.name);
-    setCustomColumnOverrides({});
-    setCsvText(text);
-    setError("");
   }
 
   async function submit(rows: ImportRow[], source: CandidateSource) {
@@ -373,17 +387,17 @@ export function AddCandidatesDialog({
             ref={csvFileInput}
             className="visually-hidden"
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             disabled={busy}
             onChange={(event) => {
-              void chooseCsvFile(event.target.files?.[0]);
+              void chooseImportFile(event.target.files?.[0]);
               event.target.value = "";
             }}
           />
           <div className="csv-file-action">
             <div>
-              <strong>{csvFileName || "Choose a CSV file"}</strong>
-              <p className="muted">Up to 200 candidate rows per import.</p>
+              <strong>{csvFileName || "Choose a CSV or Excel file"}</strong>
+              <p className="muted">CSV or first Excel sheet; up to 200 candidate rows.</p>
             </div>
             <button
               type="button"

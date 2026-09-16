@@ -10,7 +10,7 @@ import { prospectFilters } from "@/lib/prospects";
 import { prospectQuery } from "@/lib/server/prospects";
 import { uuid } from "@/lib/domain";
 import type { PageData, Discovery, Lead, RoleCandidate } from "@/lib/types";
-import { isStage } from "@/lib/recruiting/stages";
+import { candidateSources, isStage } from "@/lib/recruiting/stages";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export default async function Page({
@@ -283,6 +283,10 @@ export default async function Page({
             .select("*,candidates!inner(*)", { count: "exact" })
             .eq("role_id", data.role!.id)
             .eq("stage", stage);
+          const source = candidateSources.includes(filter.source as (typeof candidateSources)[number])
+            ? filter.source
+            : undefined;
+          if (source) candidateQuery = candidateQuery.eq("source", source);
           if (term)
             candidateQuery = candidateQuery.or(
               [
@@ -293,11 +297,25 @@ export default async function Page({
               ].join(","),
               { referencedTable: "candidates" },
             );
+          const sort = ["oldest", "rating_high", "rating_low"].includes(filter.sort ?? "")
+            ? filter.sort
+            : "newest";
+          if (sort === "rating_high")
+            candidateQuery = candidateQuery.order("rating", {
+              ascending: false,
+              nullsFirst: false,
+            });
+          else if (sort === "rating_low")
+            candidateQuery = candidateQuery.order("rating", {
+              ascending: true,
+              nullsFirst: false,
+            });
+          else
+            candidateQuery = candidateQuery.order("stage_entered_at", {
+              ascending: sort !== "oldest",
+            });
           const [rows, stageCounts, fields] = await Promise.all([
-            candidateQuery
-              .order("stage_entered_at", { ascending: false })
-              .order("id")
-              .range((page - 1) * 50, page * 50 - 1),
+            candidateQuery.order("id").range((page - 1) * 50, page * 50 - 1),
             db.rpc("role_candidate_stage_counts", { p_role: data.role!.id }),
             db
               .from("role_fields")

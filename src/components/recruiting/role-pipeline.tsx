@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import {
   Archive,
   CircleHelp,
@@ -27,6 +27,8 @@ import {
   nextStage,
   rejectionTypes,
   candidateSourceLabel,
+  candidateSources,
+  candidateSourceLabels,
   type PipelineStage,
   type Stage,
 } from "@/lib/recruiting/stages";
@@ -57,6 +59,19 @@ async function act<T = { id: string }>(
 }
 
 type Tab = Stage | "follow_ups" | "master_db" | "analytics";
+type CandidateColumn = "date" | "designation" | "company" | "experience";
+const defaultVisibleColumns: CandidateColumn[] = [
+  "date",
+  "designation",
+  "company",
+  "experience",
+];
+const candidateColumnLabels: Record<CandidateColumn, string> = {
+  date: "Date added",
+  designation: "Designation",
+  company: "Company",
+  experience: "Experience",
+};
 const pipelineTabs: { key: Tab; label: string }[] = [
   ...stages
     .filter((s) => s !== "rejected")
@@ -180,7 +195,10 @@ export function RolePipeline({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [columnMenuOpen, setColumnMenuOpen] = useState(false);
+  const [columnPreference, setColumnPreference] = useState<string | null>(null);
   const path = `/roles/${role.id}`;
+  const columnStorageKey = `leadscope:role-columns:${role.id}`;
   // The bulk bar and rating cells only apply to the five pipeline stages.
   const isPipelineTab = isStage(tab) && tab !== "rejected";
   const isFollowUpsTab = tab === "follow_ups";
@@ -213,6 +231,39 @@ export function RolePipeline({
     });
   }
 
+  const savedColumnPreference = useSyncExternalStore(
+    (onStoreChange) => {
+      window.addEventListener("storage", onStoreChange);
+      return () => window.removeEventListener("storage", onStoreChange);
+    },
+    () => localStorage.getItem(columnStorageKey) ?? "",
+    () => "",
+  );
+  const visibleColumns = (() => {
+    try {
+      const saved = JSON.parse(columnPreference ?? savedColumnPreference);
+      if (
+        Array.isArray(saved) &&
+        saved.every((column): column is CandidateColumn =>
+          defaultVisibleColumns.includes(column),
+        )
+      )
+        return saved;
+    } catch {
+      // A malformed local preference should never prevent recruiter work.
+    }
+    return defaultVisibleColumns;
+  })();
+
+  function toggleColumn(column: CandidateColumn) {
+    const next = visibleColumns.includes(column)
+      ? visibleColumns.filter((item) => item !== column)
+      : [...visibleColumns, column];
+    const serialized = JSON.stringify(next);
+    localStorage.setItem(columnStorageKey, serialized);
+    setColumnPreference(serialized);
+  }
+
   const tabUrl = (key: Tab) => {
     const p = new URLSearchParams(params);
     p.set("stage", key);
@@ -225,12 +276,14 @@ export function RolePipeline({
     p.set("page", String(nextPage));
     return `${path}?${p}`;
   };
-  const stageSearchUrl = (nextQuery: string) => {
+  const stageFilterUrl = (changes: Record<string, string>) => {
     const p = new URLSearchParams(params);
     p.set("stage", tab);
     p.delete("page");
-    if (nextQuery.trim()) p.set("q", nextQuery.trim());
-    else p.delete("q");
+    Object.entries(changes).forEach(([key, value]) => {
+      if (value) p.set(key, value);
+      else p.delete(key);
+    });
     return `${path}?${p}`;
   };
   const masterDbUrl = (changes: Record<string, string>) => {
@@ -470,7 +523,13 @@ export function RolePipeline({
           onSubmit={(event) => {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
-            router.push(stageSearchUrl(String(form.get("q") ?? "")));
+            router.push(
+              stageFilterUrl({
+                q: String(form.get("q") ?? ""),
+                source: String(form.get("source") ?? ""),
+                sort: String(form.get("sort") ?? ""),
+              }),
+            );
           }}
         >
           <input
@@ -480,8 +539,47 @@ export function RolePipeline({
             defaultValue={query}
             maxLength={200}
           />
+          <select name="source" aria-label="Filter candidates by source" defaultValue={params.get("source") ?? ""}>
+            <option value="">All sources</option>
+            {candidateSources.map((source) => (
+              <option key={source} value={source}>
+                {candidateSourceLabels[source]}
+              </option>
+            ))}
+          </select>
+          <select name="sort" aria-label="Sort candidates" defaultValue={params.get("sort") ?? "newest"}>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="rating_high">Highest rating</option>
+            <option value="rating_low">Lowest rating</option>
+          </select>
           <button>Search</button>
-          {query && <Link href={stageSearchUrl("")}>Clear</Link>}
+          <div className="candidate-column-menu">
+            <button
+              type="button"
+              aria-expanded={columnMenuOpen}
+              onClick={() => setColumnMenuOpen((open) => !open)}
+            >
+              Columns
+            </button>
+            {columnMenuOpen && (
+              <div className="candidate-column-popover">
+                {defaultVisibleColumns.map((column) => (
+                  <label key={column}>
+                    <input
+                      type="checkbox"
+                      checked={visibleColumns.includes(column)}
+                      onChange={() => toggleColumn(column)}
+                    />
+                    {candidateColumnLabels[column]}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+          {(query || params.get("source") || params.get("sort")) && (
+            <Link href={stageFilterUrl({ q: "", source: "", sort: "" })}>Clear</Link>
+          )}
         </form>
       )}
       {tab === "analytics" ? (
@@ -743,11 +841,11 @@ export function RolePipeline({
                     />
                   </th>
                 )}
-                <th>Date added</th>
+                {visibleColumns.includes("date") && <th>Date added</th>}
                 <th>Full name</th>
-                <th>Designation</th>
-                <th>Company</th>
-                <th>Experience</th>
+                {visibleColumns.includes("designation") && <th>Designation</th>}
+                {visibleColumns.includes("company") && <th>Company</th>}
+                {visibleColumns.includes("experience") && <th>Experience</th>}
                 {tab === "rejected" ? (
                   <>
                     <th>Reject type</th>
@@ -786,7 +884,7 @@ export function RolePipeline({
                       />
                     </td>
                   )}
-                  <td>{date(rc.stage_entered_at)}</td>
+                  {visibleColumns.includes("date") && <td>{date(rc.stage_entered_at)}</td>}
                   <td>
                     <button
                       type="button"
@@ -799,13 +897,19 @@ export function RolePipeline({
                       {candidateSourceLabel(rc.source, rc.source_detail)}
                     </small>
                   </td>
-                  <td>{rc.candidates.current_designation || "—"}</td>
-                  <td>{rc.candidates.current_company || "—"}</td>
-                  <td>
-                    {rc.candidates.total_experience_years != null
-                      ? `${rc.candidates.total_experience_years} yrs`
-                      : "—"}
-                  </td>
+                  {visibleColumns.includes("designation") && (
+                    <td>{rc.candidates.current_designation || "—"}</td>
+                  )}
+                  {visibleColumns.includes("company") && (
+                    <td>{rc.candidates.current_company || "—"}</td>
+                  )}
+                  {visibleColumns.includes("experience") && (
+                    <td>
+                      {rc.candidates.total_experience_years != null
+                        ? `${rc.candidates.total_experience_years} yrs`
+                        : "—"}
+                    </td>
+                  )}
                   {tab === "rejected" ? (
                     <>
                       <td>
