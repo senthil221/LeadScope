@@ -36,6 +36,17 @@ const staticColumns: { key: string; label: string }[] = [
 // editable — enforced again on the server, since a client only ever gets as
 // much write access as create_share_link actually allows.
 const editableEligibleStatic = new Set(["client_notes", "interview_at"]);
+const clientReviewColumns = [
+  "full_name",
+  "headline",
+  "current_designation",
+  "current_company",
+  "location",
+  "total_experience_years",
+  "client_notes",
+  "interview_at",
+];
+const clientReviewEditableColumns = ["client_notes", "interview_at"];
 
 function status(link: ShareLink): { label: string; badge: string } {
   if (link.revoked_at) return { label: "Revoked", badge: "rejected" };
@@ -52,6 +63,7 @@ export function ShareDialog({
   stage,
   links,
   fields,
+  presetClientReview = false,
   onClose,
   onChanged,
 }: {
@@ -60,6 +72,7 @@ export function ShareDialog({
   stage: Stage;
   links: ShareLink[];
   fields: RoleField[];
+  presetClientReview?: boolean;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -67,6 +80,7 @@ export function ShareDialog({
   const [editableColumns, setEditableColumns] = useState<string[]>([]);
   const [allowDecisions, setAllowDecisions] = useState(false);
   const [expiresAt, setExpiresAt] = useState("");
+  const [customizing, setCustomizing] = useState(!presetClientReview);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [justCreated, setJustCreated] = useState<{ url: string; copied: boolean } | null>(null);
@@ -95,8 +109,13 @@ export function ShareDialog({
     }
   }
 
-  async function create() {
-    if (busy || !selectedColumns.length) return;
+  async function create(
+    visibleColumns: string[],
+    nextEditableColumns: string[],
+    decisions: boolean,
+    nextExpiresAt: string,
+  ) {
+    if (busy || !visibleColumns.length) return;
     setBusy(true);
     setError("");
     try {
@@ -104,10 +123,12 @@ export function ShareDialog({
         clientId,
         roleId,
         stage,
-        visibleColumns: selectedColumns,
-        editableColumns,
-        allowDecisions,
-        expiresAt: expiresAt ? new Date(`${expiresAt}T23:59:59`).toISOString() : null,
+        visibleColumns,
+        editableColumns: nextEditableColumns,
+        allowDecisions: decisions,
+        expiresAt: nextExpiresAt
+          ? new Date(`${nextExpiresAt}T23:59:59`).toISOString()
+          : null,
       });
       setJustCreated({ url: shareUrl(result.token), copied: false });
       setSelectedColumns([]);
@@ -120,6 +141,15 @@ export function ShareDialog({
     } finally {
       setBusy(false);
     }
+  }
+  function defaultReviewExpiry() {
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + 14);
+    return [
+      expiry.getFullYear(),
+      String(expiry.getMonth() + 1).padStart(2, "0"),
+      String(expiry.getDate()).padStart(2, "0"),
+    ].join("-");
   }
   async function revoke(id: string) {
     if (busy) return;
@@ -156,7 +186,11 @@ export function ShareDialog({
   return (
     <dialog open className="modal">
       <div className="modal-heading">
-        <h2>Share {stageLabels[stage]}</h2>
+        <h2>
+          {presetClientReview && !customizing
+            ? "Send for client review"
+            : `Share ${stageLabels[stage]}`}
+        </h2>
         <button aria-label="Close" onClick={onClose}>
           <X size={18} />
         </button>
@@ -173,7 +207,8 @@ export function ShareDialog({
             <strong>Copy this link now — it won&rsquo;t be shown again.</strong>
             <p className="muted">
               Anyone with this link can view {stageLabels[stage]} for this
-              role, with no login. It stays live until you revoke it.
+              role, with no login. It remains active until it expires or you
+              revoke it.
             </p>
             <div className="row">
               <input readOnly value={justCreated.url} onFocus={(e) => e.target.select()} />
@@ -185,6 +220,37 @@ export function ShareDialog({
               Done
             </button>
           </div>
+        </div>
+      )}
+      {presetClientReview && !customizing && !justCreated && (
+        <div className="client-review-handoff">
+          <h3>Ready to send</h3>
+          <p className="muted">
+            Your client can view the candidate&rsquo;s profile, add notes or an
+            interview date, and Shortlist, Hold, or Reject each candidate.
+            The secure link expires in 14 days.
+          </p>
+          <button
+            className="primary wide"
+            disabled={busy}
+            onClick={() =>
+              void create(
+                clientReviewColumns,
+                clientReviewEditableColumns,
+                true,
+                defaultReviewExpiry(),
+              )
+            }
+          >
+            {busy ? "Creating…" : "Create client review link"}
+          </button>
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => setCustomizing(true)}
+          >
+            Customize columns or expiry
+          </button>
         </div>
       )}
       {links.length > 0 && (
@@ -252,79 +318,85 @@ export function ShareDialog({
           </div>
         </>
       )}
-      <h3>Create a new link</h3>
-      <p className="muted">
-        Choose exactly what this link shows, and which of those the client
-        can edit. Nothing is visible until you select it here.
-      </p>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Column</th>
-              <th>Visible</th>
-              <th>Editable</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pickerRows.map((c) => {
-              const field = fields.find((f) => f.key === c.key);
-              const canEdit = field ? true : editableEligibleStatic.has(c.key);
-              const visible = selectedColumns.includes(c.key);
-              return (
-                <tr key={c.key}>
-                  <td>{c.label}</td>
-                  <td>
-                    <input
-                      type="checkbox"
-                      aria-label={`${c.label} visible`}
-                      disabled={busy}
-                      checked={visible}
-                      onChange={() => toggleVisible(c.key)}
-                    />
-                  </td>
-                  <td>
-                    {canEdit && (
-                      <input
-                        type="checkbox"
-                        aria-label={`${c.label} editable`}
-                        disabled={busy || !visible}
-                        checked={editableColumns.includes(c.key)}
-                        onChange={() => toggleEditable(c.key)}
-                      />
-                    )}
-                  </td>
+      {customizing && (
+        <>
+          <h3>Create a new link</h3>
+          <p className="muted">
+            Choose exactly what this link shows, and which of those the client
+            can edit. Nothing is visible until you select it here.
+          </p>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Column</th>
+                  <th>Visible</th>
+                  <th>Editable</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <label className="check-label">
-        <input
-          type="checkbox"
-          disabled={busy}
-          checked={allowDecisions}
-          onChange={(e) => setAllowDecisions(e.target.checked)}
-        />
-        Let the client Shortlist, Hold, or Reject candidates from this link
-      </label>
-      <label>
-        Expires <span className="optional">optional</span>
-        <input
-          type="date"
-          disabled={busy}
-          value={expiresAt}
-          onChange={(e) => setExpiresAt(e.target.value)}
-        />
-      </label>
-      <button
-        className="primary wide"
-        disabled={busy || !selectedColumns.length}
-        onClick={() => void create()}
-      >
-        {busy ? "Creating…" : "Create link"}
-      </button>
+              </thead>
+              <tbody>
+                {pickerRows.map((c) => {
+                  const field = fields.find((f) => f.key === c.key);
+                  const canEdit = field ? true : editableEligibleStatic.has(c.key);
+                  const visible = selectedColumns.includes(c.key);
+                  return (
+                    <tr key={c.key}>
+                      <td>{c.label}</td>
+                      <td>
+                        <input
+                          type="checkbox"
+                          aria-label={`${c.label} visible`}
+                          disabled={busy}
+                          checked={visible}
+                          onChange={() => toggleVisible(c.key)}
+                        />
+                      </td>
+                      <td>
+                        {canEdit && (
+                          <input
+                            type="checkbox"
+                            aria-label={`${c.label} editable`}
+                            disabled={busy || !visible}
+                            checked={editableColumns.includes(c.key)}
+                            onChange={() => toggleEditable(c.key)}
+                          />
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <label className="check-label">
+            <input
+              type="checkbox"
+              disabled={busy}
+              checked={allowDecisions}
+              onChange={(e) => setAllowDecisions(e.target.checked)}
+            />
+            Let the client Shortlist, Hold, or Reject candidates from this link
+          </label>
+          <label>
+            Expires <span className="optional">optional</span>
+            <input
+              type="date"
+              disabled={busy}
+              value={expiresAt}
+              onChange={(e) => setExpiresAt(e.target.value)}
+            />
+          </label>
+          <button
+            className="primary wide"
+            disabled={busy || !selectedColumns.length}
+            onClick={() =>
+              void create(selectedColumns, editableColumns, allowDecisions, expiresAt)
+            }
+          >
+            {busy ? "Creating…" : "Create link"}
+          </button>
+        </>
+      )}
     </dialog>
   );
 }

@@ -2000,6 +2000,21 @@ details h3 {
   display: block;
   margin-top: 5px;
 }
+.client-review-handoff {
+  padding: 14px 0 4px;
+}
+.client-review-handoff h3 {
+  margin: 0 0 6px;
+}
+.client-review-handoff .muted {
+  margin: 0 0 16px;
+}
+.client-review-handoff .text-button {
+  display: block;
+  margin: 10px auto 0;
+  color: var(--muted);
+  font-size: 13px;
+}
 .role-work-queue {
   display: grid;
   grid-template-columns: repeat(2, minmax(92px, 1fr));

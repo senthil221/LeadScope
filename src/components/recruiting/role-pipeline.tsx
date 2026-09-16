@@ -172,7 +172,7 @@ export function RolePipeline({
   const [rejecting, setRejecting] = useState(false);
   const [panelId, setPanelId] = useState<string | null>(null);
   const [managingFields, setManagingFields] = useState(false);
-  const [sharing, setSharing] = useState(false);
+  const [sharing, setSharing] = useState<"client-review" | "custom" | null>(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -411,10 +411,24 @@ export function RolePipeline({
           <h2>{tab === "rejected" ? "Rejects" : stageLabels[tab as Stage]}</h2>
           <div className="row">
             <button onClick={() => setManagingFields(true)}>Manage columns</button>
-            <button onClick={() => setSharing(true)}>
-              <LinkIcon size={15} />
-              Share with client
-            </button>
+            {tab === "client_shortlisted" ? (
+              <>
+                <button onClick={() => setSharing("custom")}>Manage links</button>
+                <button
+                  className="primary small"
+                  disabled={!total || role.archived}
+                  onClick={() => setSharing("client-review")}
+                >
+                  <LinkIcon size={15} />
+                  Send for client review
+                </button>
+              </>
+            ) : (
+              <button onClick={() => setSharing("custom")}>
+                <LinkIcon size={15} />
+                Share with client
+              </button>
+            )}
             {tab === "all_profiles" && !role.archived && (
               <>
                 <button onClick={() => setApplying(true)}>
@@ -951,7 +965,8 @@ export function RolePipeline({
           stage={tab}
           links={shareLinks}
           fields={roleFields}
-          onClose={() => setSharing(false)}
+          presetClientReview={sharing === "client-review"}
+          onClose={() => setSharing(null)}
           onChanged={() => router.refresh()}
         />
       )}
