@@ -224,6 +224,23 @@ export default async function Page({
           }[])
             counts[row.stage] = row.candidate_count;
           data.roleCandidateCounts = counts;
+        } else if (stageParam === "follow_ups") {
+          const page = Math.max(
+            1,
+            Math.min(100000, Math.floor(Number(filter.page) || 1)),
+          );
+          data.page = page;
+          const rows = await db
+            .from("role_candidates")
+            .select("*,candidates!inner(*)", { count: "exact" })
+            .eq("role_id", data.role!.id)
+            .not("follow_up_at", "is", null)
+            .neq("stage", "rejected")
+            .order("follow_up_at")
+            .order("id")
+            .range((page - 1) * 50, page * 50 - 1);
+          data.roleCandidates = checked(rows) as unknown as RoleCandidate[];
+          data.total = rows.count ?? 0;
         } else {
           const stage = isStage(stageParam) ? stageParam : "all_profiles";
           const page = Math.max(

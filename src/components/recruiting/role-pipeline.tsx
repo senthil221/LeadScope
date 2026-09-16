@@ -55,7 +55,7 @@ async function act<T = { id: string }>(
   return result;
 }
 
-type Tab = Stage | "master_db" | "analytics";
+type Tab = Stage | "follow_ups" | "master_db" | "analytics";
 const pipelineTabs: { key: Tab; label: string }[] = [
   ...stages
     .filter((s) => s !== "rejected")
@@ -74,6 +74,7 @@ const date = (s: string | null | undefined) =>
 
 function candidateEmptyMessage(tab: Tab, query = "") {
   if (query) return "No candidates match this search.";
+  if (tab === "follow_ups") return "No recruiter follow-ups are scheduled for this role.";
   if (tab === "master_db") return "No candidates in the master database yet.";
   if (tab === "rejected") return "No candidates rejected yet.";
   if (tab === "all_profiles")
@@ -95,6 +96,27 @@ function formatInterview(value: string | null) {
   return new Date(value).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
+  });
+}
+
+function followUpStatus(value: string) {
+  const today = new Date();
+  const localToday = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-");
+  if (value < localToday) return "Overdue";
+  if (value === localToday) return "Due today";
+  return "Upcoming";
+}
+
+function followUpDate(value: string | null) {
+  if (!value) return "—";
+  return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
 }
 
@@ -133,7 +155,9 @@ export function RolePipeline({
   const query = params.get("q")?.trim() ?? "";
   const tab: Tab = isStage(rawStage)
     ? (rawStage as Tab)
-    : rawStage === "master_db" || rawStage === "analytics"
+    : rawStage === "follow_ups" ||
+        rawStage === "master_db" ||
+        rawStage === "analytics"
       ? rawStage
       : "all_profiles";
   const [editing, setEditing] = useState(false);
@@ -155,8 +179,8 @@ export function RolePipeline({
   const [message, setMessage] = useState("");
   const path = `/roles/${role.id}`;
   // The bulk bar and rating cells only apply to the five pipeline stages.
-  const isPipelineTab =
-    tab !== "rejected" && tab !== "master_db" && tab !== "analytics";
+  const isPipelineTab = isStage(tab) && tab !== "rejected";
+  const isFollowUpsTab = tab === "follow_ups";
   const showsClientResponse =
     tab === "client_shortlisted" || tab === "offer_sent" || tab === "rejected";
   const advanceTo = isPipelineTab ? nextStage(tab as PipelineStage) : null;
@@ -372,6 +396,9 @@ export function RolePipeline({
       </div>
       <nav className="role-secondary-nav" aria-label="Role tools">
         <span>Role tools</span>
+        <Link className={isFollowUpsTab ? "selected" : ""} href={tabUrl("follow_ups")}>
+          Follow-ups
+        </Link>
         <Link className={tab === "master_db" ? "selected" : ""} href={tabUrl("master_db")}>
           Master DB
         </Link>
@@ -379,7 +406,7 @@ export function RolePipeline({
           Analytics
         </Link>
       </nav>
-      {tab !== "master_db" && tab !== "analytics" && (
+      {isStage(tab) && (
         <div className="section-heading">
           <h2>{tab === "rejected" ? "Rejects" : stageLabels[tab as Stage]}</h2>
           <div className="row">
@@ -426,7 +453,7 @@ export function RolePipeline({
           </button>
         </div>
       )}
-      {tab !== "master_db" && tab !== "analytics" && (
+      {isStage(tab) && (
         <form
           className="sheet-toolbar candidate-search"
           onSubmit={(event) => {
@@ -452,6 +479,87 @@ export function RolePipeline({
             <h2>Analytics</h2>
           </div>
           <RoleAnalytics funnel={stageFunnel} durations={stageDurations} />
+        </>
+      ) : isFollowUpsTab ? (
+        <>
+          <div className="section-heading">
+            <div>
+              <h2>Follow-ups</h2>
+              <p className="muted">
+                Candidates with a recruiter follow-up date, ordered by urgency.
+              </p>
+            </div>
+          </div>
+          <div className="card table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Follow-up</th>
+                  <th>Candidate</th>
+                  <th>Current stage</th>
+                  <th>Company</th>
+                  <th>Contact</th>
+                </tr>
+              </thead>
+              <tbody>
+                {roleCandidates.map((rc) => (
+                  <tr key={rc.id}>
+                    <td>
+                      <strong>{followUpDate(rc.follow_up_at)}</strong>
+                      {rc.follow_up_at && (
+                        <small
+                          className={`follow-up-status ${followUpStatus(rc.follow_up_at).replaceAll(" ", "-").toLowerCase()}`}
+                        >
+                          {followUpStatus(rc.follow_up_at)}
+                        </small>
+                      )}
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="text-button strong"
+                        onClick={() => setPanelId(rc.id)}
+                      >
+                        {rc.candidates.full_name}
+                      </button>
+                      <small className="candidate-source">
+                        {candidateSourceLabel(rc.source, rc.source_detail)}
+                      </small>
+                    </td>
+                    <td>
+                      {isStage(rc.stage) ? stageLabels[rc.stage] : rc.stage}
+                    </td>
+                    <td>{rc.candidates.current_company || "—"}</td>
+                    <td>{rc.candidates.phone || rc.candidates.email || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!roleCandidates.length && (
+              <div className="empty">
+                <h3>{candidateEmptyMessage(tab)}</h3>
+              </div>
+            )}
+          </div>
+          <div className="sheet-footer">
+            <span>
+              {total
+                ? `${(page - 1) * 50 + 1}–${Math.min(page * 50, total)} of ${total}`
+                : "0 candidates"}
+            </span>
+            <div className="row">
+              {page > 1 && (
+                <Link className="button small" href={stagePageUrl(page - 1)}>
+                  Previous
+                </Link>
+              )}
+              {page * 50 < total && (
+                <Link className="button small" href={stagePageUrl(page + 1)}>
+                  Next
+                </Link>
+              )}
+            </div>
+          </div>
         </>
       ) : tab === "master_db" ? (
         <>
@@ -836,7 +944,7 @@ export function RolePipeline({
           onChanged={() => router.refresh()}
         />
       )}
-      {sharing && tab !== "master_db" && tab !== "analytics" && (
+      {sharing && isStage(tab) && (
         <ShareDialog
           clientId={client.id}
           roleId={role.id}

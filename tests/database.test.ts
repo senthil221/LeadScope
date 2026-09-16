@@ -1972,6 +1972,44 @@ describe("save_screening: recruiter screening answers and internal notes", () =>
       ).rows[0].n,
     ).toBe(1);
   });
+  it("mirrors a valid follow-up date into the indexed queue field", async () => {
+    const { cid, rcId } = await pipeline("screen-follow-up", 3);
+    await asUser(actor, () =>
+      rpc("save_screening", [
+        cid,
+        rcId,
+        JSON.stringify({ interest: "maybe", followUpAt: "2026-09-22" }),
+        "Call after their notice period.",
+      ]),
+    );
+    expect(
+      (
+        await sql(
+          "select follow_up_at,screening from public.role_candidates where id=$1",
+          [rcId],
+        )
+      ).rows[0],
+    ).toEqual({
+      follow_up_at: "2026-09-22",
+      screening: { interest: "maybe", followUpAt: "2026-09-22" },
+    });
+    await asUser(actor, () =>
+      rpc("save_screening", [cid, rcId, JSON.stringify({ followUpAt: "" }), ""]),
+    );
+    expect(
+      (
+        await sql("select follow_up_at from public.role_candidates where id=$1", [rcId])
+      ).rows[0].follow_up_at,
+    ).toBeNull();
+    await expect(
+      asUser(actor, () =>
+        rpc(
+          "save_screening",
+          [cid, rcId, JSON.stringify({ followUpAt: "not-a-date" }), ""],
+        ),
+      ),
+    ).rejects.toThrow("Choose a valid follow-up date");
+  });
   it("rejects a non-object screening payload and an oversized note", async () => {
     const { cid, rcId } = await pipeline("screen-invalid", 3);
     await expect(

@@ -2000,6 +2000,18 @@ details h3 {
   display: block;
   margin-top: 5px;
 }
+.follow-up-status {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.follow-up-status.overdue {
+  color: #a52b2b;
+}
+.follow-up-status.due-today {
+  color: #a15c00;
+}
 
 /* ============================================================
    Setup + login + access pages

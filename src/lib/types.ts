@@ -167,6 +167,7 @@ export type RoleCandidate = {
   rejection_reason: string;
   outcome: string | null;
   outcome_at: string | null;
+  follow_up_at: string | null;
   stage_entered_at: string;
   created_at: string;
   candidates: MasterCandidate;
