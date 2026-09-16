@@ -780,6 +780,7 @@ export function RolePipeline({
         <AddCandidatesDialog
           clientId={client.id}
           roleId={role.id}
+          roleFields={roleFields}
           sourcingProspects={sourcingProspects}
           onClose={() => setImporting(false)}
           onImported={summarize}

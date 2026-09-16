@@ -1580,6 +1580,36 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
       ).rows[0].source_detail,
     ).toBe("Upwork - August shortlist");
   });
+  it("imports a typed active role field and rejects a stale custom key", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const fieldId = await asUser(actor, () =>
+      rpc("add_role_field", [cid, rid, "Notice period", "number", JSON.stringify([])]),
+    );
+    const key = (await sql("select key from public.role_fields where id=$1", [fieldId])).rows[0]
+      .key;
+    await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        rid,
+        JSON.stringify([linkedinRow("custom-import", { custom: { [key]: 30 } })]),
+        "csv",
+      ]),
+    );
+    expect(
+      (await sql("select custom from public.role_candidates where role_id=$1", [rid])).rows[0]
+        .custom,
+    ).toEqual({ [key]: 30 });
+    const summary = await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        rid,
+        JSON.stringify([linkedinRow("custom-import-invalid", { custom: { stale_column: "x" } })]),
+        "csv",
+      ]),
+    );
+    expect(summary.invalid).toBe(1);
+  });
   it("resolves a candidate already in the master database as matchedExisting, never duplicating it", async () => {
     const cid = await client();
     const rid = await role(cid);

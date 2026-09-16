@@ -153,6 +153,9 @@ export async function POST(request: Request) {
                     .record(z.string(), z.union([z.string(), z.number()]))
                     .default({}),
                   sourceDetail: z.string().trim().max(500).optional(),
+                  custom: z
+                    .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+                    .default({}),
                 }),
               )
               .min(1)

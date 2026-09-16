@@ -6,12 +6,15 @@ import {
   isRowError,
   nameFromProfileUrl,
   csvImportPreview,
+  csvHeaders,
+  automaticCustomColumnMappings,
   csvTemplateColumns,
   type DraftRow,
   type ImportRow,
 } from "@/lib/recruiting/import";
 import { normalizeIdentity } from "@/lib/recruiting/identity";
 import type { CandidateSource } from "@/lib/recruiting/stages";
+import type { RoleField } from "@/lib/types";
 
 async function act<T>(action: string, payload: unknown): Promise<T> {
   const response = await fetch("/api/action", {
@@ -44,12 +47,14 @@ const emptyManual: DraftRow = { name: "" };
 export function AddCandidatesDialog({
   clientId,
   roleId,
+  roleFields,
   sourcingProspects,
   onClose,
   onImported,
 }: {
   clientId: string;
   roleId: string;
+  roleFields: RoleField[];
   sourcingProspects: { id: string; canonical_url: string; title: string }[];
   onClose: () => void;
   onImported: (summary: ImportSummary) => void;
@@ -63,8 +68,32 @@ export function AddCandidatesDialog({
   const [error, setError] = useState("");
   const [csvFileName, setCsvFileName] = useState("");
   const [sourceDetail, setSourceDetail] = useState("");
+  const [showColumnMapping, setShowColumnMapping] = useState(false);
+  const [customColumnOverrides, setCustomColumnOverrides] = useState<
+    Record<string, number | undefined>
+  >({});
   const csvFileInput = useRef<HTMLInputElement>(null);
-  const csvPreview = useMemo(() => csvImportPreview(csvText), [csvText]);
+  const headers = useMemo(() => csvHeaders(csvText), [csvText]);
+  const automaticMappings = useMemo(
+    () => automaticCustomColumnMappings(headers, roleFields),
+    [headers, roleFields],
+  );
+  const customMappings = useMemo(
+    () =>
+      Object.fromEntries(
+        roleFields.map((field) => [
+          field.key,
+          Object.hasOwn(customColumnOverrides, field.key)
+            ? customColumnOverrides[field.key]
+            : automaticMappings[field.key],
+        ]),
+      ),
+    [automaticMappings, customColumnOverrides, roleFields],
+  );
+  const csvPreview = useMemo(
+    () => csvImportPreview(csvText, roleFields, customMappings),
+    [csvText, customMappings, roleFields],
+  );
 
   function switchMode(next: Mode) {
     setMode(next);
@@ -83,6 +112,7 @@ export function AddCandidatesDialog({
       return;
     }
     setCsvFileName(file.name);
+    setCustomColumnOverrides({});
     setCsvText(text);
     setError("");
   }
@@ -372,6 +402,7 @@ export function AddCandidatesDialog({
               value={csvText}
               onChange={(e) => {
                 setCsvFileName("");
+                setCustomColumnOverrides({});
                 setCsvText(e.target.value);
               }}
               placeholder={csvTemplateColumns.join(",")}
@@ -379,8 +410,57 @@ export function AddCandidatesDialog({
           </label>
           <p className="muted">
             Recognized columns: {csvTemplateColumns.join(", ")}. Extra columns
-            are ignored; column order does not matter.
+            are ignored unless you map them to a role column below. Column order
+            does not matter.
           </p>
+          {roleFields.length > 0 && headers.length > 0 && (
+            <div className="csv-column-mapping">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setShowColumnMapping((current) => !current)}
+              >
+                {showColumnMapping ? "Hide role column mapping" : "Map role columns"}
+              </button>
+              {!showColumnMapping &&
+                Object.values(customMappings).filter((value) => value != null).length > 0 && (
+                  <small>
+                    {Object.values(customMappings).filter((value) => value != null).length} matched automatically
+                  </small>
+                )}
+              {showColumnMapping && (
+                <div className="csv-column-mapping-fields">
+                  <p className="muted">
+                    Matching headers are selected automatically. Change a mapping only when needed.
+                  </p>
+                  {roleFields.map((field) => (
+                    <label key={field.id}>
+                      {field.label}
+                      <select
+                        disabled={busy}
+                        value={customMappings[field.key] ?? ""}
+                        onChange={(event) =>
+                          setCustomColumnOverrides((current) => ({
+                            ...current,
+                            [field.key]: event.target.value
+                              ? Number(event.target.value)
+                              : undefined,
+                          }))
+                        }
+                      >
+                        <option value="">Don&rsquo;t import</option>
+                        {headers.map((header, index) => (
+                          <option key={`${header}-${index}`} value={index}>
+                            {header || `Column ${index + 1}`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {!!csvText.trim() && (
             <div className="csv-preview" aria-live="polite">
               <div className="csv-preview-summary">
@@ -407,7 +487,7 @@ export function AddCandidatesDialog({
               )}
               {csvPreview.invalidRows.length > 0 && (
                 <p className="csv-preview-warning">
-                  Rows need a name and a valid LinkedIn URL, Naukri URL, or email. They will not be imported.
+                  {csvPreview.invalidRows[0].reason} Check each row&rsquo;s identity and mapped role-column value; invalid rows will not be imported.
                 </p>
               )}
               {csvPreview.validRows.length > 0 && (

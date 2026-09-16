@@ -584,6 +584,25 @@ label small {
   color: var(--muted);
   font-size: 12px;
 }
+.csv-column-mapping {
+  margin: 0 0 16px;
+}
+.csv-column-mapping > small {
+  margin-left: 10px;
+  color: var(--muted);
+}
+.csv-column-mapping-fields {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.csv-column-mapping-fields .muted {
+  margin: 0;
+}
 .loading-page {
   min-height: 100vh;
   display: flex;

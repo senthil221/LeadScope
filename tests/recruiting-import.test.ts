@@ -6,6 +6,8 @@ import {
   parseCsv,
   csvImportPreview,
   csvToDraftRows,
+  csvHeaders,
+  automaticCustomColumnMappings,
   type DraftRow,
 } from "../src/lib/recruiting/import";
 
@@ -153,5 +155,31 @@ describe("csvImportPreview", () => {
     expect(csvToDraftRows("\uFEFFFull Name,Email\nPriya Nair,priya@example.com")).toEqual([
       { name: "Priya Nair", email: "priya@example.com" },
     ]);
+  });
+  it("maps matching role columns and converts their typed values", () => {
+    const fields = [
+      { key: "notice_period", label: "Notice period", kind: "number" as const, options: [] },
+      { key: "open_to_relocate", label: "Open to relocate", kind: "boolean" as const, options: [] },
+      { key: "fit", label: "Fit", kind: "select" as const, options: ["Strong", "Possible"] },
+    ];
+    const text = "Full Name,Email,Notice Period,Open to relocate,Fit\nPriya Nair,priya@example.com,30,yes,Strong";
+    const mappings = automaticCustomColumnMappings(csvHeaders(text), fields);
+    expect(mappings).toEqual({ notice_period: 2, open_to_relocate: 3, fit: 4 });
+    const preview = csvImportPreview(text, fields, mappings);
+    expect(preview.validRows[0].custom).toEqual({
+      notice_period: 30,
+      open_to_relocate: true,
+      fit: "Strong",
+    });
+    expect(preview.ignoredColumns).toEqual([]);
+  });
+  it("holds a row when a mapped dropdown value is not valid for the role", () => {
+    const preview = csvImportPreview(
+      "Full Name,Email,Fit\nPriya Nair,priya@example.com,Weak",
+      [{ key: "fit", label: "Fit", kind: "select", options: ["Strong"] }],
+      { fit: 2 },
+    );
+    expect(preview.validRows).toHaveLength(0);
+    expect(preview.invalidRows[0].reason).toContain("Fit");
   });
 });

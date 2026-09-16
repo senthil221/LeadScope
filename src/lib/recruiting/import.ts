@@ -25,6 +25,7 @@ export type ImportRow = {
   identities: Identity[];
   fields: Record<string, string | number>;
   sourceDetail?: string;
+  custom?: Record<string, string | number | boolean>;
 };
 export type RowError = { row: DraftRow; reason: string };
 export function isRowError(x: ImportRow | RowError): x is RowError {
@@ -37,6 +38,12 @@ export type CsvImportPreview = {
   invalidRows: RowError[];
   recognizedColumns: string[];
   ignoredColumns: string[];
+};
+export type CsvCustomField = {
+  key: string;
+  label: string;
+  kind: "text" | "number" | "date" | "select" | "boolean";
+  options: string[];
 };
 
 export function buildImportRow(draft: DraftRow): ImportRow | RowError {
@@ -175,6 +182,52 @@ function csvColumnForHeader(header: string): keyof DraftRow | undefined {
   return csvColumnAliases[header.replace(/^\uFEFF/, "").trim().toLowerCase()];
 }
 
+export function csvHeaders(text: string): string[] {
+  return (parseCsv(text)[0] ?? []).map((header) =>
+    header.replace(/^\uFEFF/, "").trim(),
+  );
+}
+
+function comparableColumnName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+export function automaticCustomColumnMappings(
+  headers: string[],
+  fields: CsvCustomField[],
+): Record<string, number> {
+  const mappings: Record<string, number> = {};
+  for (const field of fields) {
+    const targets = [field.label, field.key].map(comparableColumnName);
+    const index = headers.findIndex((header) =>
+      targets.includes(comparableColumnName(header)),
+    );
+    if (index >= 0) mappings[field.key] = index;
+  }
+  return mappings;
+}
+
+function customValue(
+  field: CsvCustomField,
+  raw: string,
+): string | number | boolean | undefined | { error: string } {
+  const value = raw.trim();
+  if (!value) return undefined;
+  if (field.kind === "number") {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : { error: `${field.label} must be a number.` };
+  }
+  if (field.kind === "boolean") {
+    if (["yes", "true", "1"].includes(value.toLowerCase())) return true;
+    if (["no", "false", "0"].includes(value.toLowerCase())) return false;
+    return { error: `${field.label} must be Yes or No.` };
+  }
+  if (field.kind === "select" && !field.options.includes(value))
+    return { error: `${field.label} must match one of its dropdown options.` };
+  if (value.length > 2000) return { error: `${field.label} is too long.` };
+  return value;
+}
+
 export function csvToDraftRows(text: string): DraftRow[] {
   const rows = parseCsv(text);
   if (rows.length < 2) return [];
@@ -191,24 +244,48 @@ export function csvToDraftRows(text: string): DraftRow[] {
 
 // Build all CSV feedback before the request begins. The dialog can then show
 // exactly what will be sent, while the API remains the final validation layer.
-export function csvImportPreview(text: string): CsvImportPreview {
+export function csvImportPreview(
+  text: string,
+  customFields: CsvCustomField[] = [],
+  customMappings: Record<string, number | undefined> = {},
+): CsvImportPreview {
   const parsed = parseCsv(text);
-  const headers = parsed[0] ?? [];
+  const headers = csvHeaders(text);
+  const mappedCustomColumns = new Set(
+    Object.values(customMappings).filter((index): index is number => index != null),
+  );
   const knownHeaders = new Set<string>();
   const ignoredHeaders = new Set<string>();
-  for (const header of headers) {
+  for (const [index, header] of headers.entries()) {
     const label = header.replace(/^\uFEFF/, "").trim();
     if (!label) continue;
-    if (csvColumnForHeader(label)) knownHeaders.add(label);
+    if (csvColumnForHeader(label) || mappedCustomColumns.has(index)) knownHeaders.add(label);
     else ignoredHeaders.add(label);
   }
 
   const validRows: ImportRow[] = [];
   const invalidRows: RowError[] = [];
-  for (const draft of csvToDraftRows(text)) {
+  const drafts = csvToDraftRows(text);
+  for (const [index, draft] of drafts.entries()) {
     const built = buildImportRow(draft);
-    if (isRowError(built)) invalidRows.push(built);
-    else validRows.push(built);
+    if (isRowError(built)) {
+      invalidRows.push(built);
+      continue;
+    }
+    const custom: Record<string, string | number | boolean> = {};
+    let customError: string | undefined;
+    for (const field of customFields) {
+      const columnIndex = customMappings[field.key];
+      if (columnIndex == null) continue;
+      const value = customValue(field, parsed[index + 1]?.[columnIndex] ?? "");
+      if (typeof value === "object") {
+        customError = value.error;
+        break;
+      }
+      if (value !== undefined) custom[field.key] = value;
+    }
+    if (customError) invalidRows.push({ row: draft, reason: customError });
+    else validRows.push({ ...built, ...(Object.keys(custom).length ? { custom } : {}) });
   }
   return {
     totalRows: Math.max(parsed.length - 1, 0),
