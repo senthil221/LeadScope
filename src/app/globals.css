@@ -1557,6 +1557,12 @@ tbody tr:hover td.col-arrow a {
 }
 .follow-up-schedule input { width: 132px; min-height: 30px; padding: 4px 7px; font-size: 12px; }
 .follow-up-schedule button { min-height: 30px; }
+.candidate-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: max-content;
+}
 .role-table-heading { margin: 18px 0 10px; }
 .role-table-heading p { margin-top: 2px; }
 .metric {

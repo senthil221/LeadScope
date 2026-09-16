@@ -194,6 +194,8 @@ export function RolePipeline({
     ids: [] as string[],
   });
   const [rejecting, setRejecting] = useState(false);
+  const [rejectingIds, setRejectingIds] = useState<string[]>([]);
+  const [movingCandidateId, setMovingCandidateId] = useState<string | null>(null);
   const [panelId, setPanelId] = useState<string | null>(null);
   const [managingFields, setManagingFields] = useState(false);
   const [sharing, setSharing] = useState<"client" | null>(null);
@@ -206,7 +208,8 @@ export function RolePipeline({
   const [columnPreference, setColumnPreference] = useState<string | null>(null);
   const path = `/roles/${role.id}`;
   const columnStorageKey = `leadscope:role-columns:${role.id}:${tab}`;
-  // The bulk bar and rating cells only apply to the five pipeline stages.
+  // Rating is the only way out of All profiles. Later stages support both
+  // direct row actions and batch actions.
   const isPipelineTab = isStage(tab) && tab !== "rejected";
   const isFollowUpsTab = tab === "follow_ups";
   const canRejectFromTab = [
@@ -222,7 +225,11 @@ export function RolePipeline({
     "offer_sent",
     "rejected",
   ].includes(tab);
-  const advanceTo = isPipelineTab ? nextStage(tab as PipelineStage) : null;
+  const advanceTo =
+    isPipelineTab && tab !== "all_profiles"
+      ? nextStage(tab as PipelineStage)
+      : null;
+  const canSelectCandidates = Boolean(advanceTo || canRejectFromTab);
   const pipelineTotal = Object.entries(counts)
     .filter(([stage]) => stage !== "rejected")
     .reduce((sum, [, n]) => sum + n, 0);
@@ -361,7 +368,7 @@ export function RolePipeline({
     }
   }
   async function moveSelectedToNextStage() {
-    if (busy || !advanceTo || !selected.length) return;
+    if (busy || movingCandidateId || !advanceTo || !selected.length) return;
     setBusy(true);
     setError("");
     try {
@@ -382,6 +389,30 @@ export function RolePipeline({
     } finally {
       setBusy(false);
     }
+  }
+  async function moveCandidateToNextStage(roleCandidate: RoleCandidate) {
+    if (busy || movingCandidateId || !advanceTo || role.archived) return;
+    setMovingCandidateId(roleCandidate.id);
+    setError("");
+    try {
+      await act("moveStage", {
+        clientId: client.id,
+        ids: [roleCandidate.id],
+        toStage: advanceTo,
+        reason: "",
+      });
+      setSelected((current) => current.filter((id) => id !== roleCandidate.id));
+      setMessage(`Moved ${roleCandidate.candidates.full_name} to ${stageLabels[advanceTo]}.`);
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setMovingCandidateId(null);
+    }
+  }
+  function startReject(ids: string[]) {
+    setRejectingIds(ids);
+    setRejecting(true);
   }
   async function addSelectedFromMasterDb() {
     if (busy || !masterSelected.length) return;
@@ -577,7 +608,7 @@ export function RolePipeline({
           </div>
         </div>
       )}
-      {isPipelineTab && selected.length > 0 && (
+      {canSelectCandidates && selected.length > 0 && (
         <div className="bulk-bar">
           <strong>{selected.length} selected</strong>
           <input
@@ -588,12 +619,12 @@ export function RolePipeline({
             maxLength={4000}
           />
           {advanceTo && (
-            <button disabled={busy} onClick={() => void moveSelectedToNextStage()}>
+            <button disabled={busy || Boolean(movingCandidateId) || role.archived} onClick={() => void moveSelectedToNextStage()}>
               Move to {stageLabels[advanceTo]}
             </button>
           )}
           {canRejectFromTab && (
-            <button disabled={busy} onClick={() => setRejecting(true)}>
+            <button disabled={busy || Boolean(movingCandidateId) || role.archived} onClick={() => startReject(selected)}>
               Reject
             </button>
           )}
@@ -941,7 +972,7 @@ export function RolePipeline({
             <table className="candidate-table">
               <thead>
                 <tr>
-                {isPipelineTab && (
+                {canSelectCandidates && (
                   <th className="select-cell">
                     <input
                       aria-label="Select all visible candidates"
@@ -977,6 +1008,7 @@ export function RolePipeline({
                 {showsCustomColumns && roleFields.map((f) => (
                   <th key={f.id}>{f.label}</th>
                 ))}
+                {canSelectCandidates && <th>Action</th>}
                 </tr>
               </thead>
               <tbody>
@@ -985,7 +1017,7 @@ export function RolePipeline({
                   key={rc.id}
                   className={selected.includes(rc.id) ? "selected-row" : ""}
                 >
-                  {isPipelineTab && (
+                  {canSelectCandidates && (
                     <td>
                       <input
                         aria-label={`Select ${rc.candidates.full_name}`}
@@ -1111,6 +1143,32 @@ export function RolePipeline({
                       />
                     </td>
                   ))}
+                  {canSelectCandidates && (
+                    <td>
+                      <div className="candidate-row-actions">
+                        {advanceTo && (
+                          <button
+                            className="small primary"
+                            disabled={busy || Boolean(movingCandidateId) || role.archived}
+                            onClick={() => void moveCandidateToNextStage(rc)}
+                          >
+                            {movingCandidateId === rc.id
+                              ? "Moving…"
+                              : `Move to ${stageLabels[advanceTo]}`}
+                          </button>
+                        )}
+                        {canRejectFromTab && (
+                          <button
+                            className="small"
+                            disabled={busy || Boolean(movingCandidateId) || role.archived}
+                            onClick={() => startReject([rc.id])}
+                          >
+                            Reject
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
               </tbody>
@@ -1166,19 +1224,25 @@ export function RolePipeline({
       {rejecting && (
         <RejectDialog
           clientId={client.id}
-          ids={selected}
+          ids={rejectingIds}
           title={
-            selected.length === 1
-              ? `Reject ${roleCandidates.find((rc) => rc.id === selected[0])?.candidates.full_name ?? "candidate"}`
-              : `Reject ${selected.length} candidates`
+            rejectingIds.length === 1
+              ? `Reject ${roleCandidates.find((rc) => rc.id === rejectingIds[0])?.candidates.full_name ?? "candidate"}`
+              : `Reject ${rejectingIds.length} candidates`
           }
-          onClose={() => setRejecting(false)}
+          onClose={() => {
+            setRejecting(false);
+            setRejectingIds([]);
+          }}
           onRejected={() => {
             setRejecting(false);
-            setSelected([]);
-            setMessage(
-              `Rejected ${selected.length} candidate${selected.length > 1 ? "s" : ""}.`,
+            setSelected((current) =>
+              current.filter((id) => !rejectingIds.includes(id)),
             );
+            setMessage(
+              `Rejected ${rejectingIds.length} candidate${rejectingIds.length > 1 ? "s" : ""}.`,
+            );
+            setRejectingIds([]);
             router.refresh();
           }}
         />
