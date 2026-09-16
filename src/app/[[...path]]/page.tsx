@@ -13,6 +13,25 @@ import type { PageData, Discovery, Lead, RoleCandidate } from "@/lib/types";
 import { candidateSources, isStage } from "@/lib/recruiting/stages";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+function optionalDashboardData<T>(
+  result: { data: T; error: { code?: string } | null } | null,
+  query: string,
+): NonNullable<T> | [] {
+  if (!result?.error) return (result?.data ?? []) as NonNullable<T>;
+  // The client directory is still useful when a summary RPC is temporarily
+  // unavailable. Keep the primary workspace available and log only a safe,
+  // query-level signal for diagnosis.
+  console.error(
+    JSON.stringify({
+      event: "optional_dashboard_query_error",
+      query,
+      code: result.error.code ?? "unknown",
+    }),
+  );
+  return [];
+}
+
 export default async function Page({
   params,
   searchParams,
@@ -75,8 +94,11 @@ export default async function Page({
     live: env.live,
     serverCap: env.serverCap,
     activeRuns: activeRuns ? checked(activeRuns) : [],
-    agencyWorkQueue: agencyWorkQueue ? checked(agencyWorkQueue) : [],
-    clientDirectoryCounts: clientDirectoryCounts ? checked(clientDirectoryCounts) : [],
+    agencyWorkQueue: optionalDashboardData(agencyWorkQueue, "agency_today_work_queue"),
+    clientDirectoryCounts: optionalDashboardData(clientDirectoryCounts, "client_directory_counts"),
+    dashboardSummaryUnavailable: Boolean(
+      agencyWorkQueue?.error || clientDirectoryCounts?.error,
+    ),
     email: user.email ?? "Agency operator",
   };
   try {

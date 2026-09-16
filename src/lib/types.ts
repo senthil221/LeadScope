@@ -310,6 +310,7 @@ export type PageData = {
   roleDashboardCounts?: RoleDashboardCount[];
   agencyWorkQueue?: AgencyWorkQueueItem[];
   clientDirectoryCounts?: ClientDirectoryCount[];
+  dashboardSummaryUnavailable?: boolean;
   role?: Role;
   roleCandidates?: RoleCandidate[];
   roleCandidateCounts?: Record<string, number>;

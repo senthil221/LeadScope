@@ -94,6 +94,11 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
         </div>
       </header>
       {error && <p className="toast error" role="alert">{error}</p>}
+      {data.dashboardSummaryUnavailable && (
+        <div className="notice" role="status">
+          Your client list is available, but the dashboard totals could not load. Apply the latest database migrations, then refresh this page.
+        </div>
+      )}
       {workTotal > 0 && (
         <section className="today-work card" aria-labelledby="today-work-heading">
           <div className="section-heading">
