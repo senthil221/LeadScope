@@ -584,6 +584,27 @@ label small {
   color: var(--muted);
   font-size: 12px;
 }
+.role-secondary-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 14px 0 22px;
+  font-size: 13px;
+}
+.role-secondary-nav > span {
+  color: var(--muted);
+  margin-right: 4px;
+}
+.role-secondary-nav a {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+}
+.role-secondary-nav a:hover,
+.role-secondary-nav a.selected {
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+}
 .csv-column-mapping {
   margin: 0 0 16px;
 }

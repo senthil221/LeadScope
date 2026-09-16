@@ -56,13 +56,11 @@ async function act<T = { id: string }>(
 }
 
 type Tab = Stage | "master_db" | "analytics";
-const tabs: { key: Tab; label: string }[] = [
+const pipelineTabs: { key: Tab; label: string }[] = [
   ...stages
     .filter((s) => s !== "rejected")
     .map((s) => ({ key: s as Tab, label: stageLabels[s] })),
   { key: "rejected", label: "Rejects" },
-  { key: "master_db", label: "Master DB" },
-  { key: "analytics", label: "Analytics" },
 ];
 
 const date = (s: string | null | undefined) =>
@@ -361,19 +359,26 @@ export function RolePipeline({
         ))}
       </div>
       <div className="tabs">
-        {tabs.map(({ key, label }) => (
+        {pipelineTabs.map(({ key, label }) => (
           <Link
             key={key}
             className={tab === key ? "selected" : ""}
             href={tabUrl(key)}
           >
             {label}
-            {key !== "analytics" && (
-              <span>{key === "master_db" ? total : (counts[key] ?? 0)}</span>
-            )}
+            <span>{counts[key] ?? 0}</span>
           </Link>
         ))}
       </div>
+      <nav className="role-secondary-nav" aria-label="Role tools">
+        <span>Role tools</span>
+        <Link className={tab === "master_db" ? "selected" : ""} href={tabUrl("master_db")}>
+          Master DB
+        </Link>
+        <Link className={tab === "analytics" ? "selected" : ""} href={tabUrl("analytics")}>
+          Analytics
+        </Link>
+      </nav>
       {tab !== "master_db" && tab !== "analytics" && (
         <div className="section-heading">
           <h2>{tab === "rejected" ? "Rejects" : stageLabels[tab as Stage]}</h2>

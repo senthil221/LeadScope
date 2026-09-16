@@ -3,6 +3,7 @@ import { admin, AppError, checked } from "@/lib/server/db";
 import { setup } from "@/lib/server/config";
 import { SetupPage, AccessPage } from "@/components/setup";
 import { Workspace } from "@/components/workspace";
+import { RoleWorkspace } from "@/components/recruiting/role-workspace";
 import { prospectFilters } from "@/lib/prospects";
 import { prospectQuery } from "@/lib/server/prospects";
 import { uuid } from "@/lib/domain";
@@ -526,9 +527,11 @@ export default async function Page({
       );
     throw error;
   }
+  const routeKey = `${path.join("/")}:${filter.page ?? ""}:${filter.status ?? ""}:${filter.campaign ?? ""}:${filter.q ?? ""}:${filter.contact ?? ""}:${filter.stage ?? ""}`;
+  if (data.view === "role") return <RoleWorkspace key={routeKey} data={data} />;
   return (
     <Workspace
-      key={`${path.join("/")}:${filter.page ?? ""}:${filter.status ?? ""}:${filter.campaign ?? ""}:${filter.q ?? ""}:${filter.contact ?? ""}:${filter.stage ?? ""}`}
+      key={routeKey}
       data={data}
     />
   );
