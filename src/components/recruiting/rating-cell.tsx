@@ -22,13 +22,17 @@ export function RatingCell({
   roleCandidateId,
   rating,
   name,
+  threshold,
+  autoAdvance,
   onRated,
 }: {
   clientId: string;
   roleCandidateId: string;
   rating: number | null;
   name: string;
-  onRated: () => void;
+  threshold: number;
+  autoAdvance: boolean;
+  onRated: (autoAdvanced: boolean) => void;
 }) {
   const [value, setValue] = useState(rating);
   const [saving, setSaving] = useState(false);
@@ -42,7 +46,7 @@ export function RatingCell({
     setValue(next);
     try {
       await act("rate", { clientId, id: roleCandidateId, rating: next });
-      onRated();
+      onRated(autoAdvance && next !== null && next >= threshold);
     } catch (e) {
       setValue(previous);
       setError((e as Error).message);

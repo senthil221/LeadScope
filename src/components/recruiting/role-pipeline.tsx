@@ -699,7 +699,15 @@ export function RolePipeline({
                         roleCandidateId={rc.id}
                         rating={rc.rating}
                         name={rc.candidates.full_name}
-                        onRated={() => router.refresh()}
+                        threshold={role.rating_threshold}
+                        autoAdvance={tab === "all_profiles"}
+                        onRated={(autoAdvanced) => {
+                          if (autoAdvanced)
+                            setMessage(
+                              `${rc.candidates.full_name} moved to AI shortlisted after meeting the ${role.rating_threshold} / 5 threshold.`,
+                            );
+                          router.refresh();
+                        }}
                       />
                     </td>
                   )}
