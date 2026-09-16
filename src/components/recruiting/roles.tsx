@@ -38,11 +38,20 @@ export function RolesPage({
 }) {
   const router = useRouter();
   const [form, setForm] = useState<Role | "new" | null>(null);
+  const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const active = roles.filter((r) => !r.archived && r.status !== "closed");
   const closed = roles.filter((r) => !r.archived && r.status === "closed");
   const archived = roles.filter((r) => r.archived);
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const matchesQuery = (role: Role) =>
+    !normalizedQuery ||
+    role.name.toLocaleLowerCase().includes(normalizedQuery) ||
+    role.description.toLocaleLowerCase().includes(normalizedQuery);
+  const visibleActive = active.filter(matchesQuery);
+  const visibleClosed = closed.filter(matchesQuery);
+  const visibleArchived = archived.filter(matchesQuery);
   const dashboardByRole = new Map(
     dashboardCounts.map((count) => [count.role_id, count]),
   );
@@ -120,18 +129,41 @@ export function RolesPage({
       </section>
       <div className="section-heading">
         <h2>
-          Current roles <span className="count">{active.length}</span>
+          Current roles <span className="count">{visibleActive.length}</span>
         </h2>
+        <div className="directory-controls">
+          <input
+            aria-label="Search roles"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search roles"
+            type="search"
+            value={query}
+          />
+        </div>
       </div>
       <div className="card">
-        {!active.length ? (
+        {!visibleActive.length ? (
           <div className="empty">
-            <h3>{roles.length ? "No current roles" : "No roles yet"}</h3>
-            <p>{roles.length ? "Reopen a closed role or create a new one to continue hiring." : "Create a role to start building its candidate pipeline."}</p>
-            <button className="primary" onClick={() => setForm("new")}>
-              <Plus size={16} />
-              Create your first role
-            </button>
+            <h3>
+              {normalizedQuery
+                ? "No current roles match that search"
+                : roles.length
+                  ? "No current roles"
+                  : "No roles yet"}
+            </h3>
+            <p>
+              {normalizedQuery
+                ? "Try a role name or a word from its description."
+                : roles.length
+                  ? "Reopen a closed role or create a new one to continue hiring."
+                  : "Create a role to start building its candidate pipeline."}
+            </p>
+            {!normalizedQuery && (
+              <button className="primary" onClick={() => setForm("new")}>
+                <Plus size={16} />
+                Create your first role
+              </button>
+            )}
           </div>
         ) : (
           <div className="table-wrap">
@@ -146,7 +178,7 @@ export function RolesPage({
                 </tr>
               </thead>
               <tbody>
-                {active.map((role) => (
+                {visibleActive.map((role) => (
                   <tr key={role.id}>
                     <td>
                       <Link className="strong" href={`/roles/${role.id}`}>
@@ -234,11 +266,11 @@ export function RolesPage({
           </div>
         )}
       </div>
-      {closed.length > 0 && (
+      {visibleClosed.length > 0 && (
         <>
           <div className="section-heading">
             <h2>
-              Closed roles <span className="count">{closed.length}</span>
+              Closed roles <span className="count">{visibleClosed.length}</span>
             </h2>
           </div>
           <div className="card table-wrap">
@@ -251,7 +283,7 @@ export function RolesPage({
                 </tr>
               </thead>
               <tbody>
-                {closed.map((role) => (
+                {visibleClosed.map((role) => (
                   <tr key={role.id}>
                     <td>
                       <Link className="strong" href={`/roles/${role.id}`}>
@@ -272,11 +304,11 @@ export function RolesPage({
           </div>
         </>
       )}
-      {archived.length > 0 && (
+      {visibleArchived.length > 0 && (
         <>
           <div className="section-heading">
             <h2>
-              Archived roles <span className="count">{archived.length}</span>
+              Archived roles <span className="count">{visibleArchived.length}</span>
             </h2>
           </div>
           <div className="card table-wrap">
@@ -289,7 +321,7 @@ export function RolesPage({
                 </tr>
               </thead>
               <tbody>
-                {archived.map((role) => (
+                {visibleArchived.map((role) => (
                   <tr key={role.id}>
                     <td>
                       <Link className="strong" href={`/roles/${role.id}`}>

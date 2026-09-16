@@ -27,10 +27,20 @@ const date = (value: string) =>
 export function ClientsWorkspace({ data }: { data: PageData }) {
   const router = useRouter();
   const [showArchived, setShowArchived] = useState(false);
+  const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const clients = data.clients.filter((client) => showArchived || !client.archived);
+  const eligibleClients = data.clients.filter(
+    (client) => showArchived || !client.archived,
+  );
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const clients = eligibleClients.filter(
+    (client) =>
+      !normalizedQuery ||
+      client.name.toLocaleLowerCase().includes(normalizedQuery) ||
+      client.notes.toLocaleLowerCase().includes(normalizedQuery),
+  );
   const workQueue = data.agencyWorkQueue ?? [];
   const directoryCounts = new Map(
     (data.clientDirectoryCounts ?? []).map((item) => [item.client_id, item]),
@@ -146,20 +156,41 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
         <h2>
           Clients <span className="count">{clients.length}</span>
         </h2>
-        <label className="check-label">
+        <div className="directory-controls">
           <input
-            type="checkbox"
-            checked={showArchived}
-            onChange={(event) => setShowArchived(event.target.checked)}
+            aria-label="Search clients"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search clients"
+            type="search"
+            value={query}
           />
-          Include archived
-        </label>
+          <label className="check-label">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(event) => setShowArchived(event.target.checked)}
+            />
+            Include archived
+          </label>
+        </div>
       </div>
       {!clients.length ? (
         <div className="card empty">
           <div className="empty-icon"><FolderOpen size={28} /></div>
-          <h3>{data.clients.length ? "No active clients" : "Your first client starts here"}</h3>
-          <p>{data.clients.length ? "Include archived clients to view them." : "Create a client, then add the roles you are hiring for."}</p>
+          <h3>
+            {normalizedQuery
+              ? "No clients match that search"
+              : data.clients.length
+                ? "No active clients"
+                : "Your first client starts here"}
+          </h3>
+          <p>
+            {normalizedQuery
+              ? "Try a client name or a word from its notes."
+              : data.clients.length
+                ? "Include archived clients to view them."
+                : "Create a client, then add the roles you are hiring for."}
+          </p>
           {!data.clients.length && (
             <button className="primary" onClick={() => setCreating(true)}>
               <Plus size={16} />
