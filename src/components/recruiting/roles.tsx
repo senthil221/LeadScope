@@ -180,17 +180,19 @@ export function RolesPage({
                       {(() => {
                         const count = dashboardByRole.get(role.id);
                         const items = [
+                          ["Client review", count?.client_shortlisted ?? 0, "client_shortlisted"],
                           ["Follow-ups", count?.due_follow_ups ?? 0, "follow_ups"],
                           ["Offers", count?.offers_in_progress ?? 0, "offer_sent"],
                         ] as const;
+                        const actionable = items.filter(([, value]) => value > 0);
                         return (
-                          <div className="role-attention-links">
-                            {items.map(([label, value, stage]) => (
+                          actionable.length ? <div className="role-attention-links">
+                            {actionable.map(([label, value, stage]) => (
                               <Link key={stage} href={`/roles/${role.id}?stage=${stage}`}>
                                 <strong>{value}</strong> {label.toLowerCase()}
                               </Link>
                             ))}
-                          </div>
+                          </div> : <span className="role-all-clear">All clear</span>
                         );
                       })()}
                     </td>

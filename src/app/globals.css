@@ -2516,6 +2516,7 @@ details h3 {
 .role-attention-links { display: grid; gap: 5px; min-width: 115px; }
 .role-attention-links a { color: var(--ink-soft); font-size: 12px; }
 .role-attention-links a:hover { color: var(--brand-ink); text-decoration: underline; }
+.role-all-clear { color: var(--muted); font-size: 12px; }
 .follow-up-status {
   display: block;
   margin-top: 4px;
