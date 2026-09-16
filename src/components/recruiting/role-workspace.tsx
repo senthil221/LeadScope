@@ -14,7 +14,7 @@ export function RoleWorkspace({ data }: { data: PageData }) {
         client={data.client}
         role={data.role}
         workQueue={
-          data.roleWorkQueueCounts?.find((item) => item.role_id === data.role?.id)
+          data.roleDashboardCounts?.find((item) => item.role_id === data.role?.id)
         }
         roleCandidates={data.roleCandidates ?? []}
         counts={data.roleCandidateCounts ?? {}}

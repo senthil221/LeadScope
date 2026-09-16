@@ -169,11 +169,11 @@ export default async function Page({
           .single(),
       );
       clientId = data.role!.client_id;
-      // This compact aggregate powers the role's daily-action strip without
-      // fetching its entire candidate pipeline a second time.
+      // This aggregate already powers the client Roles page. Reuse it here
+      // instead of depending on a second queue function for the same totals.
       loads.push(async () => {
-        data.roleWorkQueueCounts = checked(
-          await db.rpc("role_work_queue_counts", {
+        data.roleDashboardCounts = checked(
+          await db.rpc("role_dashboard_counts", {
             p_client: data.role!.client_id,
           }),
         );

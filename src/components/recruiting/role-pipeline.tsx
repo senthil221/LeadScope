@@ -18,7 +18,7 @@ import type {
   Role,
   RoleCandidate,
   RoleField,
-  RoleWorkQueueCount,
+  RoleDashboardCount,
   ShareLink,
   StageDurationRow,
   StageFunnelRow,
@@ -159,7 +159,7 @@ export function RolePipeline({
 }: {
   client: Client;
   role: Role;
-  workQueue?: RoleWorkQueueCount;
+  workQueue?: RoleDashboardCount;
   roleCandidates: RoleCandidate[];
   counts: Record<string, number>;
   masterCandidates: MasterCandidate[];
@@ -296,7 +296,7 @@ export function RolePipeline({
       key: "client-review",
       label: "Waiting on client",
       description: "Profiles sent for review",
-      count: workQueue?.client_review ?? 0,
+      count: workQueue?.client_shortlisted ?? 0,
       href: tabUrl("client_shortlisted"),
       Icon: UsersRound,
     },

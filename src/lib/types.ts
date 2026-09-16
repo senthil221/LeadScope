@@ -188,13 +188,6 @@ export type RoleField = {
   ordinal: number;
   archived: boolean;
 };
-export type RoleWorkQueueCount = {
-  role_id: string;
-  new_profiles: number;
-  client_review: number;
-  due_follow_ups: number;
-  offers_in_progress: number;
-};
 export type RoleDashboardCount = {
   role_id: string;
   all_profiles: number;
@@ -314,7 +307,6 @@ export type PageData = {
   precision?: { accepted: number; adjudicated: number };
   dispatched?: number;
   roles?: Role[];
-  roleWorkQueueCounts?: RoleWorkQueueCount[];
   roleDashboardCounts?: RoleDashboardCount[];
   agencyWorkQueue?: AgencyWorkQueueItem[];
   clientDirectoryCounts?: ClientDirectoryCount[];
