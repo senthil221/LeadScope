@@ -233,6 +233,11 @@ describe("role candidate list filters", () => {
       }),
     ).toMatchObject({ enteredFrom: undefined, enteredTo: undefined });
   });
+  it("keeps the recruiter-provided source or vendor separate from the import method", () => {
+    expect(
+      roleCandidateListFilters({ source: "csv", source_detail: " Upwork · August " }),
+    ).toMatchObject({ source: "csv", sourceDetail: "Upwork · August" });
+  });
 });
 
 describe("source performance analytics", () => {

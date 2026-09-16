@@ -11,6 +11,7 @@ import {
 export type RoleCandidateListFilters = {
   query: string;
   source?: CandidateSource;
+  sourceDetail: string;
   rating?: RatingFilter;
   enteredFrom?: string;
   enteredTo?: string;
@@ -31,6 +32,13 @@ function startOfNextDay(value: string) {
   return next.toISOString();
 }
 
+function searchTerm(value: string | undefined) {
+  return (value ?? "")
+    .trim()
+    .slice(0, 200)
+    .replace(/[\\%_,().]/g, "\\$&");
+}
+
 export function roleCandidateListFilters(
   raw: Record<string, string | undefined>,
 ): RoleCandidateListFilters {
@@ -44,11 +52,9 @@ export function roleCandidateListFilters(
     ? (raw.sort as RoleCandidateListFilters["sort"])
     : "newest";
   return {
-    query: (raw.q ?? "")
-      .trim()
-      .slice(0, 200)
-      .replace(/[\\%_,().]/g, "\\$&"),
+    query: searchTerm(raw.q),
     source,
+    sourceDetail: searchTerm(raw.source_detail),
     rating,
     enteredFrom,
     enteredTo,
@@ -69,6 +75,8 @@ export function roleCandidateListQuery(
     .eq("role_id", roleId)
     .eq("stage", stage);
   if (filters.source) query = query.eq("source", filters.source);
+  if (filters.sourceDetail)
+    query = query.ilike("source_detail", `%${filters.sourceDetail}%`);
   if (filters.enteredFrom)
     query = query.gte("stage_entered_at", `${filters.enteredFrom}T00:00:00.000Z`);
   if (filters.enteredTo)

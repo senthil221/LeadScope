@@ -68,6 +68,7 @@ export async function GET(request: Request) {
           roleCandidateListFilters({
             q: params.get("q") ?? undefined,
             source: params.get("source") ?? undefined,
+            source_detail: params.get("source_detail") ?? undefined,
             rating: params.get("rating") ?? undefined,
             entered_from: params.get("entered_from") ?? undefined,
             entered_to: params.get("entered_to") ?? undefined,

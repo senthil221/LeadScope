@@ -662,6 +662,7 @@ export function RolePipeline({
               stageFilterUrl({
                 q: String(form.get("q") ?? ""),
                 source: String(form.get("source") ?? ""),
+                source_detail: String(form.get("source_detail") ?? ""),
                 rating: String(form.get("rating") ?? ""),
                 entered_from: String(form.get("entered_from") ?? ""),
                 entered_to: String(form.get("entered_to") ?? ""),
@@ -677,8 +678,15 @@ export function RolePipeline({
             defaultValue={query}
             maxLength={200}
           />
-          <select name="source" aria-label="Filter candidates by source" defaultValue={params.get("source") ?? ""}>
-            <option value="">All sources</option>
+          <input
+            aria-label="Filter candidates by source or vendor"
+            defaultValue={params.get("source_detail") ?? ""}
+            maxLength={200}
+            name="source_detail"
+            placeholder="Source or vendor"
+          />
+          <select name="source" aria-label="Filter candidates by import method" defaultValue={params.get("source") ?? ""}>
+            <option value="">All import methods</option>
             {candidateSources.map((source) => (
               <option key={source} value={source}>
                 {candidateSourceLabels[source]}
@@ -739,8 +747,8 @@ export function RolePipeline({
               </div>
             )}
           </div>
-          {(query || params.get("source") || params.get("rating") || params.get("entered_from") || params.get("entered_to") || params.get("sort")) && (
-            <Link href={stageFilterUrl({ q: "", source: "", rating: "", entered_from: "", entered_to: "", sort: "" })}>Clear</Link>
+          {(query || params.get("source") || params.get("source_detail") || params.get("rating") || params.get("entered_from") || params.get("entered_to") || params.get("sort")) && (
+            <Link href={stageFilterUrl({ q: "", source: "", source_detail: "", rating: "", entered_from: "", entered_to: "", sort: "" })}>Clear</Link>
           )}
         </form>
       )}
