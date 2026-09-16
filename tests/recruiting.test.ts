@@ -163,6 +163,7 @@ describe("client sharing and master eligibility", () => {
 describe("role dashboard counts", () => {
   it("summarizes every pipeline stage and active recruiter work per role", () => {
     expect(roleDashboardMigration).toContain("create function public.role_dashboard_counts");
+    expect(roleDashboardMigration).toContain("add column if not exists follow_up_at date");
     expect(roleDashboardMigration).toContain("rc.stage='recruiter_shortlisted'");
     expect(roleDashboardMigration).toContain("rc.follow_up_at<=current_date");
     expect(roleDashboardMigration).toContain("coalesce(rc.outcome,'offer_sent')");
