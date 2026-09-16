@@ -20,7 +20,6 @@ import {
   Copy,
   ExternalLink,
   FileSearch,
-  FolderOpen,
   LoaderCircle,
   Pause,
   Play,
@@ -294,7 +293,6 @@ export function Workspace({ data }: { data: PageData }) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [clientForm, setClientForm] = useState<Client | "new" | null>(null);
-  const [showArchived, setShowArchived] = useState(false);
   const client = data.client;
   async function run(
     action: string,
@@ -345,91 +343,6 @@ export function Workspace({ data }: { data: PageData }) {
                 <X size={16} />
               </button>
             </div>
-          )}
-          {data.view === "clients" && (
-            <>
-              <Header
-                eyebrow="CLIENT DIRECTORY"
-                title="A workspace for every client"
-                description="Keep campaigns, evidence, and decisions in the right place."
-                actions={
-                  <button
-                    className="primary"
-                    onClick={() => setClientForm("new")}
-                  >
-                    <Plus size={17} />
-                    New client
-                  </button>
-                }
-              />
-              <div className="section-heading">
-                <h2>
-                  Clients{" "}
-                  <span className="count">
-                    {
-                      data.clients.filter((c) => showArchived || !c.archived)
-                        .length
-                    }
-                  </span>
-                </h2>
-                <label className="check-label">
-                  <input
-                    type="checkbox"
-                    checked={showArchived}
-                    onChange={(e) => setShowArchived(e.target.checked)}
-                  />
-                  Include archived
-                </label>
-              </div>
-              {!data.clients.length ? (
-                <div className="card">
-                  <Empty
-                    icon={<FolderOpen size={28} />}
-                    title="Your first client starts here"
-                  >
-                    <p>
-                      Create a client workspace, then define who you’re looking
-                      for.
-                    </p>
-                    <button
-                      className="primary"
-                      onClick={() => setClientForm("new")}
-                    >
-                      <Plus size={16} />
-                      Create your first client
-                    </button>
-                  </Empty>
-                </div>
-              ) : (
-                <div className="client-grid">
-                  {data.clients
-                    .filter((c) => showArchived || !c.archived)
-                    .map((c) => (
-                      <Link
-                        href={`/clients/${c.id}`}
-                        key={c.id}
-                        className="card client-card"
-                      >
-                        <div className="client-card-top">
-                          <span className="client-monogram">
-                            {c.name.slice(0, 2).toUpperCase()}
-                          </span>
-                          {c.archived ? (
-                            <Badge status="Archived" />
-                          ) : (
-                            <ArrowRight size={18} />
-                          )}
-                        </div>
-                        <h3>{c.name}</h3>
-                        <p className="muted">
-                          {c.notes || "No client notes yet."}
-                        </p>
-                        <small>Created {date(c.created_at)}</small>
-                      </Link>
-                    ))}
-                </div>
-              )}
-            </>
           )}
           {data.view === "client" && client && (
             <>
