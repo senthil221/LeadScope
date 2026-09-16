@@ -159,7 +159,7 @@ export function RolesPage({
                         const count = dashboardByRole.get(role.id);
                         const stages = [
                           ["All", count?.all_profiles ?? 0, "all_profiles"],
-                          ["AI", count?.profile_shortlisted ?? 0, "profile_shortlisted"],
+                          ["Profile", count?.profile_shortlisted ?? 0, "profile_shortlisted"],
                           ["Recruiter", count?.recruiter_shortlisted ?? 0, "recruiter_shortlisted"],
                           ["Client", count?.client_shortlisted ?? 0, "client_shortlisted"],
                           ["Offer", count?.offer_sent ?? 0, "offer_sent"],

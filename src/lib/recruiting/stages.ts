@@ -12,7 +12,7 @@ export type Stage = PipelineStage | "rejected";
 export const stages: readonly Stage[] = [...pipelineStages, "rejected"];
 export const stageLabels: Record<Stage, string> = {
   all_profiles: "All profiles",
-  profile_shortlisted: "AI shortlisted",
+  profile_shortlisted: "Profile shortlisted",
   recruiter_shortlisted: "Recruiter shortlisted",
   client_shortlisted: "Client shortlisted",
   offer_sent: "Offer sent",

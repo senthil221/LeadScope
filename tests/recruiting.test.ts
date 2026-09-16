@@ -69,6 +69,7 @@ describe("recruiting stages match the database constraint", () => {
     expect(pipelineStages).not.toContain("rejected");
     expect(Object.keys(stageLabels).sort()).toEqual([...stages].sort());
     expect(isPipelineStage("rejected")).toBe(false);
+    expect(stageLabels.profile_shortlisted).toBe("Profile shortlisted");
   });
   it("advances through the pipeline and stops at the last stage", () => {
     expect(nextStage("all_profiles")).toBe("profile_shortlisted");

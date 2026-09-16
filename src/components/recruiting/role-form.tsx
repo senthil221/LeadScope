@@ -99,7 +99,7 @@ export function RoleFormDialog({
         </label>
         <p className="muted">
           Candidates with a manually entered rating at or above this threshold
-          move to AI shortlisted. Changing this later never moves existing
+          move to Profile shortlisted. Changing this later never moves existing
           candidates automatically.
         </p>
         {error && (

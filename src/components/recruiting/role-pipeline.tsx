@@ -377,7 +377,7 @@ export function RolePipeline({
       setApplying(false);
       setMessage(
         result.moved
-          ? `${result.moved} candidate${result.moved > 1 ? "s" : ""} moved to AI shortlisted.`
+          ? `${result.moved} candidate${result.moved > 1 ? "s" : ""} moved to Profile shortlisted.`
           : "No candidates in All profiles currently meet the threshold.",
       );
       router.refresh();
@@ -391,13 +391,19 @@ export function RolePipeline({
     <>
       <header className="page-header role-workspace-header">
         <div>
-          <div className="eyebrow">{client.name}</div>
+          <div className="eyebrow"><Link href={`/clients/${client.id}/roles`}>{client.name}</Link></div>
           <h1>{role.name}</h1>
           <p className="muted">
             {role.description || "Track this role's candidate pipeline."}
           </p>
         </div>
         <div className="header-actions">
+          {!role.archived && (
+            <button className="primary" onClick={() => setImporting(true)}>
+              <Plus size={16} />
+              Add candidates
+            </button>
+          )}
           <button onClick={() => setEditing(true)}>Edit role</button>
           <button disabled={busy} onClick={() => void toggleArchive()}>
             <Archive size={16} />
@@ -482,13 +488,6 @@ export function RolePipeline({
                 <button onClick={() => setApplying(true)}>
                   <SlidersHorizontal size={15} />
                   Apply threshold
-                </button>
-                <button
-                  className="primary small"
-                  onClick={() => setImporting(true)}
-                >
-                  <Plus size={15} />
-                  Add candidates
                 </button>
               </>
             )}
@@ -932,7 +931,7 @@ export function RolePipeline({
                         onRated={(autoAdvanced) => {
                           if (autoAdvanced)
                             setMessage(
-                              `${rc.candidates.full_name} moved to AI shortlisted after meeting the ${role.rating_threshold} / 5 threshold.`,
+                              `${rc.candidates.full_name} moved to Profile shortlisted after meeting the ${role.rating_threshold} / 5 threshold.`,
                             );
                           router.refresh();
                         }}
@@ -1122,7 +1121,7 @@ export function RolePipeline({
           <p className="muted">
             Moves every candidate still in All profiles whose manually entered rating already
             meets the current threshold ({role.rating_threshold} / 5) to
-            AI shortlisted. Candidates rated below the threshold, or not
+            Profile shortlisted. Candidates rated below the threshold, or not
             yet rated, are left where they are.
           </p>
           {error && (

@@ -91,7 +91,7 @@ export function RoleAnalytics({
           <tr>
             <th>Source</th>
             <th>Profiles</th>
-            <th>AI shortlist</th>
+            <th>Profile shortlist</th>
             <th>Recruiter</th>
             <th>Client</th>
             <th>Offer</th>
