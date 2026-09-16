@@ -795,6 +795,7 @@ export function RolePipeline({
                 ) : (
                   <th>Rating</th>
                 )}
+                {tab === "profile_shortlisted" && <th>AI review</th>}
                 {tab === "offer_sent" && <th>Outcome</th>}
                 {showsClientResponse && <th>Client response</th>}
                 {roleFields.map((f) => (
@@ -871,6 +872,18 @@ export function RolePipeline({
                           router.refresh();
                         }}
                       />
+                    </td>
+                  )}
+                  {tab === "profile_shortlisted" && (
+                    <td className="ai-review-cell">
+                      {rc.ai_rating != null ? (
+                        <>
+                          <strong>{rc.ai_rating} / 5</strong>
+                          <small title={rc.ai_rationale}>{rc.ai_rationale || "—"}</small>
+                        </>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                   )}
                   {tab === "offer_sent" && (

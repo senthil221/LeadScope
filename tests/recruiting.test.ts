@@ -24,6 +24,10 @@ const latestSourceMigration = readFileSync(
   resolve("supabase/migrations/20260916093000_recruiting_master_database_reuse.sql"),
   "utf8",
 );
+const aiReviewMigration = readFileSync(
+  resolve("supabase/migrations/20260916043409_retain_ai_profile_reviews.sql"),
+  "utf8",
+);
 // Pulls the list out of `check(<column> in ('a','b'))` in the migration itself,
 // so the constraint and the TypeScript union can never drift apart silently.
 function checkList(column: string, sql = migration): string[] {
@@ -102,5 +106,14 @@ describe("candidate identity normalization", () => {
     expect(
       hasMergeableIdentity([{ kind: "phone", value: "+919000000000" }]),
     ).toBe(false);
+  });
+});
+
+describe("AI review persistence", () => {
+  it("keeps a bounded AI score and rationale with the role candidate", () => {
+    expect(aiReviewMigration).toContain("add column ai_rating smallint check(ai_rating between 0 and 5)");
+    expect(aiReviewMigration).toContain("add column ai_rationale text not null default '' check(length(ai_rationale)<=240)");
+    expect(aiReviewMigration).toContain("create function private.record_ai_scores");
+    expect(aiReviewMigration).toContain("perform private.rate_candidate");
   });
 });

@@ -264,20 +264,13 @@ export async function POST(request: Request) {
             totalExperienceYears: candidate.candidates.total_experience_years,
           })),
         });
-        result = {
-          scored: suggestions.length,
-          autoShortlisted: suggestions.filter(
-            (suggestion) => suggestion.rating >= role.rating_threshold,
-          ).length,
-        };
-        for (const suggestion of suggestions)
-          checked(
-            await db.rpc("rate_candidate", {
-              p_client: p.clientId,
-              p_id: suggestion.id,
-              p_rating: suggestion.rating,
-            }),
-          );
+        result = checked(
+          await db.rpc("record_ai_scores", {
+            p_client: p.clientId,
+            p_role: p.roleId,
+            p_scores: suggestions,
+          }),
+        );
         break;
       }
       case "moveStage": {

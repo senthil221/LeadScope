@@ -155,6 +155,9 @@ export type RoleCandidate = {
   candidate_id: string;
   stage: string;
   rating: number | null;
+  ai_rating: number | null;
+  ai_rationale: string;
+  ai_scored_at: string | null;
   source: string;
   source_detail: string;
   screening: Record<string, unknown>;

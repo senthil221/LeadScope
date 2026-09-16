@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, History, MessageSquareText, X } from "lucide-react";
+import { CalendarDays, History, MessageSquareText, Sparkles, X } from "lucide-react";
 import type { RoleCandidate } from "@/lib/types";
 import {
   isStage,
@@ -106,6 +106,13 @@ function activityCopy(event: CandidateActivity) {
       return {
         title: rating ? `Rated ${rating} out of 5` : "Rating cleared",
         description: "",
+      };
+    }
+    case "ai_rating": {
+      const rating = detailValue(event.detail, "rating");
+      return {
+        title: rating ? `AI scored ${rating} out of 5` : "AI score recorded",
+        description: detailValue(event.detail, "rationale"),
       };
     }
     case "stage":
@@ -354,6 +361,20 @@ export function CandidatePanel({
       <p className="candidate-source">
         Added from {candidateSourceLabel(rc.source, rc.source_detail)}
       </p>
+
+      {rc.ai_rating != null && (
+        <section className="candidate-ai-review" aria-labelledby="ai-review-heading">
+          <div className="candidate-panel-section-heading">
+            <Sparkles size={16} aria-hidden="true" />
+            <h3 id="ai-review-heading">AI review</h3>
+            <span className="badge accepted">{rc.ai_rating} / 5</span>
+          </div>
+          <p>{rc.ai_rationale || "No rationale recorded."}</p>
+          {rc.ai_scored_at && (
+            <small>Scored {formatDateTime(rc.ai_scored_at)}</small>
+          )}
+        </section>
+      )}
 
       <section className="candidate-activity" aria-labelledby="candidate-activity-heading">
         <div className="candidate-panel-section-heading">

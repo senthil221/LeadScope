@@ -511,6 +511,42 @@ label small {
   padding: 4px;
   min-height: 0;
 }
+.ai-review-cell {
+  min-width: 180px;
+}
+.ai-review-cell strong,
+.ai-review-cell small {
+  display: block;
+}
+.ai-review-cell small {
+  display: -webkit-box;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--muted);
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.candidate-ai-review {
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.candidate-ai-review .candidate-panel-section-heading {
+  margin: 0;
+}
+.candidate-ai-review .badge {
+  margin-left: auto;
+}
+.candidate-ai-review p {
+  margin: 10px 0 4px;
+  line-height: 1.45;
+}
+.candidate-ai-review small {
+  color: var(--muted);
+}
 .visually-hidden {
   position: absolute;
   width: 1px;
