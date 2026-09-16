@@ -190,12 +190,23 @@ export default async function Page({
               ].join(","),
             );
           }
-          const result = await q
-            .order("created_at", { ascending: false })
-            .order("id")
-            .range((page - 1) * 50, page * 50 - 1);
+          q = q.not("master_qualified_at", "is", null);
+          const [result, stageCounts] = await Promise.all([
+            q
+              .order("created_at", { ascending: false })
+              .order("id")
+              .range((page - 1) * 50, page * 50 - 1),
+            db.rpc("role_candidate_stage_counts", { p_role: data.role!.id }),
+          ]);
           data.masterCandidates = checked(result);
           data.total = result.count ?? 0;
+          const counts: Record<string, number> = {};
+          for (const row of checked(stageCounts) as {
+            stage: string;
+            candidate_count: number;
+          }[])
+            counts[row.stage] = row.candidate_count;
+          data.roleCandidateCounts = counts;
           const candidateIds = data.masterCandidates.map((candidate) => candidate.id);
           data.masterRoleCandidateIds = candidateIds.length
             ? checked(
@@ -235,17 +246,27 @@ export default async function Page({
             Math.min(100000, Math.floor(Number(filter.page) || 1)),
           );
           data.page = page;
-          const rows = await db
-            .from("role_candidates")
-            .select("*,candidates!inner(*)", { count: "exact" })
-            .eq("role_id", data.role!.id)
-            .not("follow_up_at", "is", null)
-            .neq("stage", "rejected")
-            .order("follow_up_at")
-            .order("id")
-            .range((page - 1) * 50, page * 50 - 1);
+          const [rows, stageCounts] = await Promise.all([
+            db
+              .from("role_candidates")
+              .select("*,candidates!inner(*)", { count: "exact" })
+              .eq("role_id", data.role!.id)
+              .not("follow_up_at", "is", null)
+              .neq("stage", "rejected")
+              .order("follow_up_at")
+              .order("id")
+              .range((page - 1) * 50, page * 50 - 1),
+            db.rpc("role_candidate_stage_counts", { p_role: data.role!.id }),
+          ]);
           data.roleCandidates = checked(rows) as unknown as RoleCandidate[];
           data.total = rows.count ?? 0;
+          const counts: Record<string, number> = {};
+          for (const row of checked(stageCounts) as {
+            stage: string;
+            candidate_count: number;
+          }[])
+            counts[row.stage] = row.candidate_count;
+          data.roleCandidateCounts = counts;
         } else {
           const stage = isStage(stageParam) ? stageParam : "all_profiles";
           const page = Math.max(

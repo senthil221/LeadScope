@@ -175,7 +175,7 @@ export function RolePipeline({
   const [rejecting, setRejecting] = useState(false);
   const [panelId, setPanelId] = useState<string | null>(null);
   const [managingFields, setManagingFields] = useState(false);
-  const [sharing, setSharing] = useState<"client-review" | "custom" | null>(null);
+  const [sharing, setSharing] = useState<"client" | null>(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -418,24 +418,19 @@ export function RolePipeline({
           <h2>{tab === "rejected" ? "Rejects" : stageLabels[tab as Stage]}</h2>
           <div className="row">
             <button onClick={() => setManagingFields(true)}>Manage columns</button>
-            {tab === "client_shortlisted" ? (
+            {tab === "recruiter_shortlisted" ? (
               <>
-                <button onClick={() => setSharing("custom")}>Manage links</button>
+                <button onClick={() => setSharing("client")}>Manage links</button>
                 <button
                   className="primary small"
                   disabled={!total || role.archived}
-                  onClick={() => setSharing("client-review")}
+                  onClick={() => setSharing("client")}
                 >
                   <LinkIcon size={15} />
-                  Send for client review
+                  Share with client
                 </button>
               </>
-            ) : (
-              <button onClick={() => setSharing("custom")}>
-                <LinkIcon size={15} />
-                Share with client
-              </button>
-            )}
+            ) : null}
             {tab === "all_profiles" && !role.archived && (
               <>
                 <button onClick={() => setApplying(true)}>
@@ -991,14 +986,12 @@ export function RolePipeline({
           onChanged={() => router.refresh()}
         />
       )}
-      {sharing && isStage(tab) && (
+      {sharing && tab === "recruiter_shortlisted" && (
         <ShareDialog
           clientId={client.id}
           roleId={role.id}
-          stage={tab}
           links={shareLinks}
           fields={roleFields}
-          presetClientReview={sharing === "client-review"}
           onClose={() => setSharing(null)}
           onChanged={() => router.refresh()}
         />

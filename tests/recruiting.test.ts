@@ -36,6 +36,10 @@ const manualRatingsMigration = readFileSync(
   resolve("supabase/migrations/20260916045517_manual_decimal_ratings.sql"),
   "utf8",
 );
+const clientShareMigration = readFileSync(
+  resolve("supabase/migrations/20260916053912_client_share_and_master_eligibility.sql"),
+  "utf8",
+);
 // Pulls the list out of `check(<column> in ('a','b'))` in the migration itself,
 // so the constraint and the TypeScript union can never drift apart silently.
 function checkList(column: string, sql = migration): string[] {
@@ -139,5 +143,15 @@ describe("manual decimal ratings", () => {
     expect(manualRatingsMigration).toContain("alter column rating type numeric(3,1)");
     expect(manualRatingsMigration).toContain("alter column rating_threshold type numeric(3,1)");
     expect(manualRatingsMigration).toContain("stage not in ('recruiter_shortlisted','client_shortlisted','offer_sent')");
+  });
+});
+
+describe("client sharing and master eligibility", () => {
+  it("keeps qualified candidates permanently eligible for Master DB and restricts client links", () => {
+    expect(clientShareMigration).toContain("add column master_qualified_at timestamptz");
+    expect(clientShareMigration).toContain("role_candidates_mark_master_qualified");
+    expect(clientShareMigration).toContain("p_stage is distinct from 'recruiter_shortlisted'");
+    expect(clientShareMigration).toContain("Clients can edit Notes only.");
+    expect(clientShareMigration).toContain("Client links cannot move or reject candidates.");
   });
 });

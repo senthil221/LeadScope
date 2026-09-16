@@ -438,17 +438,7 @@ export async function POST(request: Request) {
           .object({
             clientId: uuid,
             roleId: uuid,
-            stage: z.enum([
-              "all_profiles",
-              "profile_shortlisted",
-              "recruiter_shortlisted",
-              "client_shortlisted",
-              "offer_sent",
-              "rejected",
-            ]),
             visibleColumns: z.array(z.string().min(1).max(50)).min(1).max(30),
-            editableColumns: z.array(z.string().min(1).max(50)).max(30).default([]),
-            allowDecisions: z.boolean().default(false),
             expiresAt: z.string().datetime().nullable().default(null),
           })
           .parse(payload);
@@ -461,13 +451,13 @@ export async function POST(request: Request) {
           await db.rpc("create_share_link", {
             p_client: p.clientId,
             p_role: p.roleId,
-            p_stage: p.stage,
+            p_stage: "recruiter_shortlisted",
             p_visible_columns: p.visibleColumns,
-            p_editable_columns: p.editableColumns,
+            p_editable_columns: ["client_notes"],
             p_expires_at: p.expiresAt,
             p_token_hash: tokenHash,
             p_token_prefix: token.slice(0, 8),
-            p_allow_decisions: p.allowDecisions,
+            p_allow_decisions: false,
           }),
         );
         result = { id, token };

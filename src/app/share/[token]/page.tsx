@@ -3,7 +3,6 @@ import { integrationDb } from "@/lib/server/db";
 import { setup } from "@/lib/server/config";
 import { stageLabels, isStage } from "@/lib/recruiting/stages";
 import { SharedFieldCell } from "@/components/recruiting/shared-field-cell";
-import { DecisionActions } from "@/components/recruiting/decision-actions";
 
 // Never cached, never statically generated: every request re-checks the
 // token against the database, so a revoked or expired link stops working
@@ -23,8 +22,6 @@ type SharedRow = {
   rating?: number;
   stage_entered_at?: string;
   client_notes?: string;
-  client_decision?: string;
-  interview_at?: string;
   custom?: Record<string, string | number | boolean>;
 };
 type SharedField = { key: string; label: string; kind: string; options: string[] };
@@ -34,22 +31,11 @@ type SharedStage = {
   stage: string;
   visibleColumns: string[];
   editableColumns: string[];
-  allowDecisions: boolean;
   fields: SharedField[];
   rows: SharedRow[];
   lastViewedAt: string | null;
 };
-// interview_at and client_notes are the only static columns that can ever be
-// editable (create_share_link enforces this); everything else editable is a
-// custom field, whose kind/options come from data.fields instead.
-const staticEditableKinds: Record<string, "text" | "date"> = {
-  client_notes: "text",
-  interview_at: "date",
-};
-function dateOnly(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  return value.slice(0, 10);
-}
+const staticEditableKinds: Record<string, "text"> = { client_notes: "text" };
 
 const staticLabels: Record<string, string> = {
   stage_entered_at: "Date added",
@@ -61,8 +47,6 @@ const staticLabels: Record<string, string> = {
   total_experience_years: "Experience",
   rating: "Rating",
   client_notes: "Notes",
-  client_decision: "Decision",
-  interview_at: "Interview date",
 };
 const staticOrder = Object.keys(staticLabels);
 
@@ -85,7 +69,7 @@ function cell(row: SharedRow, key: string, fields: SharedField[]): string {
   }
   const value = (row as Record<string, unknown>)[key];
   if (value == null || value === "") return "—";
-  if (key === "stage_entered_at" || key === "interview_at") return formatDate(String(value));
+  if (key === "stage_entered_at") return formatDate(String(value));
   if (key === "total_experience_years") return `${value} yrs`;
   if (key === "rating") return `${value} / 5`;
   return String(value);
@@ -170,9 +154,6 @@ export default async function SharePage({
 
   const columns = staticOrder
     .filter((k) => data.visibleColumns.includes(k))
-    // When decisions are on, client_decision renders via the dedicated
-    // decision column instead of as a plain read-only cell.
-    .filter((k) => !(data.allowDecisions && k === "client_decision"))
     .concat(data.fields.map((f) => f.key));
   const stageName = isStage(data.stage) ? stageLabels[data.stage] : data.stage;
   const editableLabels = data.editableColumns.map(
@@ -205,7 +186,6 @@ export default async function SharePage({
               {editableLabels.length
                 ? `Read-only except ${editableLabels.join(", ")}`
                 : "Read-only"}
-              {data.allowDecisions ? " · can shortlist, hold, or reject" : ""}
             </span>
           </div>
         </div>
@@ -218,7 +198,6 @@ export default async function SharePage({
                     {staticLabels[key] ?? data.fields.find((f) => f.key === key)?.label ?? key}
                   </th>
                 ))}
-                {data.allowDecisions && <th>Decision</th>}
               </tr>
             </thead>
             <tbody>
@@ -227,17 +206,8 @@ export default async function SharePage({
                   {columns.map((key) => {
                     if (!data.editableColumns.includes(key))
                       return <td key={key}>{cell(row, key, data.fields)}</td>;
-                    const field = data.fields.find((f) => f.key === key);
-                    const kind = field
-                      ? (field.kind as "text" | "number" | "date" | "select" | "boolean")
-                      : staticEditableKinds[key];
-                    const raw = field
-                      ? row.custom?.[key]
-                      : (row as Record<string, unknown>)[key];
-                    const value =
-                      kind === "date"
-                        ? dateOnly(raw as string | undefined)
-                        : (raw as string | number | boolean | undefined);
+                    const kind = staticEditableKinds[key] ?? "text";
+                    const value = (row as Record<string, unknown>)[key] as string | undefined;
                     return (
                       <td key={key}>
                         <SharedFieldCell
@@ -246,20 +216,10 @@ export default async function SharePage({
                           column={key}
                           value={value}
                           kind={kind}
-                          options={field?.options}
                         />
                       </td>
                     );
                   })}
-                  {data.allowDecisions && (
-                    <td>
-                      <DecisionActions
-                        token={token}
-                        roleCandidateId={row.id}
-                        currentDecision={row.client_decision}
-                      />
-                    </td>
-                  )}
                 </tr>
               ))}
             </tbody>
