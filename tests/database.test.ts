@@ -3284,3 +3284,40 @@ describe("role_work_queue_counts", () => {
     await sql("rollback");
   });
 });
+
+describe("agency_today_work_queue", () => {
+  it("returns only active roles with attention items and their client context", async () => {
+    const { cid, rid, rcId } = await pipeline("agency-today", 0);
+    await asUser(actor, () =>
+      rpc("save_screening", [cid, rcId, JSON.stringify({ followUpAt: "2000-01-01" }), ""]),
+    );
+    const rows = await asUser(actor, () =>
+      sql(
+        "select * from public.agency_today_work_queue() where client_id=$1 and role_id=$2",
+        [cid, rid],
+      ),
+    );
+    expect(rows.rows[0]).toMatchObject({
+      client_id: cid,
+      role_id: rid,
+      due_follow_ups: 1,
+      client_review: 0,
+      offers_in_progress: 0,
+    });
+    await asUser(actor, () => rpc("archive_role", [rid, true]));
+    const archived = await asUser(actor, () =>
+      sql(
+        "select * from public.agency_today_work_queue() where client_id=$1 and role_id=$2",
+        [cid, rid],
+      ),
+    );
+    expect(archived.rows).toEqual([]);
+  });
+
+  it("does not expose the agency work queue to anonymous callers", async () => {
+    await sql("begin");
+    await sql("set local role anon");
+    await expect(sql("select * from public.agency_today_work_queue()")).rejects.toThrow();
+    await sql("rollback");
+  });
+});

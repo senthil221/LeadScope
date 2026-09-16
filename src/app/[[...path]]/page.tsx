@@ -51,7 +51,8 @@ export default async function Page({
     path[0] === "runs" ||
     path[0] === "leads" ||
     (path[0] === "clients" && path[2] === "campaigns");
-  const [clients, activeRuns] = await Promise.all([
+  const needsAgencyWorkQueue = path[0] === "clients" && !path[1];
+  const [clients, activeRuns, agencyWorkQueue] = await Promise.all([
     db
       .from("clients")
       .select("id,name,notes,archived,created_at")
@@ -64,6 +65,7 @@ export default async function Page({
           .order("created_at")
           .limit(100)
       : null,
+    needsAgencyWorkQueue ? db.rpc("agency_today_work_queue") : null,
   ]);
   const data: PageData = {
     view: path[0],
@@ -72,6 +74,7 @@ export default async function Page({
     live: env.live,
     serverCap: env.serverCap,
     activeRuns: activeRuns ? checked(activeRuns) : [],
+    agencyWorkQueue: agencyWorkQueue ? checked(agencyWorkQueue) : [],
     email: user.email ?? "Agency operator",
   };
   try {

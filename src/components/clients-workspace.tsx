@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowRight, FolderOpen, Plus, X } from "lucide-react";
+import { ArrowRight, FolderOpen, ListChecks, Plus, X } from "lucide-react";
 import { AppShell } from "@/components/shell/AppShell";
 import type { PageData } from "@/lib/types";
 
@@ -31,6 +31,32 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const clients = data.clients.filter((client) => showArchived || !client.archived);
+  const workQueue = data.agencyWorkQueue ?? [];
+  const workGroups = [
+    {
+      key: "follow_ups",
+      label: "Due follow-ups",
+      stage: "follow_ups",
+      count: (item: (typeof workQueue)[number]) => item.due_follow_ups,
+    },
+    {
+      key: "client_review",
+      label: "Client review",
+      stage: "client_shortlisted",
+      count: (item: (typeof workQueue)[number]) => item.client_review,
+    },
+    {
+      key: "offers",
+      label: "Offers in progress",
+      stage: "offer_sent",
+      count: (item: (typeof workQueue)[number]) => item.offers_in_progress,
+    },
+  ] as const;
+  const workTotal = workQueue.reduce(
+    (sum, item) =>
+      sum + item.due_follow_ups + item.client_review + item.offers_in_progress,
+    0,
+  );
 
   async function createClient(form: HTMLFormElement) {
     setBusy(true);
@@ -65,6 +91,49 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
         </div>
       </header>
       {error && <p className="toast error" role="alert">{error}</p>}
+      {workTotal > 0 && (
+        <section className="today-work card" aria-labelledby="today-work-heading">
+          <div className="section-heading">
+            <div>
+              <div className="today-work-title">
+                <ListChecks size={18} aria-hidden="true" />
+                <h2 id="today-work-heading">Today</h2>
+                <span className="count">{workTotal}</span>
+              </div>
+              <p className="muted">Work that needs attention across active clients and roles.</p>
+            </div>
+          </div>
+          <div className="today-work-grid">
+            {workGroups.map((group) => {
+              const items = workQueue.filter((item) => group.count(item) > 0);
+              const total = items.reduce((sum, item) => sum + group.count(item), 0);
+              return (
+                <div className="today-work-group" key={group.key}>
+                  <h3>{group.label}</h3>
+                  {total ? (
+                    <>
+                      <strong className="today-work-total">{total}</strong>
+                      <div className="today-work-items">
+                        {items.map((item) => (
+                          <Link
+                            href={`/roles/${item.role_id}?stage=${group.stage}`}
+                            key={item.role_id}
+                          >
+                            <strong>{group.count(item)}</strong>
+                            <span>{item.client_name} · {item.role_name}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="muted">All clear</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
       <div className="section-heading">
         <h2>
           Clients <span className="count">{clients.length}</span>

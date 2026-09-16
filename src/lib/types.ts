@@ -189,6 +189,15 @@ export type RoleWorkQueueCount = {
   due_follow_ups: number;
   offers_in_progress: number;
 };
+export type AgencyWorkQueueItem = {
+  client_id: string;
+  client_name: string;
+  role_id: string;
+  role_name: string;
+  due_follow_ups: number;
+  client_review: number;
+  offers_in_progress: number;
+};
 export type StageFunnelRow = {
   role_id: string;
   client_id: string;
@@ -269,6 +278,7 @@ export type PageData = {
   dispatched?: number;
   roles?: Role[];
   roleWorkQueueCounts?: RoleWorkQueueCount[];
+  agencyWorkQueue?: AgencyWorkQueueItem[];
   role?: Role;
   roleCandidates?: RoleCandidate[];
   roleCandidateCounts?: Record<string, number>;
