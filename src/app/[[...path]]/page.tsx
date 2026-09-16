@@ -497,16 +497,16 @@ export default async function Page({
     }
     if (data.view === "roles") {
       loads.push(async () => {
-        const [roles, workQueueCounts] = await Promise.all([
+        const [roles, dashboardCounts] = await Promise.all([
           db
             .from("roles")
             .select("*")
             .eq("client_id", clientId!)
             .order("created_at", { ascending: false }),
-          db.rpc("role_work_queue_counts", { p_client: clientId! }),
+          db.rpc("role_dashboard_counts", { p_client: clientId! }),
         ]);
         data.roles = checked(roles);
-        data.roleWorkQueueCounts = checked(workQueueCounts);
+        data.roleDashboardCounts = checked(dashboardCounts);
       });
     }
     if (data.view === "prospects") {

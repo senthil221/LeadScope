@@ -40,6 +40,10 @@ const clientShareMigration = readFileSync(
   resolve("supabase/migrations/20260916053912_client_share_and_master_eligibility.sql"),
   "utf8",
 );
+const roleDashboardMigration = readFileSync(
+  resolve("supabase/migrations/20260916101500_role_dashboard_counts.sql"),
+  "utf8",
+);
 // Pulls the list out of `check(<column> in ('a','b'))` in the migration itself,
 // so the constraint and the TypeScript union can never drift apart silently.
 function checkList(column: string, sql = migration): string[] {
@@ -153,5 +157,14 @@ describe("client sharing and master eligibility", () => {
     expect(clientShareMigration).toContain("p_stage is distinct from 'recruiter_shortlisted'");
     expect(clientShareMigration).toContain("Clients can edit Notes only.");
     expect(clientShareMigration).toContain("Client links cannot move or reject candidates.");
+  });
+});
+
+describe("role dashboard counts", () => {
+  it("summarizes every pipeline stage and active recruiter work per role", () => {
+    expect(roleDashboardMigration).toContain("create function public.role_dashboard_counts");
+    expect(roleDashboardMigration).toContain("rc.stage='recruiter_shortlisted'");
+    expect(roleDashboardMigration).toContain("rc.follow_up_at<=current_date");
+    expect(roleDashboardMigration).toContain("coalesce(rc.outcome,'offer_sent')");
   });
 });

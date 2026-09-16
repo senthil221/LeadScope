@@ -13,7 +13,7 @@ export function RolesWorkspace({ data }: { data: PageData }) {
       <RolesPage
         client={data.client}
         roles={data.roles ?? []}
-        workQueueCounts={data.roleWorkQueueCounts ?? []}
+        dashboardCounts={data.roleDashboardCounts ?? []}
       />
     </AppShell>
   );

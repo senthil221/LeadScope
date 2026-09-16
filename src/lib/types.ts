@@ -195,6 +195,17 @@ export type RoleWorkQueueCount = {
   due_follow_ups: number;
   offers_in_progress: number;
 };
+export type RoleDashboardCount = {
+  role_id: string;
+  all_profiles: number;
+  profile_shortlisted: number;
+  recruiter_shortlisted: number;
+  client_shortlisted: number;
+  offer_sent: number;
+  rejected: number;
+  due_follow_ups: number;
+  offers_in_progress: number;
+};
 export type AgencyWorkQueueItem = {
   client_id: string;
   client_name: string;
@@ -293,6 +304,7 @@ export type PageData = {
   dispatched?: number;
   roles?: Role[];
   roleWorkQueueCounts?: RoleWorkQueueCount[];
+  roleDashboardCounts?: RoleDashboardCount[];
   agencyWorkQueue?: AgencyWorkQueueItem[];
   role?: Role;
   roleCandidates?: RoleCandidate[];

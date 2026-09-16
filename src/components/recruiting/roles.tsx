@@ -2,8 +2,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowRight, Layers, Plus } from "lucide-react";
-import type { Client, Role, RoleWorkQueueCount } from "@/lib/types";
+import { ArrowRight, Plus } from "lucide-react";
+import type { Client, Role, RoleDashboardCount } from "@/lib/types";
 import { RoleFormDialog } from "./role-form";
 
 async function act<T = { id: string }>(
@@ -30,11 +30,11 @@ const statusLabels: Record<string, string> = {
 export function RolesPage({
   client,
   roles,
-  workQueueCounts,
+  dashboardCounts,
 }: {
   client: Client;
   roles: Role[];
-  workQueueCounts: RoleWorkQueueCount[];
+  dashboardCounts: RoleDashboardCount[];
 }) {
   const router = useRouter();
   const [form, setForm] = useState<Role | "new" | null>(null);
@@ -42,8 +42,18 @@ export function RolesPage({
   const [error, setError] = useState("");
   const active = roles.filter((r) => !r.archived);
   const archived = roles.filter((r) => r.archived);
-  const workQueueByRole = new Map(
-    workQueueCounts.map((count) => [count.role_id, count]),
+  const dashboardByRole = new Map(
+    dashboardCounts.map((count) => [count.role_id, count]),
+  );
+  const totals = dashboardCounts.reduce(
+    (sum, count) => ({
+      allProfiles: sum.allProfiles + count.all_profiles,
+      recruiter: sum.recruiter + count.recruiter_shortlisted,
+      client: sum.client + count.client_shortlisted,
+      followUps: sum.followUps + count.due_follow_ups,
+      offers: sum.offers + count.offers_in_progress,
+    }),
+    { allProfiles: 0, recruiter: 0, client: 0, followUps: 0, offers: 0 },
   );
 
   async function toggleArchive(role: Role) {
@@ -66,16 +76,9 @@ export function RolesPage({
         <div>
           <div className="eyebrow">{client.name}</div>
           <h1>Roles</h1>
-          <p className="muted">
-            Choose a role to review candidates, shortlist them, and prepare
-            profiles for your client.
-          </p>
+          <p className="muted">Manage every active role and the candidate work that needs attention.</p>
         </div>
         <div className="header-actions">
-          <Link className="button" href={`/clients/${client.id}/campaigns`}>
-            <Layers size={16} />
-            Campaigns
-          </Link>
           <button className="primary" onClick={() => setForm("new")}>
             <Plus size={17} />
             New role
@@ -87,9 +90,35 @@ export function RolesPage({
           {error}
         </p>
       )}
+      <section className="role-dashboard-summary" aria-label="Role work summary">
+        <div>
+          <strong>{active.length}</strong>
+          <span>active roles</span>
+        </div>
+        <div>
+          <strong>{totals.allProfiles}</strong>
+          <span>all profiles</span>
+        </div>
+        <div>
+          <strong>{totals.recruiter}</strong>
+          <span>recruiter review</span>
+        </div>
+        <div>
+          <strong>{totals.client}</strong>
+          <span>client review</span>
+        </div>
+        <div>
+          <strong>{totals.followUps}</strong>
+          <span>due follow-ups</span>
+        </div>
+        <div>
+          <strong>{totals.offers}</strong>
+          <span>active offers</span>
+        </div>
+      </section>
       <div className="section-heading">
         <h2>
-          Roles <span className="count">{active.length}</span>
+          Active roles <span className="count">{active.length}</span>
         </h2>
       </div>
       <div className="card">
@@ -108,8 +137,8 @@ export function RolesPage({
               <thead>
                 <tr>
                   <th>Role</th>
-                  <th>Work to do</th>
-                  <th>Rating threshold</th>
+                  <th>Pipeline</th>
+                  <th>Needs attention</th>
                   <th>State</th>
                   <th />
                 </tr>
@@ -127,16 +156,17 @@ export function RolesPage({
                     </td>
                     <td>
                       {(() => {
-                        const count = workQueueByRole.get(role.id);
-                        const items = [
-                          ["All profiles", count?.new_profiles ?? 0, "all_profiles"],
-                          ["Client review", count?.client_review ?? 0, "client_shortlisted"],
-                          ["Due follow-ups", count?.due_follow_ups ?? 0, "follow_ups"],
-                          ["Offers", count?.offers_in_progress ?? 0, "offer_sent"],
+                        const count = dashboardByRole.get(role.id);
+                        const stages = [
+                          ["All", count?.all_profiles ?? 0, "all_profiles"],
+                          ["AI", count?.profile_shortlisted ?? 0, "profile_shortlisted"],
+                          ["Recruiter", count?.recruiter_shortlisted ?? 0, "recruiter_shortlisted"],
+                          ["Client", count?.client_shortlisted ?? 0, "client_shortlisted"],
+                          ["Offer", count?.offer_sent ?? 0, "offer_sent"],
                         ] as const;
                         return (
-                          <div className="role-work-queue">
-                            {items.map(([label, value, stage]) => (
+                          <div className="role-pipeline-counts">
+                            {stages.map(([label, value, stage]) => (
                               <Link key={stage} href={`/roles/${role.id}?stage=${stage}`}>
                                 <strong>{value}</strong>
                                 <span>{label}</span>
@@ -146,7 +176,24 @@ export function RolesPage({
                         );
                       })()}
                     </td>
-                    <td>{role.rating_threshold} / 5</td>
+                    <td>
+                      {(() => {
+                        const count = dashboardByRole.get(role.id);
+                        const items = [
+                          ["Follow-ups", count?.due_follow_ups ?? 0, "follow_ups"],
+                          ["Offers", count?.offers_in_progress ?? 0, "offer_sent"],
+                        ] as const;
+                        return (
+                          <div className="role-attention-links">
+                            {items.map(([label, value, stage]) => (
+                              <Link key={stage} href={`/roles/${role.id}?stage=${stage}`}>
+                                <strong>{value}</strong> {label.toLowerCase()}
+                              </Link>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </td>
                     <td>
                       <span className={`badge ${role.status}`}>
                         {statusLabels[role.status] ?? role.status}
