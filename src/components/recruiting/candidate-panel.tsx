@@ -1,6 +1,6 @@
 "use client";
-import { useRef, useState } from "react";
-import { CalendarDays, MessageSquareText, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CalendarDays, History, MessageSquareText, X } from "lucide-react";
 import type { RoleCandidate } from "@/lib/types";
 import {
   isStage,
@@ -67,6 +67,87 @@ function formatDateTime(value: string | null) {
   });
 }
 
+type CandidateActivity = {
+  id: string;
+  kind: string;
+  from_stage: string | null;
+  to_stage: string | null;
+  reason: string;
+  detail: Record<string, unknown>;
+  created_at: string;
+};
+
+function detailValue(detail: Record<string, unknown>, key: string) {
+  const value = detail[key];
+  return typeof value === "string" || typeof value === "number"
+    ? String(value)
+    : "";
+}
+
+function activityStageLabel(stage: string | null) {
+  if (!stage) return "";
+  return isStage(stage)
+    ? stageLabels[stage]
+    : stage.replaceAll("_", " ");
+}
+
+function activityCopy(event: CandidateActivity) {
+  switch (event.kind) {
+    case "import": {
+      const source = detailValue(event.detail, "source");
+      const sourceDetail = detailValue(event.detail, "sourceDetail");
+      return {
+        title: `Added from ${candidateSourceLabel(source, sourceDetail)}`,
+        description: "",
+      };
+    }
+    case "rating": {
+      const rating = detailValue(event.detail, "rating");
+      return {
+        title: rating ? `Rated ${rating} out of 5` : "Rating cleared",
+        description: "",
+      };
+    }
+    case "stage":
+      return {
+        title: `Moved from ${activityStageLabel(event.from_stage)} to ${activityStageLabel(event.to_stage)}`,
+        description: event.reason,
+      };
+    case "reject": {
+      const type = detailValue(event.detail, "rejectionType");
+      return {
+        title: type === "client" ? "Client rejected candidate" : "Candidate rejected",
+        description: event.reason,
+      };
+    }
+    case "client_decision": {
+      const decision = detailValue(event.detail, "decision");
+      return {
+        title:
+          decision === "shortlisted"
+            ? "Client shortlisted candidate"
+            : decision === "hold"
+              ? "Client put candidate on hold"
+              : "Client response recorded",
+        description: detailValue(event.detail, "reason"),
+      };
+    }
+    case "screening":
+      return { title: "Recruiter screening updated", description: "" };
+    case "client_edit":
+      return { title: "Client updated shared information", description: "" };
+    case "outcome": {
+      const outcome = detailValue(event.detail, "outcome");
+      return {
+        title: outcome ? `Outcome recorded: ${outcome.replaceAll("_", " ")}` : "Outcome recorded",
+        description: "",
+      };
+    }
+    default:
+      return { title: "Candidate updated", description: event.reason };
+  }
+}
+
 // Recruiter Screening is a panel on a candidate row, not a tab: this dialog
 // is that panel. It edits reusable candidate details (folding in the manual
 // phone/email entry originally scoped as its own enrichment phase),
@@ -114,6 +195,30 @@ export function CandidatePanel({
   const [rejecting, setRejecting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [activity, setActivity] = useState<CandidateActivity[]>([]);
+  const [activityLoading, setActivityLoading] = useState(true);
+  const [activityError, setActivityError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadActivity() {
+      try {
+        const events = await act<CandidateActivity[]>("candidateActivity", {
+          clientId,
+          roleCandidateId: rc.id,
+        });
+        if (!cancelled) setActivity(events);
+      } catch (e) {
+        if (!cancelled) setActivityError((e as Error).message);
+      } finally {
+        if (!cancelled) setActivityLoading(false);
+      }
+    }
+    void loadActivity();
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId, rc.id]);
 
   async function saveDetails() {
     setSavingDetails(true);
@@ -249,6 +354,35 @@ export function CandidatePanel({
       <p className="candidate-source">
         Added from {candidateSourceLabel(rc.source, rc.source_detail)}
       </p>
+
+      <section className="candidate-activity" aria-labelledby="candidate-activity-heading">
+        <div className="candidate-panel-section-heading">
+          <History size={16} aria-hidden="true" />
+          <h3 id="candidate-activity-heading">Activity</h3>
+        </div>
+        {activityLoading ? (
+          <p className="muted">Loading activity…</p>
+        ) : activityError ? (
+          <p className="muted">Could not load activity.</p>
+        ) : activity.length ? (
+          <ol className="candidate-activity-list">
+            {activity.map((event) => {
+              const copy = activityCopy(event);
+              return (
+                <li className="candidate-activity-row" key={event.id}>
+                  <div>
+                    <strong>{copy.title}</strong>
+                    {copy.description && <p>{copy.description}</p>}
+                  </div>
+                  <time dateTime={event.created_at}>{formatDateTime(event.created_at)}</time>
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <p className="muted">No activity has been recorded yet.</p>
+        )}
+      </section>
 
       <section className="candidate-client-response" aria-labelledby="client-response-heading">
         <div className="candidate-panel-section-heading">

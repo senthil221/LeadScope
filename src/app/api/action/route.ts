@@ -299,6 +299,21 @@ export async function POST(request: Request) {
         );
         break;
       }
+      case "candidateActivity": {
+        const p = z
+          .object({ clientId: uuid, roleCandidateId: uuid })
+          .parse(payload);
+        result = checked(
+          await db
+            .from("role_candidate_events")
+            .select("id,kind,from_stage,to_stage,reason,detail,created_at")
+            .eq("client_id", p.clientId)
+            .eq("role_candidate_id", p.roleCandidateId)
+            .order("created_at", { ascending: false })
+            .limit(100),
+        );
+        break;
+      }
       case "candidateDetails": {
         const p = z
           .object({

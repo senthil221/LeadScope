@@ -584,6 +584,42 @@ label small {
   color: var(--muted);
   font-size: 12px;
 }
+.candidate-activity {
+  padding: 14px 0;
+  margin: 14px 0 20px;
+  border-block: 1px solid var(--line);
+}
+.candidate-activity .muted {
+  margin: 0;
+}
+.candidate-activity-list {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.candidate-activity-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 13px;
+}
+.candidate-activity-row strong {
+  display: block;
+  font-weight: 600;
+}
+.candidate-activity-row p {
+  margin: 3px 0 0;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+}
+.candidate-activity-row time {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+}
 .role-secondary-nav {
   display: flex;
   align-items: center;
