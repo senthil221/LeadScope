@@ -129,7 +129,7 @@ export function RolesPage({
                       {(() => {
                         const count = workQueueByRole.get(role.id);
                         const items = [
-                          ["New profiles", count?.new_profiles ?? 0, "all_profiles"],
+                          ["All profiles", count?.new_profiles ?? 0, "all_profiles"],
                           ["Client review", count?.client_review ?? 0, "client_shortlisted"],
                           ["Due follow-ups", count?.due_follow_ups ?? 0, "follow_ups"],
                           ["Offers", count?.offers_in_progress ?? 0, "offer_sent"],

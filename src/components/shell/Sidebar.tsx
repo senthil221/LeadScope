@@ -64,7 +64,22 @@ export function Sidebar({ data }: { data: PageData }) {
             Clients
           </Link>
           {client && (
-            <>
+            <Link
+              className={itemClass(view, ["roles", "role"])}
+              href={`/clients/${client.id}/roles`}
+            >
+              <Briefcase size={17} aria-hidden="true" />
+              Roles
+            </Link>
+          )}
+        </div>
+        {client && (
+          <details
+            className="shell-secondary"
+            open={["client", "builder", "campaign", "runs", "leads", "lead", "prospects", "excluded"].includes(view)}
+          >
+            <summary>Sourcing &amp; data</summary>
+            <div className="shell-group">
               <Link
                 className={itemClass(view, [
                   "client",
@@ -84,24 +99,6 @@ export function Sidebar({ data }: { data: PageData }) {
                 <FileSearch size={17} aria-hidden="true" />
                 Leads &amp; review
               </Link>
-            </>
-          )}
-        </div>
-        {client && (
-          <div className="shell-group">
-            <span className="shell-label">Recruiting</span>
-            <Link
-              className={itemClass(view, ["roles", "role"])}
-              href={`/clients/${client.id}/roles`}
-            >
-              <Briefcase size={17} aria-hidden="true" />
-              Roles
-            </Link>
-          </div>
-        )}
-        {client && (
-          <div className="shell-group">
-            <span className="shell-label">Data</span>
             <Link
               className={itemClass(view, ["prospects"])}
               href={`/clients/${client.id}/prospects`}
@@ -116,7 +113,8 @@ export function Sidebar({ data }: { data: PageData }) {
               <ShieldCheck size={17} aria-hidden="true" />
               Excluded
             </Link>
-          </div>
+            </div>
+          </details>
         )}
       </nav>
       <div className="shell-footer">

@@ -302,7 +302,7 @@ export function RolePipeline({
       setMasterSelected([]);
       setMessage(
         result.added
-          ? `${result.added} candidate${result.added === 1 ? "" : "s"} added to New profiles.`
+          ? `${result.added} candidate${result.added === 1 ? "" : "s"} added to All profiles.`
           : "Those candidates are already in this role.",
       );
       router.refresh();
@@ -325,7 +325,7 @@ export function RolePipeline({
       setMessage(
         result.moved
           ? `${result.moved} candidate${result.moved > 1 ? "s" : ""} moved to AI shortlisted.`
-          : "No candidates in New profiles currently meet the threshold.",
+          : "No candidates in All profiles currently meet the threshold.",
       );
       router.refresh();
     } catch (e) {
@@ -336,7 +336,7 @@ export function RolePipeline({
   }
   return (
     <>
-      <header className="page-header">
+      <header className="page-header role-workspace-header">
         <div>
           <div className="eyebrow">{client.name}</div>
           <h1>{role.name}</h1>
@@ -371,25 +371,13 @@ export function RolePipeline({
           </div>
         </div>
       )}
-      <div className="metrics">
-        {[
-          ["In pipeline", pipelineTotal, "Not yet rejected"],
-          [
-            "New profiles",
-            counts.all_profiles ?? 0,
-            "Awaiting a manual rating",
-          ],
-          ["Rejected", counts.rejected ?? 0, "Kept for history"],
-          ["Shortlist threshold", `${role.rating_threshold} / 5`, "Manual rating"],
-        ].map(([label, value, hint]) => (
-          <div className="metric" key={label as string}>
-            <span>{label}</span>
-            <strong>{value}</strong>
-            <small>{hint}</small>
-          </div>
-        ))}
+      <div className="role-summary" aria-label="Role summary">
+        <span><strong>{pipelineTotal}</strong> active candidates</span>
+        <span><strong>{counts.all_profiles ?? 0}</strong> awaiting rating</span>
+        <span>Rating floor <strong>{role.rating_threshold} / 5</strong></span>
+        <span><strong>{counts.rejected ?? 0}</strong> rejected</span>
       </div>
-      <div className="tabs">
+      <div className="tabs role-stage-tabs" aria-label="Candidate stages">
         {pipelineTabs.map(({ key, label }) => (
           <Link
             key={key}
@@ -402,7 +390,7 @@ export function RolePipeline({
         ))}
       </div>
       <nav className="role-secondary-nav" aria-label="Role tools">
-        <span>Role tools</span>
+        <span>Views</span>
         <Link className={isFollowUpsTab ? "selected" : ""} href={tabUrl("follow_ups")}>
           Follow-ups
         </Link>
@@ -414,10 +402,15 @@ export function RolePipeline({
         </Link>
       </nav>
       {isStage(tab) && (
-        <div className="section-heading">
-          <h2>{tab === "rejected" ? "Rejects" : stageLabels[tab as Stage]}</h2>
+        <div className="section-heading role-table-heading">
+          <div>
+            <h2>{tab === "rejected" ? "Rejects" : stageLabels[tab as Stage]}</h2>
+            <p className="muted">{total} candidate{total === 1 ? "" : "s"}</p>
+          </div>
           <div className="row">
-            <button onClick={() => setManagingFields(true)}>Manage columns</button>
+            {tab === "recruiter_shortlisted" && (
+              <button onClick={() => setManagingFields(true)}>Manage columns</button>
+            )}
             {tab === "recruiter_shortlisted" ? (
               <>
                 <button onClick={() => setSharing("client")}>Manage links</button>
@@ -473,7 +466,7 @@ export function RolePipeline({
       )}
       {isStage(tab) && (
         <form
-          className="sheet-toolbar candidate-search"
+          className="sheet-toolbar candidate-search candidate-toolbar"
           onSubmit={(event) => {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
@@ -1002,7 +995,7 @@ export function RolePipeline({
             <h2>Apply rating threshold</h2>
           </div>
           <p className="muted">
-            Moves every candidate still in New profiles whose manually entered rating already
+            Moves every candidate still in All profiles whose manually entered rating already
             meets the current threshold ({role.rating_threshold} / 5) to
             AI shortlisted. Candidates rated below the threshold, or not
             yet rated, are left where they are.
