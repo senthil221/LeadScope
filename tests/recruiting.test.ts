@@ -22,6 +22,7 @@ import {
   roleCandidateExportColumns,
   roleCandidateExportColumnsWithFields,
 } from "../src/lib/recruiting/export";
+import { roleCandidateListFilters } from "../src/lib/server/recruiting";
 import type { RoleCandidate, RoleField } from "../src/lib/types";
 
 const migration = readFileSync(
@@ -214,6 +215,23 @@ describe("candidate exports", () => {
       1200000,
       "30 days",
     ]);
+  });
+});
+
+describe("role candidate list filters", () => {
+  it("only accepts real ISO dates for stage entry filters", () => {
+    expect(
+      roleCandidateListFilters({
+        entered_from: "2026-09-01",
+        entered_to: "2026-09-30",
+      }),
+    ).toMatchObject({ enteredFrom: "2026-09-01", enteredTo: "2026-09-30" });
+    expect(
+      roleCandidateListFilters({
+        entered_from: "2026-02-30",
+        entered_to: "not-a-date",
+      }),
+    ).toMatchObject({ enteredFrom: undefined, enteredTo: undefined });
   });
 });
 

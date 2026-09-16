@@ -663,6 +663,8 @@ export function RolePipeline({
                 q: String(form.get("q") ?? ""),
                 source: String(form.get("source") ?? ""),
                 rating: String(form.get("rating") ?? ""),
+                entered_from: String(form.get("entered_from") ?? ""),
+                entered_to: String(form.get("entered_to") ?? ""),
                 sort: String(form.get("sort") ?? ""),
               }),
             );
@@ -695,6 +697,18 @@ export function RolePipeline({
               </option>
             ))}
           </select>
+          <input
+            aria-label="Candidates entered on or after"
+            defaultValue={params.get("entered_from") ?? ""}
+            name="entered_from"
+            type="date"
+          />
+          <input
+            aria-label="Candidates entered on or before"
+            defaultValue={params.get("entered_to") ?? ""}
+            name="entered_to"
+            type="date"
+          />
           <select name="sort" aria-label="Sort candidates" defaultValue={params.get("sort") ?? "newest"}>
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
@@ -725,8 +739,8 @@ export function RolePipeline({
               </div>
             )}
           </div>
-          {(query || params.get("source") || params.get("rating") || params.get("sort")) && (
-            <Link href={stageFilterUrl({ q: "", source: "", rating: "", sort: "" })}>Clear</Link>
+          {(query || params.get("source") || params.get("rating") || params.get("entered_from") || params.get("entered_to") || params.get("sort")) && (
+            <Link href={stageFilterUrl({ q: "", source: "", rating: "", entered_from: "", entered_to: "", sort: "" })}>Clear</Link>
           )}
         </form>
       )}

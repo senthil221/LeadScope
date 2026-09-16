@@ -12,8 +12,24 @@ export type RoleCandidateListFilters = {
   query: string;
   source?: CandidateSource;
   rating?: RatingFilter;
+  enteredFrom?: string;
+  enteredTo?: string;
   sort: "newest" | "oldest" | "rating_high" | "rating_low";
 };
+
+function validDate(value: string | undefined) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(parsed.valueOf()) || !parsed.toISOString().startsWith(value)
+    ? undefined
+    : value;
+}
+
+function startOfNextDay(value: string) {
+  const next = new Date(`${value}T00:00:00.000Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return next.toISOString();
+}
 
 export function roleCandidateListFilters(
   raw: Record<string, string | undefined>,
@@ -22,6 +38,8 @@ export function roleCandidateListFilters(
     ? (raw.source as CandidateSource)
     : undefined;
   const rating = isRatingFilter(raw.rating) ? raw.rating : undefined;
+  const enteredFrom = validDate(raw.entered_from);
+  const enteredTo = validDate(raw.entered_to);
   const sort = ["oldest", "rating_high", "rating_low"].includes(raw.sort ?? "")
     ? (raw.sort as RoleCandidateListFilters["sort"])
     : "newest";
@@ -32,6 +50,8 @@ export function roleCandidateListFilters(
       .replace(/[\\%_,().]/g, "\\$&"),
     source,
     rating,
+    enteredFrom,
+    enteredTo,
     sort,
   };
 }
@@ -49,6 +69,10 @@ export function roleCandidateListQuery(
     .eq("role_id", roleId)
     .eq("stage", stage);
   if (filters.source) query = query.eq("source", filters.source);
+  if (filters.enteredFrom)
+    query = query.gte("stage_entered_at", `${filters.enteredFrom}T00:00:00.000Z`);
+  if (filters.enteredTo)
+    query = query.lt("stage_entered_at", startOfNextDay(filters.enteredTo));
   if (filters.rating === "unrated") query = query.is("rating", null);
   else if (filters.rating === "meets_floor")
     query = query.gte("rating", ratingThreshold);

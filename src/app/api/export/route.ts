@@ -69,6 +69,8 @@ export async function GET(request: Request) {
             q: params.get("q") ?? undefined,
             source: params.get("source") ?? undefined,
             rating: params.get("rating") ?? undefined,
+            entered_from: params.get("entered_from") ?? undefined,
+            entered_to: params.get("entered_to") ?? undefined,
             sort: params.get("sort") ?? undefined,
           }),
         ).range(0, 9999),
