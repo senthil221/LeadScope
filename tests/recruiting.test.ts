@@ -64,6 +64,10 @@ const roleStatusWorkQueueMigration = readFileSync(
   resolve("supabase/migrations/20260916107000_role_status_work_queues.sql"),
   "utf8",
 );
+const missingFunctionsRepairMigration = readFileSync(
+  resolve("supabase/migrations/20260916108000_repair_missing_recruiting_functions.sql"),
+  "utf8",
+);
 // Pulls the list out of `check(<column> in ('a','b'))` in the migration itself,
 // so the constraint and the TypeScript union can never drift apart silently.
 function checkList(column: string, sql = migration): string[] {
@@ -239,5 +243,17 @@ describe("agency work queue migration repair", () => {
 describe("role lifecycle work queues", () => {
   it("counts only open roles in active client summaries", () => {
     expect(roleStatusWorkQueueMigration).toContain("r.status='open'");
+  });
+});
+
+describe("missing recruiting functions repair", () => {
+  it("restores the role stage counts and agency work queue used by the workspace", () => {
+    expect(missingFunctionsRepairMigration).toContain(
+      "create or replace function public.role_candidate_stage_counts",
+    );
+    expect(missingFunctionsRepairMigration).toContain(
+      "create or replace function public.agency_today_work_queue",
+    );
+    expect(missingFunctionsRepairMigration).toContain("r.status='open'");
   });
 });
