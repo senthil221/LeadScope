@@ -170,6 +170,12 @@ export type RoleCandidate = {
   rejection_reason: string;
   outcome: string | null;
   outcome_at: string | null;
+  offer_amount: number | null;
+  offer_currency: string;
+  offer_sent_on: string | null;
+  offer_response_due_at: string | null;
+  expected_start_at: string | null;
+  offer_notes: string;
   follow_up_at: string | null;
   stage_entered_at: string;
   created_at: string;

@@ -47,7 +47,7 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
     },
     {
       key: "offers",
-      label: "Offers in progress",
+      label: "Offer follow-ups",
       stage: "offer_sent",
       count: (item: (typeof workQueue)[number]) => item.offers_in_progress,
     },

@@ -150,6 +150,13 @@ function activityCopy(event: CandidateActivity) {
         description: "",
       };
     }
+    case "offer": {
+      const due = detailValue(event.detail, "responseDueAt");
+      return {
+        title: "Offer details updated",
+        description: due ? `Response due ${due}` : "",
+      };
+    }
     default:
       return { title: "Candidate updated", description: event.reason };
   }
@@ -194,8 +201,17 @@ export function CandidatePanel({
     (rc.screening as Screening) ?? {},
   );
   const [internalNotes, setInternalNotes] = useState(rc.internal_notes);
+  const [offer, setOffer] = useState({
+    amount: rc.offer_amount != null ? String(rc.offer_amount) : "",
+    currency: rc.offer_currency,
+    sentOn: rc.offer_sent_on ?? "",
+    responseDueAt: rc.offer_response_due_at ?? "",
+    expectedStartAt: rc.expected_start_at ?? "",
+    notes: rc.offer_notes,
+  });
   const [savingDetails, setSavingDetails] = useState(false);
   const [savingScreening, setSavingScreening] = useState(false);
+  const [savingOffer, setSavingOffer] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [restoring, setRestoring] = useState(false);
@@ -268,6 +284,28 @@ export function CandidatePanel({
       setError((e as Error).message);
     } finally {
       setSavingScreening(false);
+    }
+  }
+  async function saveOffer() {
+    setSavingOffer(true);
+    setError("");
+    try {
+      await act("offerDetails", {
+        clientId,
+        id: rc.id,
+        amount: offer.amount.trim() ? Number(offer.amount) : null,
+        currency: offer.currency,
+        sentOn: offer.sentOn || null,
+        responseDueAt: offer.responseDueAt || null,
+        expectedStartAt: offer.expectedStartAt || null,
+        notes: offer.notes,
+      });
+      setMessage("Offer details saved.");
+      onChanged();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSavingOffer(false);
     }
   }
   async function uploadResume() {
@@ -373,6 +411,78 @@ export function CandidatePanel({
           {rc.ai_scored_at && (
             <small>Scored {formatDateTime(rc.ai_scored_at)}</small>
           )}
+        </section>
+      )}
+
+      {currentStage === "offer_sent" && (
+        <section className="candidate-offer" aria-labelledby="offer-heading">
+          <div className="candidate-panel-section-heading">
+            <CalendarDays size={16} aria-hidden="true" />
+            <h3 id="offer-heading">Offer details</h3>
+          </div>
+          <div className="candidate-offer-grid">
+            <label>
+              Offer amount <span className="optional">optional</span>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                disabled={savingOffer}
+                value={offer.amount}
+                onChange={(e) => setOffer({ ...offer, amount: e.target.value })}
+              />
+            </label>
+            <label>
+              Currency <span className="optional">optional</span>
+              <input
+                maxLength={10}
+                placeholder="USD"
+                disabled={savingOffer}
+                value={offer.currency}
+                onChange={(e) => setOffer({ ...offer, currency: e.target.value.toUpperCase() })}
+              />
+            </label>
+            <label>
+              Sent on <span className="optional">optional</span>
+              <input
+                type="date"
+                disabled={savingOffer}
+                value={offer.sentOn}
+                onChange={(e) => setOffer({ ...offer, sentOn: e.target.value })}
+              />
+            </label>
+            <label>
+              Response due <span className="optional">optional</span>
+              <input
+                type="date"
+                disabled={savingOffer}
+                value={offer.responseDueAt}
+                onChange={(e) => setOffer({ ...offer, responseDueAt: e.target.value })}
+              />
+            </label>
+            <label>
+              Expected start <span className="optional">optional</span>
+              <input
+                type="date"
+                disabled={savingOffer}
+                value={offer.expectedStartAt}
+                onChange={(e) => setOffer({ ...offer, expectedStartAt: e.target.value })}
+              />
+            </label>
+          </div>
+          <label>
+            Offer notes <span className="optional">optional, never shared</span>
+            <textarea
+              rows={2}
+              maxLength={4000}
+              disabled={savingOffer}
+              value={offer.notes}
+              onChange={(e) => setOffer({ ...offer, notes: e.target.value })}
+            />
+          </label>
+          <button disabled={savingOffer} onClick={() => void saveOffer()}>
+            {savingOffer ? "Saving…" : "Save offer details"}
+          </button>
         </section>
       )}
 

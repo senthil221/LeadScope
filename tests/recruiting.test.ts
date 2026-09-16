@@ -28,6 +28,10 @@ const aiReviewMigration = readFileSync(
   resolve("supabase/migrations/20260916043409_retain_ai_profile_reviews.sql"),
   "utf8",
 );
+const offerMigration = readFileSync(
+  resolve("supabase/migrations/20260916044004_offer_closing_workspace.sql"),
+  "utf8",
+);
 // Pulls the list out of `check(<column> in ('a','b'))` in the migration itself,
 // so the constraint and the TypeScript union can never drift apart silently.
 function checkList(column: string, sql = migration): string[] {
@@ -115,5 +119,14 @@ describe("AI review persistence", () => {
     expect(aiReviewMigration).toContain("add column ai_rationale text not null default '' check(length(ai_rationale)<=240)");
     expect(aiReviewMigration).toContain("create function private.record_ai_scores");
     expect(aiReviewMigration).toContain("perform private.rate_candidate");
+  });
+});
+
+describe("offer closing workspace", () => {
+  it("keeps private offer details and queues response deadlines", () => {
+    expect(offerMigration).toContain("add column offer_amount numeric(14,2)");
+    expect(offerMigration).toContain("add column offer_response_due_at date");
+    expect(offerMigration).toContain("create function private.save_offer_details");
+    expect(offerMigration).toContain("rc.offer_response_due_at<=current_date");
   });
 });

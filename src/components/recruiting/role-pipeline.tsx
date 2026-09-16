@@ -796,6 +796,7 @@ export function RolePipeline({
                   <th>Rating</th>
                 )}
                 {tab === "profile_shortlisted" && <th>AI review</th>}
+                {tab === "offer_sent" && <th>Offer details</th>}
                 {tab === "offer_sent" && <th>Outcome</th>}
                 {showsClientResponse && <th>Client response</th>}
                 {roleFields.map((f) => (
@@ -883,6 +884,25 @@ export function RolePipeline({
                         </>
                       ) : (
                         "—"
+                      )}
+                    </td>
+                  )}
+                  {tab === "offer_sent" && (
+                    <td className="offer-details-cell">
+                      {rc.offer_amount != null ? (
+                        <strong>
+                          {[rc.offer_currency, rc.offer_amount]
+                            .filter(Boolean)
+                            .join(" ")}
+                        </strong>
+                      ) : (
+                        <span className="muted">Add details</span>
+                      )}
+                      {rc.offer_response_due_at && (
+                        <small>Response due {date(rc.offer_response_due_at)}</small>
+                      )}
+                      {rc.expected_start_at && (
+                        <small>Start {date(rc.expected_start_at)}</small>
                       )}
                     </td>
                   )}

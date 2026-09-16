@@ -346,6 +346,33 @@ export async function POST(request: Request) {
         );
         break;
       }
+      case "offerDetails": {
+        const p = z
+          .object({
+            clientId: uuid,
+            id: uuid,
+            amount: z.number().min(0).max(999999999999.99).nullable().default(null),
+            currency: z.string().trim().regex(/^[a-zA-Z]{0,10}$/).default(""),
+            sentOn: z.string().date().nullable().default(null),
+            responseDueAt: z.string().date().nullable().default(null),
+            expectedStartAt: z.string().date().nullable().default(null),
+            notes: z.string().max(4000).default(""),
+          })
+          .parse(payload);
+        checked(
+          await db.rpc("save_offer_details", {
+            p_client: p.clientId,
+            p_id: p.id,
+            p_amount: p.amount,
+            p_currency: p.currency,
+            p_sent_on: p.sentOn,
+            p_response_due_at: p.responseDueAt,
+            p_expected_start_at: p.expectedStartAt,
+            p_notes: p.notes,
+          }),
+        );
+        break;
+      }
       case "screening": {
         const p = z
           .object({
