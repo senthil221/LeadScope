@@ -1548,6 +1548,15 @@ tbody tr:hover td.col-arrow a {
   text-align: center;
 }
 .role-action-card:hover b { color: var(--brand-ink); }
+.follow-up-schedule {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  min-width: max-content;
+}
+.follow-up-schedule input { width: 132px; min-height: 30px; padding: 4px 7px; font-size: 12px; }
+.follow-up-schedule button { min-height: 30px; }
 .role-table-heading { margin: 18px 0 10px; }
 .role-table-heading p { margin-top: 2px; }
 .metric {

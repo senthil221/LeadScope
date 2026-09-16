@@ -199,6 +199,7 @@ export function RolePipeline({
   const [sharing, setSharing] = useState<"client" | null>(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [savingFollowUpId, setSavingFollowUpId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
@@ -424,6 +425,25 @@ export function RolePipeline({
       setError((e as Error).message);
     } finally {
       setApplyBusy(false);
+    }
+  }
+  async function saveFollowUp(roleCandidate: RoleCandidate, followUpAt: string) {
+    if (savingFollowUpId) return;
+    setSavingFollowUpId(roleCandidate.id);
+    setError("");
+    try {
+      await act("screening", {
+        clientId: client.id,
+        id: roleCandidate.id,
+        screening: { ...roleCandidate.screening, followUpAt },
+        internalNotes: roleCandidate.internal_notes,
+      });
+      setMessage(followUpAt ? "Follow-up date saved." : "Follow-up cleared.");
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSavingFollowUpId(null);
     }
   }
   return (
@@ -674,6 +694,7 @@ export function RolePipeline({
                   <th>Current stage</th>
                   <th>Company</th>
                   <th>Contact</th>
+                  <th>Schedule</th>
                 </tr>
               </thead>
               <tbody>
@@ -706,6 +727,40 @@ export function RolePipeline({
                     </td>
                     <td>{rc.candidates.current_company || "—"}</td>
                     <td>{rc.candidates.phone || rc.candidates.email || "—"}</td>
+                    <td>
+                      <form
+                        className="follow-up-schedule"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          const values = new FormData(event.currentTarget);
+                          void saveFollowUp(rc, String(values.get("followUpAt") ?? ""));
+                        }}
+                      >
+                        <input
+                          aria-label={`Follow-up date for ${rc.candidates.full_name}`}
+                          defaultValue={rc.follow_up_at ?? ""}
+                          disabled={savingFollowUpId === rc.id}
+                          name="followUpAt"
+                          type="date"
+                        />
+                        <button
+                          className="small"
+                          disabled={savingFollowUpId === rc.id}
+                          type="submit"
+                        >
+                          {savingFollowUpId === rc.id ? "Saving…" : "Save"}
+                        </button>
+                        <button
+                          aria-label={`Clear follow-up for ${rc.candidates.full_name}`}
+                          className="small"
+                          disabled={savingFollowUpId === rc.id}
+                          onClick={() => void saveFollowUp(rc, "")}
+                          type="button"
+                        >
+                          Clear
+                        </button>
+                      </form>
+                    </td>
                   </tr>
                 ))}
               </tbody>
