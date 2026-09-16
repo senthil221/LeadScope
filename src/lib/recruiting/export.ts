@@ -1,4 +1,4 @@
-import type { RoleCandidate } from "@/lib/types";
+import type { RoleCandidate, RoleField } from "@/lib/types";
 import {
   candidateSourceLabel,
   isStage,
@@ -31,7 +31,14 @@ export const roleCandidateExportColumns = [
   "Rejection reason",
 ];
 
-export function roleCandidateExportCells(candidate: RoleCandidate): unknown[] {
+export function roleCandidateExportColumnsWithFields(fields: RoleField[]) {
+  return [...roleCandidateExportColumns, ...fields.map((field) => field.label)];
+}
+
+export function roleCandidateExportCells(
+  candidate: RoleCandidate,
+  fields: RoleField[] = [],
+): unknown[] {
   return [
     candidate.stage_entered_at,
     isStage(candidate.stage) ? stageLabels[candidate.stage] : candidate.stage,
@@ -55,5 +62,6 @@ export function roleCandidateExportCells(candidate: RoleCandidate): unknown[] {
     outcomes[candidate.outcome as keyof typeof outcomes] ?? candidate.outcome,
     candidate.rejection_type,
     candidate.rejection_reason,
+    ...fields.map((field) => candidate.custom[field.key] ?? ""),
   ];
 }

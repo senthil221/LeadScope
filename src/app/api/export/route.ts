@@ -3,7 +3,7 @@ import { admin, AppError, checked } from "@/lib/server/db";
 import { failure } from "@/lib/server/http";
 import { uuid } from "@/lib/domain";
 import { serializeExport } from "@/lib/export";
-import type { Lead, RoleCandidate } from "@/lib/types";
+import type { Lead, RoleCandidate, RoleField } from "@/lib/types";
 import {
   prospectFilters,
   prospectCells,
@@ -11,7 +11,10 @@ import {
   type Prospect,
 } from "@/lib/prospects";
 import { isStage } from "@/lib/recruiting/stages";
-import { roleCandidateExportCells, roleCandidateExportColumns } from "@/lib/recruiting/export";
+import {
+  roleCandidateExportCells,
+  roleCandidateExportColumnsWithFields,
+} from "@/lib/recruiting/export";
 import { roleCandidateListFilters, roleCandidateListQuery } from "@/lib/server/recruiting";
 export const runtime = "nodejs";
 
@@ -56,28 +59,37 @@ export async function GET(request: Request) {
           .eq("client_id", clientId)
           .single(),
       );
-      const result = await roleCandidateListQuery(
-        db,
-        role.id,
-        stage,
-        role.rating_threshold,
-        roleCandidateListFilters({
-          q: params.get("q") ?? undefined,
-          source: params.get("source") ?? undefined,
-          rating: params.get("rating") ?? undefined,
-          sort: params.get("sort") ?? undefined,
-        }),
-      ).range(0, 9999);
+      const [result, fieldResult] = await Promise.all([
+        roleCandidateListQuery(
+          db,
+          role.id,
+          stage,
+          role.rating_threshold,
+          roleCandidateListFilters({
+            q: params.get("q") ?? undefined,
+            source: params.get("source") ?? undefined,
+            rating: params.get("rating") ?? undefined,
+            sort: params.get("sort") ?? undefined,
+          }),
+        ).range(0, 9999),
+        db
+          .from("role_fields")
+          .select("id,role_id,key,label,kind,options,ordinal,archived")
+          .eq("role_id", role.id)
+          .eq("archived", false)
+          .order("ordinal"),
+      ]);
       const rows = checked(result) as unknown as RoleCandidate[];
+      const fields = checked(fieldResult) as RoleField[];
       if ((result.count ?? 0) > 10_000)
         throw new AppError(
           "Export fewer than 10,000 candidates at a time. Narrow the filters and try again.",
         );
       return new Response(
         serializeExport(
-          rows.map(roleCandidateExportCells),
+          rows.map((candidate) => roleCandidateExportCells(candidate, fields)),
           format,
-          roleCandidateExportColumns,
+          roleCandidateExportColumnsWithFields(fields),
         ),
         { headers: contentHeaders(exportFilename(role.name), format) },
       );

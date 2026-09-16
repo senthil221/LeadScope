@@ -20,8 +20,9 @@ import {
 import {
   roleCandidateExportCells,
   roleCandidateExportColumns,
+  roleCandidateExportColumnsWithFields,
 } from "../src/lib/recruiting/export";
-import type { RoleCandidate } from "../src/lib/types";
+import type { RoleCandidate, RoleField } from "../src/lib/types";
 
 const migration = readFileSync(
   resolve("supabase/migrations/20260910061500_recruiting_foundation.sql"),
@@ -174,6 +175,7 @@ describe("candidate exports", () => {
       rating: 4.5,
       source: "linkedin",
       source_detail: "Recruiter seat",
+      custom: { current_ctc: 1200000, availability: "30 days" },
       client_notes: "Available from October",
       internal_notes: "Do not export this",
       offer_amount: 1500000,
@@ -195,11 +197,23 @@ describe("candidate exports", () => {
         email: "priya@example.com",
       },
     } as unknown as RoleCandidate;
+    const fields = [
+      { key: "current_ctc", label: "Current CTC" },
+      { key: "availability", label: "Availability" },
+    ] as RoleField[];
 
     expect(roleCandidateExportColumns).not.toContain("Internal recruiter notes");
     expect(roleCandidateExportCells(row)).toContain("Offer sent");
     expect(roleCandidateExportCells(row)).toContain("Available from October");
     expect(roleCandidateExportCells(row)).not.toContain("Do not export this");
+    expect(roleCandidateExportColumnsWithFields(fields).slice(-2)).toEqual([
+      "Current CTC",
+      "Availability",
+    ]);
+    expect(roleCandidateExportCells(row, fields).slice(-2)).toEqual([
+      1200000,
+      "30 days",
+    ]);
   });
 });
 
