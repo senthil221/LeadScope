@@ -19,10 +19,12 @@ export function ShellHeader({ data }: { data: PageData }) {
           <span aria-current="page">Agency workspace</span>
         )}
       </nav>
-      <span className="live-indicator">
-        <i className={data.live ? "on" : ""} aria-hidden="true" />
-        {data.live ? "Search connected" : "Search setup needed"}
-      </span>
+      {!data.live && (
+        <span className="live-indicator">
+          <i aria-hidden="true" />
+          Sourcing setup needed
+        </span>
+      )}
     </div>
   );
 }

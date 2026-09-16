@@ -78,7 +78,7 @@ export function Sidebar({ data }: { data: PageData }) {
             className="shell-secondary"
             open={["client", "builder", "campaign", "runs", "leads", "lead", "prospects", "excluded"].includes(view)}
           >
-            <summary>Sourcing &amp; data</summary>
+            <summary>Sourcing tools</summary>
             <div className="shell-group">
               <Link
                 className={itemClass(view, [
@@ -90,28 +90,28 @@ export function Sidebar({ data }: { data: PageData }) {
                 href={`/clients/${client.id}/campaigns`}
               >
                 <Layers size={17} aria-hidden="true" />
-                Campaigns
+                Search campaigns
               </Link>
               <Link
                 className={itemClass(view, ["leads", "lead"])}
                 href={`/leads?client=${client.id}`}
               >
                 <FileSearch size={17} aria-hidden="true" />
-                Leads &amp; review
+                Search leads
               </Link>
             <Link
               className={itemClass(view, ["prospects"])}
               href={`/clients/${client.id}/prospects`}
             >
               <CheckCheck size={17} aria-hidden="true" />
-              Prospect sheet
+              Prospect database
             </Link>
             <Link
               className={itemClass(view, ["excluded"])}
               href={`/clients/${client.id}/excluded`}
             >
               <ShieldCheck size={17} aria-hidden="true" />
-              Excluded
+              Excluded profiles
             </Link>
             </div>
           </details>
