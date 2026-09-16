@@ -104,7 +104,7 @@ export function RoleAnalytics({
                 {candidateSourceLabel(row.source, row.source_detail)}
               </td>
               <td>{row.total_profiles}</td>
-              <td>{row.ai_shortlisted}</td>
+              <td>{row.profile_shortlisted}</td>
               <td>{row.recruiter_shortlisted}</td>
               <td>{row.client_shortlisted}</td>
               <td>{row.offer_sent}</td>

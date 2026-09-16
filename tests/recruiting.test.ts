@@ -77,6 +77,10 @@ const missingFunctionsRepairMigration = readFileSync(
   resolve("supabase/migrations/20260916108000_repair_missing_recruiting_functions.sql"),
   "utf8",
 );
+const removeAiReviewContractMigration = readFileSync(
+  resolve("supabase/migrations/20260916180802_remove_ai_review_contract.sql"),
+  "utf8",
+);
 // Pulls the list out of `check(<column> in ('a','b'))` in the migration itself,
 // so the constraint and the TypeScript union can never drift apart silently.
 function checkList(column: string, sql = migration): string[] {
@@ -243,8 +247,21 @@ describe("role candidate list filters", () => {
 describe("source performance analytics", () => {
   it("counts every source through the recruiting stages", () => {
     expect(sourcePerformanceMigration).toContain("create function public.role_source_performance");
-    expect(sourcePerformanceMigration).toContain("reached_ai");
-    expect(sourcePerformanceMigration).toContain("reached_offer");
+    expect(removeAiReviewContractMigration).toContain("profile_shortlisted integer");
+    expect(removeAiReviewContractMigration).toContain("reached_profile");
+    expect(removeAiReviewContractMigration).toContain("reached_offer");
+  });
+});
+
+describe("manual assessment contract", () => {
+  it("retires the callable scoring path while preserving legacy assessment history", () => {
+    expect(removeAiReviewContractMigration).toContain(
+      "rename column ai_rating to legacy_assessment_rating",
+    );
+    expect(removeAiReviewContractMigration).toContain("set kind = 'legacy_assessment'");
+    expect(removeAiReviewContractMigration).toContain(
+      "drop function if exists public.record_ai_scores",
+    );
   });
 });
 

@@ -237,7 +237,7 @@ export type SourcePerformanceRow = {
   source: string;
   source_detail: string;
   total_profiles: number;
-  ai_shortlisted: number;
+  profile_shortlisted: number;
   recruiter_shortlisted: number;
   client_shortlisted: number;
   offer_sent: number;
