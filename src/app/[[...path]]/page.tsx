@@ -10,7 +10,7 @@ import { prospectFilters } from "@/lib/prospects";
 import { prospectQuery } from "@/lib/server/prospects";
 import { uuid } from "@/lib/domain";
 import type { PageData, Discovery, Lead, RoleCandidate } from "@/lib/types";
-import { candidateSources, isStage } from "@/lib/recruiting/stages";
+import { candidateSources, isRatingFilter, isStage } from "@/lib/recruiting/stages";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -320,6 +320,15 @@ export default async function Page({
             ? filter.source
             : undefined;
           if (source) candidateQuery = candidateQuery.eq("source", source);
+          const ratingFilter = isRatingFilter(filter.rating)
+            ? filter.rating
+            : undefined;
+          if (ratingFilter === "unrated")
+            candidateQuery = candidateQuery.is("rating", null);
+          else if (ratingFilter === "meets_floor")
+            candidateQuery = candidateQuery.gte("rating", data.role!.rating_threshold);
+          else if (ratingFilter === "below_floor")
+            candidateQuery = candidateQuery.lt("rating", data.role!.rating_threshold);
           if (term)
             candidateQuery = candidateQuery.or(
               [

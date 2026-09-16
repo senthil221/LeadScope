@@ -44,6 +44,17 @@ export const candidateSourceLabels: Record<CandidateSource, string> = {
   master_db: "Master database",
   other: "Other source",
 };
+export const ratingFilters = [
+  "unrated",
+  "meets_floor",
+  "below_floor",
+] as const;
+export type RatingFilter = (typeof ratingFilters)[number];
+export const ratingFilterLabels: Record<RatingFilter, string> = {
+  unrated: "Needs rating",
+  meets_floor: "At or above rating floor",
+  below_floor: "Below rating floor",
+};
 export function candidateSourceLabel(source: string, detail = "") {
   return detail.trim() || candidateSourceLabels[source as CandidateSource] || "Imported profile";
 }
@@ -59,6 +70,9 @@ export function isPipelineStage(value: unknown): value is PipelineStage {
 }
 export function isStage(value: unknown): value is Stage {
   return stages.includes(value as Stage);
+}
+export function isRatingFilter(value: unknown): value is RatingFilter {
+  return ratingFilters.includes(value as RatingFilter);
 }
 // Rejected is terminal here: advancing out of it is an explicit stage move,
 // never the "next stage" button.

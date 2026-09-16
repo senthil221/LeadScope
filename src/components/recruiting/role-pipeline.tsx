@@ -33,6 +33,8 @@ import {
   candidateSourceLabel,
   candidateSources,
   candidateSourceLabels,
+  ratingFilters,
+  ratingFilterLabels,
   type PipelineStage,
   type Stage,
 } from "@/lib/recruiting/stages";
@@ -626,6 +628,7 @@ export function RolePipeline({
               stageFilterUrl({
                 q: String(form.get("q") ?? ""),
                 source: String(form.get("source") ?? ""),
+                rating: String(form.get("rating") ?? ""),
                 sort: String(form.get("sort") ?? ""),
               }),
             );
@@ -643,6 +646,18 @@ export function RolePipeline({
             {candidateSources.map((source) => (
               <option key={source} value={source}>
                 {candidateSourceLabels[source]}
+              </option>
+            ))}
+          </select>
+          <select
+            name="rating"
+            aria-label="Filter candidates by rating"
+            defaultValue={params.get("rating") ?? ""}
+          >
+            <option value="">All ratings</option>
+            {ratingFilters.map((filter) => (
+              <option key={filter} value={filter}>
+                {ratingFilterLabels[filter]}
               </option>
             ))}
           </select>
@@ -676,8 +691,8 @@ export function RolePipeline({
               </div>
             )}
           </div>
-          {(query || params.get("source") || params.get("sort")) && (
-            <Link href={stageFilterUrl({ q: "", source: "", sort: "" })}>Clear</Link>
+          {(query || params.get("source") || params.get("rating") || params.get("sort")) && (
+            <Link href={stageFilterUrl({ q: "", source: "", rating: "", sort: "" })}>Clear</Link>
           )}
         </form>
       )}

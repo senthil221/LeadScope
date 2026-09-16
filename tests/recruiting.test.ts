@@ -8,6 +8,8 @@ import {
   nextStage,
   isPipelineStage,
   candidateSources,
+  isRatingFilter,
+  ratingFilters,
 } from "../src/lib/recruiting/stages";
 import {
   normalizeIdentity,
@@ -172,6 +174,11 @@ describe("manual decimal ratings", () => {
     expect(manualRatingsMigration).toContain("alter column rating type numeric(3,1)");
     expect(manualRatingsMigration).toContain("alter column rating_threshold type numeric(3,1)");
     expect(manualRatingsMigration).toContain("stage not in ('recruiter_shortlisted','client_shortlisted','offer_sent')");
+  });
+  it("keeps the table rating filters constrained to the supported review states", () => {
+    expect(ratingFilters).toEqual(["unrated", "meets_floor", "below_floor"]);
+    expect(isRatingFilter("meets_floor")).toBe(true);
+    expect(isRatingFilter("any rating")).toBe(false);
   });
 });
 
