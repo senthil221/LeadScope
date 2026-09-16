@@ -377,9 +377,26 @@ export function CandidatePanel({
   }
 
   return (
-    <dialog open className="modal">
-      <div className="modal-heading">
-        <h2>{c.full_name}</h2>
+    <dialog
+      open
+      className="modal candidate-drawer"
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+    >
+      <div className="modal-heading candidate-drawer-heading">
+        <div>
+          <span className="badge candidate-stage-badge">
+            {stageLabels[currentStage]}
+          </span>
+          <h2>{c.full_name}</h2>
+          {(c.headline || c.current_company) && (
+            <p className="candidate-drawer-subtitle">
+              {[c.headline, c.current_company].filter(Boolean).join(" · ")}
+            </p>
+          )}
+        </div>
         <button aria-label="Close" onClick={onClose}>
           <X size={18} />
         </button>
@@ -394,11 +411,12 @@ export function CandidatePanel({
           {message}
         </p>
       )}
-      <p className="candidate-source">
+      <p className="candidate-source candidate-drawer-source">
         Added from {candidateSourceLabel(rc.source, rc.source_detail)}
       </p>
 
-      {currentStage === "offer_sent" && (
+      <div className="candidate-drawer-body">
+        {currentStage === "offer_sent" && (
         <section className="candidate-offer" aria-labelledby="offer-heading">
           <div className="candidate-panel-section-heading">
             <CalendarDays size={16} aria-hidden="true" />
@@ -499,7 +517,10 @@ export function CandidatePanel({
         )}
       </section>
 
-      <section className="candidate-client-response" aria-labelledby="client-response-heading">
+      <section
+        className="candidate-client-response candidate-client-response-section"
+        aria-labelledby="client-response-heading"
+      >
         <div className="candidate-panel-section-heading">
           <MessageSquareText size={16} aria-hidden="true" />
           <h3 id="client-response-heading">Client response</h3>
@@ -525,92 +546,101 @@ export function CandidatePanel({
         )}
       </section>
 
-      <h3>Candidate details</h3>
-      <p className="muted">
-        Shared across every role this candidate is part of.
-      </p>
-      <label>
-        Full name
-        <input
-          maxLength={200}
-          disabled={savingDetails}
-          value={details.fullName}
-          onChange={(e) => setDetails({ ...details, fullName: e.target.value })}
-        />
-      </label>
-      <label>
-        Headline <span className="optional">optional</span>
-        <input
-          maxLength={300}
-          disabled={savingDetails}
-          value={details.headline}
-          onChange={(e) => setDetails({ ...details, headline: e.target.value })}
-        />
-      </label>
-      <label>
-        Current company <span className="optional">optional</span>
-        <input
-          maxLength={200}
-          disabled={savingDetails}
-          value={details.currentCompany}
-          onChange={(e) => setDetails({ ...details, currentCompany: e.target.value })}
-        />
-      </label>
-      <label>
-        Current designation <span className="optional">optional</span>
-        <input
-          maxLength={200}
-          disabled={savingDetails}
-          value={details.currentDesignation}
-          onChange={(e) =>
-            setDetails({ ...details, currentDesignation: e.target.value })
-          }
-        />
-      </label>
-      <label>
-        Location <span className="optional">optional</span>
-        <input
-          maxLength={200}
-          disabled={savingDetails}
-          value={details.location}
-          onChange={(e) => setDetails({ ...details, location: e.target.value })}
-        />
-      </label>
-      <label>
-        Experience (years) <span className="optional">optional</span>
-        <input
-          type="number"
-          min={0}
-          max={70}
-          step={0.5}
-          disabled={savingDetails}
-          value={details.totalExperienceYears}
-          onChange={(e) =>
-            setDetails({ ...details, totalExperienceYears: e.target.value })
-          }
-        />
-      </label>
-      <label>
-        Phone <span className="optional">optional</span>
-        <input
-          disabled={savingDetails}
-          value={details.phone}
-          onChange={(e) => setDetails({ ...details, phone: e.target.value })}
-        />
-      </label>
-      <label>
-        Email <span className="optional">optional</span>
-        <input
-          disabled={savingDetails}
-          value={details.email}
-          onChange={(e) => setDetails({ ...details, email: e.target.value })}
-        />
-      </label>
-      <button disabled={savingDetails} onClick={() => void saveDetails()}>
-        {savingDetails ? "Saving…" : "Save details"}
-      </button>
+      <section
+        className="candidate-drawer-section candidate-profile-section"
+        aria-labelledby="candidate-details-heading"
+      >
+        <h3 id="candidate-details-heading">Candidate details</h3>
+        <p className="muted">Shared across every role this candidate is part of.</p>
+        <div className="candidate-drawer-grid">
+          <label>
+            Full name
+            <input
+              maxLength={200}
+              disabled={savingDetails}
+              value={details.fullName}
+              onChange={(e) => setDetails({ ...details, fullName: e.target.value })}
+            />
+          </label>
+          <label>
+            Headline <span className="optional">optional</span>
+            <input
+              maxLength={300}
+              disabled={savingDetails}
+              value={details.headline}
+              onChange={(e) => setDetails({ ...details, headline: e.target.value })}
+            />
+          </label>
+          <label>
+            Current company <span className="optional">optional</span>
+            <input
+              maxLength={200}
+              disabled={savingDetails}
+              value={details.currentCompany}
+              onChange={(e) => setDetails({ ...details, currentCompany: e.target.value })}
+            />
+          </label>
+          <label>
+            Current designation <span className="optional">optional</span>
+            <input
+              maxLength={200}
+              disabled={savingDetails}
+              value={details.currentDesignation}
+              onChange={(e) =>
+                setDetails({ ...details, currentDesignation: e.target.value })
+              }
+            />
+          </label>
+          <label>
+            Location <span className="optional">optional</span>
+            <input
+              maxLength={200}
+              disabled={savingDetails}
+              value={details.location}
+              onChange={(e) => setDetails({ ...details, location: e.target.value })}
+            />
+          </label>
+          <label>
+            Experience (years) <span className="optional">optional</span>
+            <input
+              type="number"
+              min={0}
+              max={70}
+              step={0.5}
+              disabled={savingDetails}
+              value={details.totalExperienceYears}
+              onChange={(e) =>
+                setDetails({ ...details, totalExperienceYears: e.target.value })
+              }
+            />
+          </label>
+          <label>
+            Phone <span className="optional">optional</span>
+            <input
+              disabled={savingDetails}
+              value={details.phone}
+              onChange={(e) => setDetails({ ...details, phone: e.target.value })}
+            />
+          </label>
+          <label>
+            Email <span className="optional">optional</span>
+            <input
+              disabled={savingDetails}
+              value={details.email}
+              onChange={(e) => setDetails({ ...details, email: e.target.value })}
+            />
+          </label>
+        </div>
+        <button disabled={savingDetails} onClick={() => void saveDetails()}>
+          {savingDetails ? "Saving…" : "Save details"}
+        </button>
+      </section>
 
-      <h3>Resume</h3>
+      <section
+        className="candidate-drawer-section candidate-resume-section"
+        aria-labelledby="resume-heading"
+      >
+        <h3 id="resume-heading">Resume</h3>
       {c.resume_path ? (
         <button type="button" onClick={() => void viewResume()}>
           View current resume
@@ -635,8 +665,13 @@ export function CandidatePanel({
       >
         {uploading ? "Uploading…" : "Upload"}
       </button>
+      </section>
 
-      <h3>Recruiter screening</h3>
+      <section
+        className="candidate-drawer-section candidate-screening-section"
+        aria-labelledby="screening-heading"
+      >
+        <h3 id="screening-heading">Recruiter screening</h3>
       <p className="muted">For this role only. Never shown to the client.</p>
       <label>
         Interest
@@ -716,8 +751,10 @@ export function CandidatePanel({
       <button disabled={savingScreening} onClick={() => void saveScreening()}>
         {savingScreening ? "Saving…" : "Save screening"}
       </button>
+      </section>
 
-      <div className="row">
+      </div>
+      <footer className="candidate-drawer-actions">
         {currentStage === "rejected" ? (
           <button
             className="primary"
@@ -744,7 +781,7 @@ export function CandidatePanel({
             )}
           </>
         )}
-      </div>
+      </footer>
 
       {rejecting && (
         <RejectDialog

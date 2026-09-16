@@ -511,6 +511,122 @@ label small {
   padding: 4px;
   min-height: 0;
 }
+.candidate-drawer {
+  inset: 0 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  width: min(590px, 100vw);
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border-width: 0 0 0 1px;
+  border-radius: 0;
+  box-shadow:
+    0 0 0 100vmax rgb(21 43 36 / 0.28),
+    -16px 0 36px rgb(23 33 29 / 0.12);
+}
+.candidate-drawer-heading {
+  align-items: flex-start;
+  gap: 16px;
+  margin: 0;
+  padding: 20px 22px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.candidate-drawer-heading h2 {
+  margin-top: 7px;
+  font-size: 21px;
+  line-height: 1.25;
+}
+.candidate-drawer-heading > button {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: -3px -6px 0 0;
+  border-radius: 6px;
+}
+.candidate-drawer-heading > button:hover { background: #f2f4f1; }
+.candidate-stage-badge { text-transform: none; }
+.candidate-drawer-subtitle {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.candidate-drawer > .error,
+.candidate-drawer > [role="status"] {
+  margin: 10px 22px 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+.candidate-drawer-source {
+  margin: 10px 22px 6px;
+}
+.candidate-drawer-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 22px 28px;
+}
+.candidate-drawer-body > .candidate-offer { order: 0; }
+.candidate-profile-section { order: 1; }
+.candidate-resume-section { order: 2; }
+.candidate-screening-section { order: 3; }
+.candidate-client-response-section { order: 4; }
+.candidate-drawer-body > .candidate-activity { order: 5; }
+.candidate-drawer-section,
+.candidate-drawer .candidate-client-response,
+.candidate-drawer .candidate-activity {
+  margin: 0;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+.candidate-drawer-section h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.candidate-drawer-section > .muted {
+  margin: 4px 0 12px;
+  font-size: 12px;
+}
+.candidate-drawer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+.candidate-drawer .candidate-drawer-grid label,
+.candidate-drawer-section > label {
+  margin: 0;
+  font-size: 12px;
+}
+.candidate-drawer-section > button,
+.candidate-drawer-section > label + button {
+  margin-top: 12px;
+}
+.candidate-drawer .candidate-offer {
+  padding-inline: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+}
+.candidate-drawer .candidate-activity-list { gap: 12px; }
+.candidate-drawer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 12px 22px;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -8px 20px rgb(23 33 29 / 0.04);
+}
+.candidate-drawer-actions button { flex: 1 1 170px; }
 .candidate-offer {
   margin: 18px 0;
   padding: 14px;
@@ -2631,6 +2747,21 @@ details h3 {
   .sheet-toolbar select {
     width: 100%;
     flex-basis: 100%;
+  }
+  .candidate-drawer-heading {
+    padding: 16px;
+  }
+  .candidate-drawer-source {
+    margin-inline: 16px;
+  }
+  .candidate-drawer-body {
+    padding-inline: 16px;
+  }
+  .candidate-drawer-grid {
+    grid-template-columns: 1fr;
+  }
+  .candidate-drawer-actions {
+    padding: 10px 16px;
   }
 }
 
