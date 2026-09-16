@@ -24,16 +24,16 @@ const latestSourceMigration = readFileSync(
   resolve("supabase/migrations/20260916093000_recruiting_master_database_reuse.sql"),
   "utf8",
 );
-const aiReviewMigration = readFileSync(
-  resolve("supabase/migrations/20260916043409_retain_ai_profile_reviews.sql"),
-  "utf8",
-);
 const offerMigration = readFileSync(
   resolve("supabase/migrations/20260916044004_offer_closing_workspace.sql"),
   "utf8",
 );
 const sourcePerformanceMigration = readFileSync(
   resolve("supabase/migrations/20260916044546_source_performance_analytics.sql"),
+  "utf8",
+);
+const manualRatingsMigration = readFileSync(
+  resolve("supabase/migrations/20260916045517_manual_decimal_ratings.sql"),
   "utf8",
 );
 // Pulls the list out of `check(<column> in ('a','b'))` in the migration itself,
@@ -117,15 +117,6 @@ describe("candidate identity normalization", () => {
   });
 });
 
-describe("AI review persistence", () => {
-  it("keeps a bounded AI score and rationale with the role candidate", () => {
-    expect(aiReviewMigration).toContain("add column ai_rating smallint check(ai_rating between 0 and 5)");
-    expect(aiReviewMigration).toContain("add column ai_rationale text not null default '' check(length(ai_rationale)<=240)");
-    expect(aiReviewMigration).toContain("create function private.record_ai_scores");
-    expect(aiReviewMigration).toContain("perform private.rate_candidate");
-  });
-});
-
 describe("offer closing workspace", () => {
   it("keeps private offer details and queues response deadlines", () => {
     expect(offerMigration).toContain("add column offer_amount numeric(14,2)");
@@ -140,5 +131,13 @@ describe("source performance analytics", () => {
     expect(sourcePerformanceMigration).toContain("create function public.role_source_performance");
     expect(sourcePerformanceMigration).toContain("reached_ai");
     expect(sourcePerformanceMigration).toContain("reached_offer");
+  });
+});
+
+describe("manual decimal ratings", () => {
+  it("supports tenth-point ratings and limits rejection to recruiter review onwards", () => {
+    expect(manualRatingsMigration).toContain("alter column rating type numeric(3,1)");
+    expect(manualRatingsMigration).toContain("alter column rating_threshold type numeric(3,1)");
+    expect(manualRatingsMigration).toContain("stage not in ('recruiter_shortlisted','client_shortlisted','offer_sent')");
   });
 });

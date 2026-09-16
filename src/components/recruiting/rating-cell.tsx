@@ -34,16 +34,24 @@ export function RatingCell({
   autoAdvance: boolean;
   onRated: (autoAdvanced: boolean) => void;
 }) {
-  const [value, setValue] = useState(rating);
+  const [value, setValue] = useState(rating == null ? "" : String(rating));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  async function update(next: number | null) {
-    if (saving || next === value) return;
+  async function update() {
+    const next = value.trim() === "" ? null : Number(value);
+    if (
+      saving ||
+      (next !== null &&
+        (!Number.isFinite(next) || next < 0 || next > 5 || Math.round(next * 10) !== next * 10))
+    ) {
+      if (next !== null) setError("Enter a rating from 0.0 to 5.0.");
+      return;
+    }
+    if (next === rating) return;
     setSaving(true);
     setError("");
-    const previous = value;
-    setValue(next);
+    const previous = rating == null ? "" : String(rating);
     try {
       await act("rate", { clientId, id: roleCandidateId, rating: next });
       onRated(autoAdvance && next !== null && next >= threshold);
@@ -57,21 +65,21 @@ export function RatingCell({
 
   return (
     <div>
-      <select
+      <input
+        type="number"
+        min={0}
+        max={5}
+        step="0.1"
         aria-label={`Rating for ${name}`}
-        value={value ?? ""}
+        value={value}
         disabled={saving}
-        onChange={(e) =>
-          void update(e.target.value === "" ? null : Number(e.target.value))
-        }
-      >
-        <option value="">Not rated</option>
-        {[0, 1, 2, 3, 4, 5].map((n) => (
-          <option key={n} value={n}>
-            {n} / 5
-          </option>
-        ))}
-      </select>
+        placeholder="0.0–5.0"
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => void update()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+        }}
+      />
       {error && (
         <small className="error" role="alert">
           {error}

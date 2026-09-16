@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, History, MessageSquareText, Sparkles, X } from "lucide-react";
+import { CalendarDays, History, MessageSquareText, X } from "lucide-react";
 import type { RoleCandidate } from "@/lib/types";
 import {
   isStage,
@@ -108,13 +108,6 @@ function activityCopy(event: CandidateActivity) {
         description: "",
       };
     }
-    case "ai_rating": {
-      const rating = detailValue(event.detail, "rating");
-      return {
-        title: rating ? `AI scored ${rating} out of 5` : "AI score recorded",
-        description: detailValue(event.detail, "rationale"),
-      };
-    }
     case "stage":
       return {
         title: `Moved from ${activityStageLabel(event.from_stage)} to ${activityStageLabel(event.to_stage)}`,
@@ -184,6 +177,11 @@ export function CandidatePanel({
   const c = rc.candidates;
   const currentStage: Stage = isStage(rc.stage) ? rc.stage : "all_profiles";
   const advanceTo = nextStage(currentStage);
+  const canReject = [
+    "recruiter_shortlisted",
+    "client_shortlisted",
+    "offer_sent",
+  ].includes(currentStage);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [details, setDetails] = useState({
@@ -399,20 +397,6 @@ export function CandidatePanel({
       <p className="candidate-source">
         Added from {candidateSourceLabel(rc.source, rc.source_detail)}
       </p>
-
-      {rc.ai_rating != null && (
-        <section className="candidate-ai-review" aria-labelledby="ai-review-heading">
-          <div className="candidate-panel-section-heading">
-            <Sparkles size={16} aria-hidden="true" />
-            <h3 id="ai-review-heading">AI review</h3>
-            <span className="badge accepted">{rc.ai_rating} / 5</span>
-          </div>
-          <p>{rc.ai_rationale || "No rationale recorded."}</p>
-          {rc.ai_scored_at && (
-            <small>Scored {formatDateTime(rc.ai_scored_at)}</small>
-          )}
-        </section>
-      )}
 
       {currentStage === "offer_sent" && (
         <section className="candidate-offer" aria-labelledby="offer-heading">
@@ -753,9 +737,11 @@ export function CandidatePanel({
                 {advancing ? "Advancing…" : `Suitable → ${stageLabels[advanceTo]}`}
               </button>
             )}
-            <button type="button" onClick={() => setRejecting(true)}>
-              Not suitable → Reject
-            </button>
+            {canReject && (
+              <button type="button" onClick={() => setRejecting(true)}>
+                Not suitable → Reject
+              </button>
+            )}
           </>
         )}
       </div>

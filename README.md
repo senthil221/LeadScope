@@ -24,8 +24,6 @@ The selected project URL for this workspace is `https://dwoersrcbxievideuads.sup
 | `NEXT_PUBLIC_SUPABASE_URL` | Your dedicated LeadScope Supabase project URL. |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Project publishable key. Legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY` is also supported. |
 | `SUPABASE_SECRET_KEY` | Server integration key for budget/job RPCs and requalification. Legacy `SUPABASE_SERVICE_ROLE_KEY` is supported. Never prefix it with `NEXT_PUBLIC_`. |
-| `OPENAI_API_KEY` | Server-only API key used for recruiter-requested AI profile reviews. |
-| `OPENAI_RECRUITING_MODEL` | Optional model for profile reviews; defaults to `gpt-5-mini`. |
 | `SERPER_API_KEY` | Server-only Serper API key. |
 | `SERPER_LIVE_ENABLED` | Defaults to `false`. Must be exactly `true` to start/process live searches. |
 | `SERPER_MAX_REQUESTS_PER_RUN` | Positive integer; defaults to 50 and is capped at 50. Each run snapshots its effective cap. |
@@ -152,8 +150,6 @@ Before deployment, also exercise the configured email/password sign-in and datab
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://dwoersrcbxievideuads.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | The selected project's publishable key. |
 | `SUPABASE_SECRET_KEY` | The selected project's server secret key. |
-| `OPENAI_API_KEY` | Server-only key for recruiter-requested AI profile reviews. |
-| `OPENAI_RECRUITING_MODEL` | Optional; defaults to `gpt-5-mini`. |
 | `SERPER_API_KEY` | Your Serper key. |
 | `SERPER_LIVE_ENABLED` | `false` initially; enable deliberately when ready to spend search credits. |
 | `SERPER_MAX_REQUESTS_PER_RUN` | `50`, or a lower agency limit. |

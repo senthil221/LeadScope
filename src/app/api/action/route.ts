@@ -9,7 +9,6 @@ import { canonicalLinkedIn } from "@/lib/urls";
 import { parseExcludedUrls } from "@/lib/exclusions";
 import { processNext } from "@/lib/server/process";
 import { qualify, mergeAssessment } from "@/lib/qualification";
-import { reviewCandidatesWithAi } from "@/lib/server/recruiting-ai";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 const note = z.string().max(4000).default("");
@@ -97,7 +96,11 @@ export async function POST(request: Request) {
             clientId: uuid,
             name: z.string().trim().min(1).max(120),
             description: z.string().max(4000).default(""),
-            ratingThreshold: z.number().int().min(0).max(5),
+            ratingThreshold: z
+              .number()
+              .min(0)
+              .max(5)
+              .refine((value) => Math.round(value * 10) === value * 10),
             expectedRevision: z.number().int().min(1).optional(),
           })
           .parse(payload);
@@ -196,7 +199,12 @@ export async function POST(request: Request) {
           .object({
             clientId: uuid,
             id: uuid,
-            rating: z.number().int().min(0).max(5).nullable(),
+            rating: z
+              .number()
+              .min(0)
+              .max(5)
+              .refine((value) => Math.round(value * 10) === value * 10)
+              .nullable(),
           })
           .parse(payload);
         checked(
@@ -204,71 +212,6 @@ export async function POST(request: Request) {
             p_client: p.clientId,
             p_id: p.id,
             p_rating: p.rating,
-          }),
-        );
-        break;
-      }
-      case "scoreCandidatesWithAi": {
-        const p = z
-          .object({
-            clientId: uuid,
-            roleId: uuid,
-            ids: z.array(uuid).min(1).max(20),
-          })
-          .parse(payload);
-        const ids = [...new Set(p.ids)];
-        const [roleResult, candidateResult] = await Promise.all([
-          db
-            .from("roles")
-            .select("id,name,description,rating_threshold")
-            .eq("id", p.roleId)
-            .eq("client_id", p.clientId)
-            .single(),
-          db
-            .from("role_candidates")
-            .select(
-              "id,stage,candidates!inner(headline,current_company,current_designation,total_experience_years)",
-            )
-            .eq("client_id", p.clientId)
-            .eq("role_id", p.roleId)
-            .eq("stage", "all_profiles")
-            .in("id", ids),
-        ]);
-        const role = checked(roleResult);
-        const candidates = checked(candidateResult) as unknown as {
-          id: string;
-          stage: string;
-          candidates: {
-            headline: string;
-            current_company: string;
-            current_designation: string;
-            total_experience_years: number | null;
-          };
-        }[];
-        if (candidates.length !== ids.length)
-          throw new AppError(
-            "One or more candidates are no longer in New profiles. Reload and try again.",
-          );
-        const suggestions = await reviewCandidatesWithAi({
-          actorId: user.id,
-          role: {
-            name: role.name,
-            description: role.description,
-            ratingThreshold: role.rating_threshold,
-          },
-          candidates: candidates.map((candidate) => ({
-            id: candidate.id,
-            headline: candidate.candidates.headline,
-            currentCompany: candidate.candidates.current_company,
-            currentDesignation: candidate.candidates.current_designation,
-            totalExperienceYears: candidate.candidates.total_experience_years,
-          })),
-        });
-        result = checked(
-          await db.rpc("record_ai_scores", {
-            p_client: p.clientId,
-            p_role: p.roleId,
-            p_scores: suggestions,
           }),
         );
         break;

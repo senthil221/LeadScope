@@ -4,7 +4,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
   Archive,
-  Bot,
   CircleHelp,
   Link as LinkIcon,
   Plus,
@@ -168,7 +167,6 @@ export function RolePipeline({
   const [importing, setImporting] = useState(false);
   const [applying, setApplying] = useState(false);
   const [applyBusy, setApplyBusy] = useState(false);
-  const [aiScoring, setAiScoring] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [masterSelection, setMasterSelection] = useState({
     scope: "",
@@ -186,15 +184,14 @@ export function RolePipeline({
   // The bulk bar and rating cells only apply to the five pipeline stages.
   const isPipelineTab = isStage(tab) && tab !== "rejected";
   const isFollowUpsTab = tab === "follow_ups";
+  const canRejectFromTab = [
+    "recruiter_shortlisted",
+    "client_shortlisted",
+    "offer_sent",
+  ].includes(tab);
   const showsClientResponse =
     tab === "client_shortlisted" || tab === "offer_sent" || tab === "rejected";
   const advanceTo = isPipelineTab ? nextStage(tab as PipelineStage) : null;
-  const aiCandidates = (selected.length
-    ? roleCandidates.filter((candidate) => selected.includes(candidate.id))
-    : roleCandidates
-  )
-    .filter((candidate) => candidate.rating === null)
-    .slice(0, 20);
   const pipelineTotal = Object.entries(counts)
     .filter(([stage]) => stage !== "rejected")
     .reduce((sum, [, n]) => sum + n, 0);
@@ -337,32 +334,6 @@ export function RolePipeline({
       setApplyBusy(false);
     }
   }
-  async function startAiReview() {
-    if (aiScoring || !aiCandidates.length) return;
-    setAiScoring(true);
-    setError("");
-    try {
-      const result = await act<{ scored: number; autoShortlisted: number }>(
-        "scoreCandidatesWithAi",
-        {
-          clientId: client.id,
-          roleId: role.id,
-          ids: aiCandidates.map((candidate) => candidate.id),
-        },
-      );
-      setSelected([]);
-      setMessage(
-        result.autoShortlisted
-          ? `AI scored ${result.scored} profile${result.scored === 1 ? "" : "s"} on a 0–5 scale. ${result.autoShortlisted} moved to AI shortlisted after meeting the threshold.`
-          : `AI scored ${result.scored} profile${result.scored === 1 ? "" : "s"} on a 0–5 scale. None meet the current threshold yet.`,
-      );
-      router.refresh();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setAiScoring(false);
-    }
-  }
   return (
     <>
       <header className="page-header">
@@ -467,13 +438,6 @@ export function RolePipeline({
             )}
             {tab === "all_profiles" && !role.archived && (
               <>
-                <button
-                  disabled={aiScoring || !aiCandidates.length}
-                  onClick={() => void startAiReview()}
-                >
-                  <Bot size={15} />
-                  {aiScoring ? "Scoring…" : "Score up to 20 with AI"}
-                </button>
                 <button onClick={() => setApplying(true)}>
                   <SlidersHorizontal size={15} />
                   Apply threshold
@@ -505,9 +469,11 @@ export function RolePipeline({
               Move to {stageLabels[advanceTo]}
             </button>
           )}
-          <button disabled={busy} onClick={() => setRejecting(true)}>
-            Reject
-          </button>
+          {canRejectFromTab && (
+            <button disabled={busy} onClick={() => setRejecting(true)}>
+              Reject
+            </button>
+          )}
         </div>
       )}
       {isStage(tab) && (
@@ -802,7 +768,6 @@ export function RolePipeline({
                 ) : (
                   <th>Rating</th>
                 )}
-                {tab === "profile_shortlisted" && <th>AI review</th>}
                 {tab === "offer_sent" && <th>Offer details</th>}
                 {tab === "offer_sent" && <th>Outcome</th>}
                 {showsClientResponse && <th>Client response</th>}
@@ -880,18 +845,6 @@ export function RolePipeline({
                           router.refresh();
                         }}
                       />
-                    </td>
-                  )}
-                  {tab === "profile_shortlisted" && (
-                    <td className="ai-review-cell">
-                      {rc.ai_rating != null ? (
-                        <>
-                          <strong>{rc.ai_rating} / 5</strong>
-                          <small title={rc.ai_rationale}>{rc.ai_rationale || "—"}</small>
-                        </>
-                      ) : (
-                        "—"
-                      )}
                     </td>
                   )}
                   {tab === "offer_sent" && (

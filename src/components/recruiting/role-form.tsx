@@ -87,17 +87,15 @@ export function RoleFormDialog({
           />
         </label>
         <label>
-          Shortlist threshold
-          <select
+          Rating floor
+          <input
+            type="number"
+            min={0}
+            max={5}
+            step="0.1"
             name="ratingThreshold"
             defaultValue={role === "new" ? 3 : role.rating_threshold}
-          >
-            {[0, 1, 2, 3, 4, 5].map((n) => (
-              <option key={n} value={n}>
-                {n} / 5
-              </option>
-            ))}
-          </select>
+          />
         </label>
         <p className="muted">
           Candidates with a manually entered rating at or above this threshold
