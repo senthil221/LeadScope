@@ -52,7 +52,7 @@ export default async function Page({
     path[0] === "leads" ||
     (path[0] === "clients" && path[2] === "campaigns");
   const needsAgencyWorkQueue = path[0] === "clients" && !path[1];
-  const [clients, activeRuns, agencyWorkQueue] = await Promise.all([
+  const [clients, activeRuns, agencyWorkQueue, clientDirectoryCounts] = await Promise.all([
     db
       .from("clients")
       .select("id,name,notes,archived,created_at")
@@ -66,6 +66,7 @@ export default async function Page({
           .limit(100)
       : null,
     needsAgencyWorkQueue ? db.rpc("agency_today_work_queue") : null,
+    needsAgencyWorkQueue ? db.rpc("client_directory_counts") : null,
   ]);
   const data: PageData = {
     view: path[0],
@@ -75,6 +76,7 @@ export default async function Page({
     serverCap: env.serverCap,
     activeRuns: activeRuns ? checked(activeRuns) : [],
     agencyWorkQueue: agencyWorkQueue ? checked(agencyWorkQueue) : [],
+    clientDirectoryCounts: clientDirectoryCounts ? checked(clientDirectoryCounts) : [],
     email: user.email ?? "Agency operator",
   };
   try {

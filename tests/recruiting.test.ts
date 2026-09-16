@@ -44,6 +44,10 @@ const roleDashboardMigration = readFileSync(
   resolve("supabase/migrations/20260916101500_role_dashboard_counts.sql"),
   "utf8",
 );
+const clientDirectoryMigration = readFileSync(
+  resolve("supabase/migrations/20260916103000_client_directory_counts.sql"),
+  "utf8",
+);
 // Pulls the list out of `check(<column> in ('a','b'))` in the migration itself,
 // so the constraint and the TypeScript union can never drift apart silently.
 function checkList(column: string, sql = migration): string[] {
@@ -167,5 +171,14 @@ describe("role dashboard counts", () => {
     expect(roleDashboardMigration).toContain("rc.stage='recruiter_shortlisted'");
     expect(roleDashboardMigration).toContain("rc.follow_up_at<=current_date");
     expect(roleDashboardMigration).toContain("coalesce(rc.outcome,'offer_sent')");
+  });
+});
+
+describe("client directory counts", () => {
+  it("summarizes active roles and pipeline work in one database-side query", () => {
+    expect(clientDirectoryMigration).toContain("create function public.client_directory_counts");
+    expect(clientDirectoryMigration).toContain("count(distinct r.id)");
+    expect(clientDirectoryMigration).toContain("left join public.roles r");
+    expect(clientDirectoryMigration).toContain("rc.follow_up_at<=current_date");
   });
 });

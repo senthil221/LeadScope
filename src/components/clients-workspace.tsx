@@ -32,6 +32,9 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
   const [error, setError] = useState("");
   const clients = data.clients.filter((client) => showArchived || !client.archived);
   const workQueue = data.agencyWorkQueue ?? [];
+  const directoryCounts = new Map(
+    (data.clientDirectoryCounts ?? []).map((item) => [item.client_id, item]),
+  );
   const workGroups = [
     {
       key: "follow_ups",
@@ -80,8 +83,8 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
       <header className="page-header">
         <div>
           <div className="eyebrow">Client directory</div>
-          <h1>A workspace for every client</h1>
-          <p className="muted">Open a client to manage its roles and candidate pipeline.</p>
+          <h1>Clients</h1>
+          <p className="muted">See each client’s active hiring work, pipeline, and urgent follow-ups in one place.</p>
         </div>
         <div className="header-actions">
           <button className="primary" onClick={() => setCreating(true)}>
@@ -160,18 +163,85 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
           )}
         </div>
       ) : (
-        <div className="client-grid">
-          {clients.map((client) => (
-            <Link href={`/clients/${client.id}`} key={client.id} className="card client-card">
-              <div className="client-card-top">
-                <span className="client-monogram">{client.name.slice(0, 2).toUpperCase()}</span>
-                {client.archived ? <span className="badge">Archived</span> : <ArrowRight size={18} />}
-              </div>
-              <h3>{client.name}</h3>
-              <p className="muted">{client.notes || "No client notes yet."}</p>
-              <small>Created {date(client.created_at)}</small>
-            </Link>
-          ))}
+        <div className="table-wrap client-directory-wrap">
+          <table className="client-directory-table">
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Active roles</th>
+                <th>Pipeline</th>
+                <th>Needs attention</th>
+                <th>Created</th>
+                <th><span className="sr-only">Open client</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {clients.map((client) => {
+                const counts = directoryCounts.get(client.id);
+                const clientWork = workQueue.filter((item) => item.client_id === client.id);
+                const visibleWork = clientWork.flatMap((item) =>
+                  workGroups
+                    .filter((group) => group.count(item) > 0)
+                    .map((group) => ({
+                      key: `${item.role_id}-${group.key}`,
+                      href: `/roles/${item.role_id}?stage=${group.stage}`,
+                      label: `${group.count(item)} ${group.label.toLowerCase()} · ${item.role_name}`,
+                    })),
+                );
+                return (
+                  <tr key={client.id} className={client.archived ? "is-archived" : undefined}>
+                    <td className="client-directory-name">
+                      <Link href={`/clients/${client.id}`}>
+                        <span className="client-monogram">{client.name.slice(0, 2).toUpperCase()}</span>
+                        <span>
+                          <strong>{client.name}</strong>
+                          <small>{client.notes || "No client notes yet."}</small>
+                        </span>
+                      </Link>
+                      {client.archived && <span className="badge">Archived</span>}
+                    </td>
+                    <td>
+                      <Link className="client-role-count" href={`/clients/${client.id}/roles`}>
+                        <strong>{counts?.active_roles ?? 0}</strong>
+                        <span>{(counts?.active_roles ?? 0) === 1 ? "role" : "roles"}</span>
+                      </Link>
+                    </td>
+                    <td>
+                      <div className="client-pipeline-summary" aria-label="Candidate pipeline">
+                        <span><strong>{counts?.all_profiles ?? 0}</strong> All</span>
+                        <span><strong>{counts?.profile_shortlisted ?? 0}</strong> Profile</span>
+                        <span><strong>{counts?.recruiter_shortlisted ?? 0}</strong> Recruiter</span>
+                        <span><strong>{counts?.client_shortlisted ?? 0}</strong> Client</span>
+                        <span><strong>{counts?.offer_sent ?? 0}</strong> Offer</span>
+                      </div>
+                    </td>
+                    <td>
+                      {visibleWork.length ? (
+                        <div className="client-attention-list">
+                          {visibleWork.slice(0, 2).map((item) => (
+                            <Link href={item.href} key={item.key}>{item.label}</Link>
+                          ))}
+                          {visibleWork.length > 2 && (
+                            <Link href={`/clients/${client.id}/roles`} className="client-attention-more">
+                              +{visibleWork.length - 2} more
+                            </Link>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="client-all-clear">All clear</span>
+                      )}
+                    </td>
+                    <td><time dateTime={client.created_at}>{date(client.created_at)}</time></td>
+                    <td>
+                      <Link href={`/clients/${client.id}`} className="table-row-action" aria-label={`Open ${client.name}`}>
+                        <ArrowRight size={18} />
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
       {creating && (
