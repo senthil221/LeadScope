@@ -47,6 +47,7 @@ export function RoleFormDialog({
         name: data.get("name"),
         description: data.get("description"),
         ratingThreshold: Number(data.get("ratingThreshold")),
+        status: String(data.get("status")),
         expectedRevision: role === "new" ? undefined : role.revision,
       });
       onSaved(result.id);
@@ -96,6 +97,14 @@ export function RoleFormDialog({
             name="ratingThreshold"
             defaultValue={role === "new" ? 3 : role.rating_threshold}
           />
+        </label>
+        <label>
+          Role status
+          <select name="status" defaultValue={role === "new" ? "open" : role.status}>
+            <option value="open">Open</option>
+            <option value="on_hold">On hold</option>
+            <option value="closed">Closed</option>
+          </select>
         </label>
         <p className="muted">
           Candidates with a manually entered rating at or above this threshold

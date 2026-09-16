@@ -52,6 +52,18 @@ const candidateListIndexesMigration = readFileSync(
   resolve("supabase/migrations/20260916104000_candidate_list_filter_indexes.sql"),
   "utf8",
 );
+const roleLifecycleMigration = readFileSync(
+  resolve("supabase/migrations/20260916105000_role_lifecycle_status.sql"),
+  "utf8",
+);
+const agencyWorkQueueRepairMigration = readFileSync(
+  resolve("supabase/migrations/20260916106000_repair_agency_work_queue.sql"),
+  "utf8",
+);
+const roleStatusWorkQueueMigration = readFileSync(
+  resolve("supabase/migrations/20260916107000_role_status_work_queues.sql"),
+  "utf8",
+);
 // Pulls the list out of `check(<column> in ('a','b'))` in the migration itself,
 // so the constraint and the TypeScript union can never drift apart silently.
 function checkList(column: string, sql = migration): string[] {
@@ -199,5 +211,33 @@ describe("candidate list indexes", () => {
     expect(candidateListIndexesMigration).toContain(
       "role_candidates_role_stage_rating_descending",
     );
+  });
+});
+
+describe("role lifecycle status", () => {
+  it("adds status to the role save path and validates every lifecycle state", () => {
+    expect(roleLifecycleMigration).toContain("p_status text");
+    expect(roleLifecycleMigration).toContain("('open','on_hold','closed')");
+    expect(roleLifecycleMigration).toContain("status=p_status");
+  });
+});
+
+describe("agency work queue migration repair", () => {
+  it("aliases ordered aggregates for a portable database function", () => {
+    expect(agencyWorkQueueRepairMigration).toContain(
+      "::integer as due_follow_ups",
+    );
+    expect(agencyWorkQueueRepairMigration).toContain(
+      "::integer as client_review",
+    );
+    expect(agencyWorkQueueRepairMigration).toContain(
+      "::integer as offers_in_progress",
+    );
+  });
+});
+
+describe("role lifecycle work queues", () => {
+  it("counts only open roles in active client summaries", () => {
+    expect(roleStatusWorkQueueMigration).toContain("r.status='open'");
   });
 });

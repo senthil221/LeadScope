@@ -79,12 +79,12 @@ language sql stable security invoker set search_path='' as $$
   r.name,
   count(rc.id) filter (
    where rc.stage<>'rejected' and rc.follow_up_at is not null and rc.follow_up_at<=current_date
-  )::integer,
-  count(rc.id) filter (where rc.stage='client_shortlisted')::integer,
+  )::integer as due_follow_ups,
+  count(rc.id) filter (where rc.stage='client_shortlisted')::integer as client_review,
   count(rc.id) filter (
    where rc.stage='offer_sent' and coalesce(rc.outcome,'offer_sent') not in ('offer_declined','joined')
     and rc.offer_response_due_at is not null and rc.offer_response_due_at<=current_date
-  )::integer
+  )::integer as offers_in_progress
  from public.clients c
  join public.roles r on r.client_id=c.id
  left join public.role_candidates rc on rc.role_id=r.id

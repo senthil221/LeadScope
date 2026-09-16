@@ -129,7 +129,7 @@ export type Role = {
   name: string;
   description: string;
   rating_threshold: number;
-  status: string;
+  status: "open" | "on_hold" | "closed";
   archived: boolean;
   revision: number;
   created_at: string;

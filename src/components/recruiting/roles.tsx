@@ -40,12 +40,14 @@ export function RolesPage({
   const [form, setForm] = useState<Role | "new" | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const active = roles.filter((r) => !r.archived);
+  const active = roles.filter((r) => !r.archived && r.status !== "closed");
+  const closed = roles.filter((r) => !r.archived && r.status === "closed");
   const archived = roles.filter((r) => r.archived);
   const dashboardByRole = new Map(
     dashboardCounts.map((count) => [count.role_id, count]),
   );
-  const totals = dashboardCounts.reduce(
+  const activeRoleIds = new Set(active.map((role) => role.id));
+  const totals = dashboardCounts.filter((count) => activeRoleIds.has(count.role_id)).reduce(
     (sum, count) => ({
       allProfiles: sum.allProfiles + count.all_profiles,
       recruiter: sum.recruiter + count.recruiter_shortlisted,
@@ -93,7 +95,7 @@ export function RolesPage({
       <section className="role-dashboard-summary" aria-label="Role work summary">
         <div>
           <strong>{active.length}</strong>
-          <span>active roles</span>
+          <span>current roles</span>
         </div>
         <div>
           <strong>{totals.allProfiles}</strong>
@@ -118,14 +120,14 @@ export function RolesPage({
       </section>
       <div className="section-heading">
         <h2>
-          Active roles <span className="count">{active.length}</span>
+          Current roles <span className="count">{active.length}</span>
         </h2>
       </div>
       <div className="card">
         {!active.length ? (
           <div className="empty">
-            <h3>No roles yet</h3>
-            <p>Create a role to start building its candidate pipeline.</p>
+            <h3>{roles.length ? "No current roles" : "No roles yet"}</h3>
+            <p>{roles.length ? "Reopen a closed role or create a new one to continue hiring." : "Create a role to start building its candidate pipeline."}</p>
             <button className="primary" onClick={() => setForm("new")}>
               <Plus size={16} />
               Create your first role
@@ -232,6 +234,44 @@ export function RolesPage({
           </div>
         )}
       </div>
+      {closed.length > 0 && (
+        <>
+          <div className="section-heading">
+            <h2>
+              Closed roles <span className="count">{closed.length}</span>
+            </h2>
+          </div>
+          <div className="card table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Role</th>
+                  <th>State</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {closed.map((role) => (
+                  <tr key={role.id}>
+                    <td>
+                      <Link className="strong" href={`/roles/${role.id}`}>
+                        {role.name}
+                      </Link>
+                      {role.description && <small>{role.description.slice(0, 100)}</small>}
+                    </td>
+                    <td><span className="badge closed">Closed</span></td>
+                    <td>
+                      <button className="small" disabled={busy} onClick={() => setForm(role)}>
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
       {archived.length > 0 && (
         <>
           <div className="section-heading">

@@ -101,6 +101,7 @@ export async function POST(request: Request) {
               .min(0)
               .max(5)
               .refine((value) => Math.round(value * 10) === value * 10),
+            status: z.enum(["open", "on_hold", "closed"]),
             expectedRevision: z.number().int().min(1).optional(),
           })
           .parse(payload);
@@ -112,6 +113,7 @@ export async function POST(request: Request) {
               p_name: p.name,
               p_description: p.description,
               p_threshold: p.ratingThreshold,
+              p_status: p.status,
               p_revision: p.expectedRevision ?? null,
             }),
           ),
