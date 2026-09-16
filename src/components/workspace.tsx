@@ -36,8 +36,6 @@ import { defaults, type CampaignConfig, type Query } from "@/lib/domain";
 import type { Client, PageData, Run } from "@/lib/types";
 import { ProspectSheet } from "./prospect-sheet";
 import { ExcludedProfiles } from "./excluded-profiles";
-import { RolesPage } from "./recruiting/roles";
-import { RolePipeline } from "./recruiting/role-pipeline";
 import { AppShell } from "./shell/AppShell";
 
 async function act<T = { id: string }>(
@@ -555,26 +553,6 @@ export function Workspace({ data }: { data: PageData }) {
           )}
           {data.view === "runs" && <RunPage data={data} {...actions} />}
           {data.view === "leads" && <LeadsPage data={data} {...actions} />}
-          {data.view === "roles" && client && (
-            <RolesPage client={client} roles={data.roles ?? []} />
-          )}
-          {data.view === "role" && client && data.role && (
-            <RolePipeline
-              client={client}
-              role={data.role}
-              roleCandidates={data.roleCandidates ?? []}
-              counts={data.roleCandidateCounts ?? {}}
-              masterCandidates={data.masterCandidates ?? []}
-              masterRoleCandidateIds={data.masterRoleCandidateIds ?? []}
-              total={data.total ?? 0}
-              page={data.page ?? 1}
-              sourcingProspects={data.sourcingProspects ?? []}
-              roleFields={data.roleFields ?? []}
-              shareLinks={data.shareLinks ?? []}
-              stageFunnel={data.roleStageFunnel ?? []}
-              stageDurations={data.roleStageDurations ?? []}
-            />
-          )}
           {data.view === "excluded" && <ExcludedProfiles data={data} />}
           {data.view === "prospects" && client && (
             <ProspectSheet

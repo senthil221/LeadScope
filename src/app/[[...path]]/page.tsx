@@ -4,6 +4,7 @@ import { setup } from "@/lib/server/config";
 import { SetupPage, AccessPage } from "@/components/setup";
 import { Workspace } from "@/components/workspace";
 import { RoleWorkspace } from "@/components/recruiting/role-workspace";
+import { RolesWorkspace } from "@/components/recruiting/roles-workspace";
 import { prospectFilters } from "@/lib/prospects";
 import { prospectQuery } from "@/lib/server/prospects";
 import { uuid } from "@/lib/domain";
@@ -42,19 +43,26 @@ export default async function Page({
   }
   const { db, user } = auth;
   const { path = [] } = await params;
-  const filter = await searchParams;
   if (!path.length) redirect("/clients");
+  const filter = await searchParams;
+  const needsActiveRuns =
+    path[0] === "campaigns" ||
+    path[0] === "runs" ||
+    path[0] === "leads" ||
+    (path[0] === "clients" && path[2] === "campaigns");
   const [clients, activeRuns] = await Promise.all([
     db
       .from("clients")
       .select("id,name,notes,archived,created_at")
       .order("name"),
-    db
-      .from("campaign_runs")
-      .select("id,client_id,campaign_id,status,reserved,budget,new_candidates")
-      .in("status", ["running", "paused"])
-      .order("created_at")
-      .limit(100),
+    needsActiveRuns
+      ? db
+          .from("campaign_runs")
+          .select("id,client_id,campaign_id,status,reserved,budget,new_candidates")
+          .in("status", ["running", "paused"])
+          .order("created_at")
+          .limit(100)
+      : null,
   ]);
   const data: PageData = {
     view: path[0],
@@ -62,7 +70,7 @@ export default async function Page({
     campaigns: [],
     live: env.live,
     serverCap: env.serverCap,
-    activeRuns: checked(activeRuns),
+    activeRuns: activeRuns ? checked(activeRuns) : [],
     email: user.email ?? "Agency operator",
   };
   try {
@@ -529,6 +537,7 @@ export default async function Page({
   }
   const routeKey = `${path.join("/")}:${filter.page ?? ""}:${filter.status ?? ""}:${filter.campaign ?? ""}:${filter.q ?? ""}:${filter.contact ?? ""}:${filter.stage ?? ""}`;
   if (data.view === "role") return <RoleWorkspace key={routeKey} data={data} />;
+  if (data.view === "roles") return <RolesWorkspace key={routeKey} data={data} />;
   return (
     <Workspace
       key={routeKey}
