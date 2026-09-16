@@ -1158,7 +1158,8 @@ label small {
 .route-loading-kicker,
 .route-loading-title,
 .route-loading-copy,
-.route-loading-cards span {
+.route-loading-cards span,
+.route-loading-table span {
   display: block;
   border-radius: var(--radius-sm);
   background: linear-gradient(90deg, #edf1ee 25%, #f7f9f7 50%, #edf1ee 75%);
@@ -1191,6 +1192,15 @@ label small {
 .route-loading-copy { width: min(580px, 90%); height: 16px; margin-top: 14px; }
 .route-loading-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 34px; }
 .route-loading-cards span { height: 152px; }
+.route-loading-table {
+  display: grid;
+  gap: 1px;
+  margin-top: 34px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.route-loading-table span { height: 42px; }
 @keyframes loading-shimmer { to { background-position: -200% 0; } }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .page-header {
@@ -2119,6 +2129,52 @@ details h3 {
   font-weight: 500;
 }
 .candidate-column-popover input { width: auto; min-height: auto; }
+.candidate-table { min-width: 860px; }
+
+/* The client link has no application navigation. Its frame establishes who
+   shared the shortlist and leaves candidates as the visual focus. */
+.shared-page {
+  min-height: 100vh;
+  padding: 28px;
+  background: #f7f8f6;
+}
+.shared-frame { width: min(100%, 1180px); margin: 0 auto; }
+.shared-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+  padding: 0 2px 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.shared-header-brand,
+.shared-brand {
+  color: var(--ink);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.shared-header-client { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shared-intro {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 26px;
+  margin-bottom: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+.shared-intro h1 { margin: 3px 0 4px; font-size: 24px; }
+.shared-intro p { margin: 0; color: var(--muted); font-size: 13px; }
+.shared-intro-meta { display: grid; justify-items: end; gap: 7px; color: var(--muted); font-size: 12px; text-align: right; }
+.shared-table { background: var(--surface); }
+.shared-table table { min-width: 760px; }
+.shared-message-page { display: grid; place-items: center; padding: 24px; }
+.shared-message { width: min(100%, 430px); padding: 30px; text-align: center; }
+.shared-message h1 { margin: 14px 0 8px; font-size: 19px; }
+.shared-message p { margin: 0; color: var(--muted); font-size: 13px; }
 .sheet-toolbar input {
   flex: 1;
   min-width: 200px;
@@ -2826,6 +2882,17 @@ details h3 {
   .candidate-drawer-actions {
     padding: 10px 16px;
   }
+  .role-dashboard-summary > div {
+    flex-basis: 33.333%;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .role-dashboard-summary > div:nth-child(3n) { border-right: 0; }
+  .shared-page { padding: 16px; }
+  .shared-header { min-height: 34px; padding-bottom: 10px; }
+  .shared-intro { align-items: flex-start; flex-direction: column; gap: 14px; padding: 18px; }
+  .shared-intro h1 { font-size: 21px; }
+  .shared-intro-meta { justify-items: start; text-align: left; }
 }
 
 @media (prefers-reduced-motion: reduce) {

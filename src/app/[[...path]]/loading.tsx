@@ -13,7 +13,10 @@ export default function Loading() {
           <span className="route-loading-kicker" />
           <span className="route-loading-title" />
           <span className="route-loading-copy" />
-          <div className="route-loading-cards">
+          <div className="route-loading-table" aria-hidden="true">
+            <span />
+            <span />
+            <span />
             <span />
             <span />
             <span />

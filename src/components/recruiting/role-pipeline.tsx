@@ -604,7 +604,7 @@ export function RolePipeline({
             </div>
           </div>
           <div className="card table-wrap">
-            <table>
+            <table className="candidate-table">
               <thead>
                 <tr>
                   <th>Follow-up</th>
@@ -821,7 +821,7 @@ export function RolePipeline({
       ) : (
         <>
           <div className="card table-wrap">
-            <table>
+            <table className="candidate-table">
               <thead>
                 <tr>
                 {isPipelineTab && (

@@ -77,30 +77,13 @@ function cell(row: SharedRow, key: string, fields: SharedField[]): string {
 
 function Message({ title, detail }: { title: string; detail: string }) {
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#f7f9f6",
-        padding: 24,
-      }}
-    >
-      <div
-        style={{
-          background: "white",
-          border: "1px solid #e1e5df",
-          borderRadius: 12,
-          padding: "28px 32px",
-          maxWidth: 420,
-          textAlign: "center",
-        }}
-      >
-        <h1 style={{ fontSize: 18, margin: "0 0 8px" }}>{title}</h1>
-        <p style={{ color: "#6b776a", fontSize: 13, margin: 0 }}>{detail}</p>
+    <main className="shared-page shared-message-page">
+      <div className="shared-message card">
+        <span className="shared-brand">LeadScope</span>
+        <h1>{title}</h1>
+        <p>{detail}</p>
       </div>
-    </div>
+    </main>
   );
 }
 
@@ -161,35 +144,28 @@ export default async function SharePage({
   );
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f7f9f6", padding: 20 }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 8,
-            }}
-          >
-            <div>
-              <div className="eyebrow">{data.clientName}</div>
-              <h1 style={{ margin: "4px 0 0", fontSize: 20 }}>
-                {data.roleName} — {stageName}
-              </h1>
-              <p className="muted" style={{ margin: "4px 0 0" }}>
-                {data.rows.length} candidate{data.rows.length === 1 ? "" : "s"}
-              </p>
-            </div>
-            <span className="badge">
+    <main className="shared-page">
+      <div className="shared-frame">
+        <header className="shared-header">
+          <div className="shared-header-brand">LeadScope</div>
+          <div className="shared-header-client">{data.clientName}</div>
+        </header>
+        <section className="shared-intro">
+          <div>
+            <div className="eyebrow">Candidate shortlist</div>
+            <h1>{data.roleName}</h1>
+            <p>{data.rows.length} candidate{data.rows.length === 1 ? "" : "s"} ready for your review.</p>
+          </div>
+          <div className="shared-intro-meta">
+            <span className="badge accepted">{stageName}</span>
+            <span>
               {editableLabels.length
-                ? `Read-only except ${editableLabels.join(", ")}`
-                : "Read-only"}
+                ? `You can update ${editableLabels.join(", ")}.`
+                : "View-only access"}
             </span>
           </div>
-        </div>
-        <div className="card table-wrap">
+        </section>
+        <div className="card table-wrap shared-table">
           <table>
             <thead>
               <tr>
@@ -231,6 +207,6 @@ export default async function SharePage({
           )}
         </div>
       </div>
-    </div>
+    </main>
   );
 }
