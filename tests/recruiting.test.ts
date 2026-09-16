@@ -81,6 +81,10 @@ const removeAiReviewContractMigration = readFileSync(
   resolve("supabase/migrations/20260916180802_remove_ai_review_contract.sql"),
   "utf8",
 );
+const rlsAutoEnableMigration = readFileSync(
+  resolve("supabase/migrations/20260916181531_revoke_rls_auto_enable_execution.sql"),
+  "utf8",
+);
 // Pulls the list out of `check(<column> in ('a','b'))` in the migration itself,
 // so the constraint and the TypeScript union can never drift apart silently.
 function checkList(column: string, sql = migration): string[] {
@@ -261,6 +265,14 @@ describe("manual assessment contract", () => {
     expect(removeAiReviewContractMigration).toContain("set kind = 'legacy_assessment'");
     expect(removeAiReviewContractMigration).toContain(
       "drop function if exists public.record_ai_scores",
+    );
+  });
+});
+
+describe("database trigger permissions", () => {
+  it("does not expose the RLS event-trigger helper as an API", () => {
+    expect(rlsAutoEnableMigration).toContain(
+      "revoke all on function public.rls_auto_enable() from public, anon, authenticated",
     );
   });
 });
