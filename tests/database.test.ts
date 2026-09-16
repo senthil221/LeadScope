@@ -3232,3 +3232,55 @@ describe("role_candidate_stage_counts", () => {
     await sql("rollback");
   });
 });
+
+describe("role_work_queue_counts", () => {
+  it("summarizes a role's next actions without returning candidates", async () => {
+    const { cid, rid, rcId } = await pipeline("role-work-queue", 0);
+    await asUser(actor, () =>
+      rpc("save_screening", [cid, rcId, JSON.stringify({ followUpAt: "2000-01-01" }), ""]),
+    );
+    const initial = await asUser(actor, () =>
+      sql("select * from public.role_work_queue_counts($1)", [cid]),
+    );
+    expect(initial.rows).toContainEqual({
+      role_id: rid,
+      new_profiles: 1,
+      client_review: 0,
+      due_follow_ups: 1,
+      offers_in_progress: 0,
+    });
+    await asUser(actor, () =>
+      rpc("move_stage", [cid, [rcId], "client_shortlisted", "Ready for the client"]),
+    );
+    const clientReview = await asUser(actor, () =>
+      sql("select * from public.role_work_queue_counts($1) where role_id=$2", [cid, rid]),
+    );
+    expect(clientReview.rows[0]).toMatchObject({
+      new_profiles: 0,
+      client_review: 1,
+      due_follow_ups: 1,
+      offers_in_progress: 0,
+    });
+    await asUser(actor, () =>
+      rpc("move_stage", [cid, [rcId], "offer_sent", "Offer sent"]),
+    );
+    const moved = await asUser(actor, () =>
+      sql("select * from public.role_work_queue_counts($1) where role_id=$2", [cid, rid]),
+    );
+    expect(moved.rows[0]).toMatchObject({
+      new_profiles: 0,
+      client_review: 0,
+      due_follow_ups: 1,
+      offers_in_progress: 1,
+    });
+  });
+
+  it("does not expose role summaries to anonymous callers", async () => {
+    await sql("begin");
+    await sql("set local role anon");
+    await expect(
+      sql("select * from public.role_work_queue_counts($1)", [randomUUID()]),
+    ).rejects.toThrow();
+    await sql("rollback");
+  });
+});

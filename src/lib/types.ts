@@ -182,6 +182,13 @@ export type RoleField = {
   ordinal: number;
   archived: boolean;
 };
+export type RoleWorkQueueCount = {
+  role_id: string;
+  new_profiles: number;
+  client_review: number;
+  due_follow_ups: number;
+  offers_in_progress: number;
+};
 export type StageFunnelRow = {
   role_id: string;
   client_id: string;
@@ -261,6 +268,7 @@ export type PageData = {
   precision?: { accepted: number; adjudicated: number };
   dispatched?: number;
   roles?: Role[];
+  roleWorkQueueCounts?: RoleWorkQueueCount[];
   role?: Role;
   roleCandidates?: RoleCandidate[];
   roleCandidateCounts?: Record<string, number>;

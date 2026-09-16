@@ -2000,6 +2000,27 @@ details h3 {
   display: block;
   margin-top: 5px;
 }
+.role-work-queue {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(92px, 1fr));
+  gap: 5px 12px;
+  min-width: 220px;
+}
+.role-work-queue a {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+.role-work-queue a:hover {
+  color: var(--brand-ink);
+  text-decoration: underline;
+}
+.role-work-queue strong {
+  color: var(--ink);
+  font-size: 14px;
+}
 .follow-up-status {
   display: block;
   margin-top: 4px;

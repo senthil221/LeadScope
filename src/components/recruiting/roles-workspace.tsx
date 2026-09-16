@@ -10,7 +10,11 @@ export function RolesWorkspace({ data }: { data: PageData }) {
   if (!data.client) return null;
   return (
     <AppShell data={data}>
-      <RolesPage client={data.client} roles={data.roles ?? []} />
+      <RolesPage
+        client={data.client}
+        roles={data.roles ?? []}
+        workQueueCounts={data.roleWorkQueueCounts ?? []}
+      />
     </AppShell>
   );
 }

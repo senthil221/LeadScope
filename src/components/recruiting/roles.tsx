@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowRight, Layers, Plus } from "lucide-react";
-import type { Client, Role } from "@/lib/types";
+import type { Client, Role, RoleWorkQueueCount } from "@/lib/types";
 import { RoleFormDialog } from "./role-form";
 
 async function act<T = { id: string }>(
@@ -30,9 +30,11 @@ const statusLabels: Record<string, string> = {
 export function RolesPage({
   client,
   roles,
+  workQueueCounts,
 }: {
   client: Client;
   roles: Role[];
+  workQueueCounts: RoleWorkQueueCount[];
 }) {
   const router = useRouter();
   const [form, setForm] = useState<Role | "new" | null>(null);
@@ -40,6 +42,9 @@ export function RolesPage({
   const [error, setError] = useState("");
   const active = roles.filter((r) => !r.archived);
   const archived = roles.filter((r) => r.archived);
+  const workQueueByRole = new Map(
+    workQueueCounts.map((count) => [count.role_id, count]),
+  );
 
   async function toggleArchive(role: Role) {
     if (busy) return;
@@ -103,6 +108,7 @@ export function RolesPage({
               <thead>
                 <tr>
                   <th>Role</th>
+                  <th>Work to do</th>
                   <th>Rating threshold</th>
                   <th>State</th>
                   <th />
@@ -118,6 +124,27 @@ export function RolesPage({
                       {role.description && (
                         <small>{role.description.slice(0, 100)}</small>
                       )}
+                    </td>
+                    <td>
+                      {(() => {
+                        const count = workQueueByRole.get(role.id);
+                        const items = [
+                          ["New profiles", count?.new_profiles ?? 0, "all_profiles"],
+                          ["Client review", count?.client_review ?? 0, "client_shortlisted"],
+                          ["Due follow-ups", count?.due_follow_ups ?? 0, "follow_ups"],
+                          ["Offers", count?.offers_in_progress ?? 0, "offer_sent"],
+                        ] as const;
+                        return (
+                          <div className="role-work-queue">
+                            {items.map(([label, value, stage]) => (
+                              <Link key={stage} href={`/roles/${role.id}?stage=${stage}`}>
+                                <strong>{value}</strong>
+                                <span>{label}</span>
+                              </Link>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td>{role.rating_threshold} / 5</td>
                     <td>

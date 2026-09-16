@@ -450,13 +450,16 @@ export default async function Page({
     }
     if (data.view === "roles") {
       loads.push(async () => {
-        data.roles = checked(
-          await db
+        const [roles, workQueueCounts] = await Promise.all([
+          db
             .from("roles")
             .select("*")
             .eq("client_id", clientId!)
             .order("created_at", { ascending: false }),
-        );
+          db.rpc("role_work_queue_counts", { p_client: clientId! }),
+        ]);
+        data.roles = checked(roles);
+        data.roleWorkQueueCounts = checked(workQueueCounts);
       });
     }
     if (data.view === "prospects") {
