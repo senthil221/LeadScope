@@ -23,6 +23,7 @@ function itemClass(view: string, views: string[]) {
 export function Sidebar({ data }: { data: PageData }) {
   const router = useRouter();
   const client = data.client ?? null;
+  const navigationClients = data.navigationClients ?? data.clients;
   const view = data.view;
   return (
     <aside className="shell-sidebar">
@@ -46,7 +47,7 @@ export function Sidebar({ data }: { data: PageData }) {
             }
           >
             <option value="">All clients</option>
-            {data.clients.map((c) => (
+            {navigationClients.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
                 {c.archived ? " (archived)" : ""}

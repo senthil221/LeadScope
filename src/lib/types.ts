@@ -219,6 +219,7 @@ export type ClientDirectoryCount = {
   due_follow_ups: number;
   offers_in_progress: number;
 };
+export type ClientNavigationItem = Pick<Client, "id" | "name" | "archived">;
 export type StageFunnelRow = {
   role_id: string;
   client_id: string;
@@ -274,6 +275,7 @@ export type PageData = {
   suppressionEvents?: SuppressionEvent[];
   view: string;
   clients: Client[];
+  navigationClients?: ClientNavigationItem[];
   campaigns: Campaign[];
   client?: Client;
   campaign?: Campaign;

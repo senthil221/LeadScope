@@ -15,6 +15,9 @@ import type {
   Lead,
   RoleCandidate,
   RoleDashboardCount,
+  Client,
+  ClientNavigationItem,
+  Role,
 } from "@/lib/types";
 import { isStage } from "@/lib/recruiting/stages";
 import {
@@ -142,11 +145,31 @@ export default async function Page({
     path[0] === "leads" ||
     (path[0] === "clients" && path[2] === "campaigns");
   const needsAgencyWorkQueue = path[0] === "clients" && !path[1];
-  const [clients, activeRuns, agencyWorkQueue, clientDirectoryCounts] = await Promise.all([
-    db
-      .from("clients")
-      .select("id,name,notes,archived,created_at")
-      .order("name"),
+  const roleId = path[0] === "roles" && path[1] ? uuid.parse(path[1]) : null;
+  const [
+    clients,
+    navigationClients,
+    initialRole,
+    activeRuns,
+    agencyWorkQueue,
+    clientDirectoryCounts,
+  ] = await Promise.all([
+    roleId
+      ? null
+      : db
+          .from("clients")
+          .select("id,name,notes,archived,created_at")
+          .order("name"),
+    roleId
+      ? db.from("clients").select("id,name,archived").order("name")
+      : null,
+    roleId
+      ? db
+          .from("roles")
+          .select("*,clients!inner(*)")
+          .eq("id", roleId)
+          .single()
+      : null,
     needsActiveRuns
       ? db
           .from("campaign_runs")
@@ -160,7 +183,10 @@ export default async function Page({
   ]);
   const data: PageData = {
     view: path[0],
-    clients: checked(clients),
+    clients: clients ? checked(clients) : [],
+    navigationClients: navigationClients
+      ? (checked(navigationClients) as ClientNavigationItem[])
+      : undefined,
     campaigns: [],
     live: env.live,
     serverCap: env.serverCap,
@@ -254,13 +280,9 @@ export default async function Page({
     }
     if (path[0] === "roles" && path[1]) {
       data.view = "role";
-      data.role = checked(
-        await db
-          .from("roles")
-          .select("*")
-          .eq("id", uuid.parse(path[1]))
-          .single(),
-      );
+      const roleWithClient = checked(initialRole!) as Role & { clients: Client };
+      data.role = roleWithClient;
+      data.client = roleWithClient.clients;
       clientId = data.role!.client_id;
       loads.push(async () => {
         const workspaceCounts = loadRoleWorkspaceCounts(
@@ -433,7 +455,7 @@ export default async function Page({
     }
     if (clientId) {
       uuid.parse(clientId);
-      data.client = data.clients.find((c) => c.id === clientId);
+      data.client ??= data.clients.find((c) => c.id === clientId);
       if (!data.client) notFound();
       if (
         ["client", "builder", "campaign", "runs", "leads", "lead"].includes(
