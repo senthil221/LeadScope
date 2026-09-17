@@ -214,6 +214,7 @@ export function RolePipeline({
   const [message, setMessage] = useState("");
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
   const [columnPreference, setColumnPreference] = useState<string | null>(null);
+  const [navigatingTo, setNavigatingTo] = useState<Tab | null>(null);
   const path = `/roles/${role.id}`;
   const columnStorageKey = `leadscope:role-columns:${role.id}:${tab}`;
   // Rating is the only way out of All profiles. Later stages support both
@@ -229,6 +230,7 @@ export function RolePipeline({
     () => candidateTableColumns(tab, roleFields),
     [roleFields, tab],
   );
+
   const advanceTo =
     isPipelineTab && tab !== "all_profiles"
       ? nextStage(tab as PipelineStage)
@@ -333,6 +335,18 @@ export function RolePipeline({
     p.delete("page");
     return `${path}?${p}`;
   };
+  const prefetchTab = (key: Tab) => router.prefetch(tabUrl(key));
+  function startTabNavigation(key: Tab) {
+    if (key !== tab) {
+      // The role workspace remains mounted between stages. Clear UI state that
+      // belongs to the old table before the new server data arrives.
+      setSelected([]);
+      setPanelId(null);
+      setRejecting(false);
+      setColumnMenuOpen(false);
+    }
+    setNavigatingTo(key);
+  }
   const dailyWork = [
     {
       key: "follow-ups",
@@ -624,8 +638,13 @@ export function RolePipeline({
         {pipelineTabs.map(({ key, label }) => (
           <Link
             key={key}
-            className={`stage-tab stage-${key}${tab === key ? " selected" : ""}`}
+            className={`stage-tab stage-${key}${tab === key ? " selected" : ""}${navigatingTo === key && tab !== key ? " is-loading" : ""}`}
             href={tabUrl(key)}
+            prefetch={false}
+            onMouseEnter={() => prefetchTab(key)}
+            onFocus={() => prefetchTab(key)}
+            onClick={() => startTabNavigation(key)}
+            aria-busy={navigatingTo === key && tab !== key}
           >
             {label}
             <span>{counts[key] ?? 0}</span>

@@ -62,16 +62,31 @@ export function roleCandidateListFilters(
   };
 }
 
+// An exact total is useful after a recruiter narrows the list, but it makes
+// every ordinary stage switch scan the candidate join just to repeat the
+// already-available stage total. Keep the expensive count for filtered lists.
+export function hasRoleCandidateListFilters(filters: RoleCandidateListFilters) {
+  return Boolean(
+    filters.query ||
+      filters.source ||
+      filters.sourceDetail ||
+      filters.rating ||
+      filters.enteredFrom ||
+      filters.enteredTo,
+  );
+}
+
 export function roleCandidateListQuery(
   db: SupabaseClient,
   roleId: string,
   stage: Stage,
   ratingThreshold: number,
   filters: RoleCandidateListFilters,
+  includeTotal = true,
 ) {
   let query = db
     .from("role_candidates")
-    .select("*,candidates!inner(*)", { count: "exact" })
+    .select("*,candidates!inner(*)", includeTotal ? { count: "exact" } : undefined)
     .eq("role_id", roleId)
     .eq("stage", stage);
   if (filters.source) query = query.eq("source", filters.source);

@@ -9,9 +9,16 @@ import { RolesWorkspace } from "@/components/recruiting/roles-workspace";
 import { prospectFilters } from "@/lib/prospects";
 import { prospectQuery } from "@/lib/server/prospects";
 import { uuid } from "@/lib/domain";
-import type { PageData, Discovery, Lead, RoleCandidate } from "@/lib/types";
+import type {
+  PageData,
+  Discovery,
+  Lead,
+  RoleCandidate,
+  RoleDashboardCount,
+} from "@/lib/types";
 import { isStage } from "@/lib/recruiting/stages";
 import {
+  hasRoleCandidateListFilters,
   roleCandidateListFilters,
   roleCandidateListQuery,
 } from "@/lib/server/recruiting";
@@ -34,6 +41,66 @@ function optionalDashboardData<T>(
     }),
   );
   return [];
+}
+
+type RoleWorkspaceCount = Omit<RoleDashboardCount, "role_id">;
+
+const emptyRoleWorkspaceCount: RoleWorkspaceCount = {
+  all_profiles: 0,
+  profile_shortlisted: 0,
+  recruiter_shortlisted: 0,
+  client_shortlisted: 0,
+  offer_sent: 0,
+  rejected: 0,
+  due_follow_ups: 0,
+  offers_in_progress: 0,
+};
+
+function roleCountRecord(summary: RoleWorkspaceCount) {
+  return {
+    all_profiles: summary.all_profiles,
+    profile_shortlisted: summary.profile_shortlisted,
+    recruiter_shortlisted: summary.recruiter_shortlisted,
+    client_shortlisted: summary.client_shortlisted,
+    offer_sent: summary.offer_sent,
+    rejected: summary.rejected,
+  };
+}
+
+async function loadRoleWorkspaceCounts(
+  db: Awaited<ReturnType<typeof admin>>["db"],
+  roleId: string,
+  clientId: string,
+) {
+  const compact = await db.rpc("role_workspace_counts", { p_role: roleId });
+  if (!compact.error) {
+    const summary =
+      ((compact.data as RoleWorkspaceCount[] | null)?.[0] ??
+        emptyRoleWorkspaceCount);
+    return {
+      counts: roleCountRecord(summary),
+      dashboard: { role_id: roleId, ...summary },
+    };
+  }
+  // A deployment can reach Vercel just before its matching migration is
+  // applied. Preserve the workspace in that short window and use the older,
+  // broader aggregates until the scoped function is available.
+  if (compact.error.code !== "PGRST202") checked(compact);
+  const [stageCounts, dashboardCounts] = await Promise.all([
+    db.rpc("role_candidate_stage_counts", { p_role: roleId }),
+    db.rpc("role_dashboard_counts", { p_client: clientId }),
+  ]);
+  const counts: Record<string, number> = {};
+  for (const row of checked(stageCounts) as {
+    stage: string;
+    candidate_count: number;
+  }[])
+    counts[row.stage] = row.candidate_count;
+  const dashboard =
+    (checked(dashboardCounts) as RoleDashboardCount[]).find(
+      (item) => item.role_id === roleId,
+    ) ?? { role_id: roleId, ...emptyRoleWorkspaceCount };
+  return { counts, dashboard };
 }
 
 export default async function Page({
@@ -195,16 +262,12 @@ export default async function Page({
           .single(),
       );
       clientId = data.role!.client_id;
-      // This aggregate already powers the client Roles page. Reuse it here
-      // instead of depending on a second queue function for the same totals.
       loads.push(async () => {
-        data.roleDashboardCounts = checked(
-          await db.rpc("role_dashboard_counts", {
-            p_client: data.role!.client_id,
-          }),
+        const workspaceCounts = loadRoleWorkspaceCounts(
+          db,
+          data.role!.id,
+          data.role!.client_id,
         );
-      });
-      loads.push(async () => {
         const stageParam = filter.stage ?? "all_profiles";
         if (stageParam === "master_db") {
           const page = Math.max(
@@ -228,22 +291,17 @@ export default async function Page({
             );
           }
           q = q.not("master_qualified_at", "is", null);
-          const [result, stageCounts] = await Promise.all([
+          const [result, roleCounts] = await Promise.all([
             q
               .order("created_at", { ascending: false })
               .order("id")
               .range((page - 1) * 50, page * 50 - 1),
-            db.rpc("role_candidate_stage_counts", { p_role: data.role!.id }),
+            workspaceCounts,
           ]);
           data.masterCandidates = checked(result);
           data.total = result.count ?? 0;
-          const counts: Record<string, number> = {};
-          for (const row of checked(stageCounts) as {
-            stage: string;
-            candidate_count: number;
-          }[])
-            counts[row.stage] = row.candidate_count;
-          data.roleCandidateCounts = counts;
+          data.roleCandidateCounts = roleCounts.counts;
+          data.roleDashboardCounts = [roleCounts.dashboard];
           const candidateIds = data.masterCandidates.map((candidate) => candidate.id);
           data.masterRoleCandidateIds = candidateIds.length
             ? checked(
@@ -255,7 +313,7 @@ export default async function Page({
               ).map((membership) => membership.candidate_id)
             : [];
         } else if (stageParam === "analytics") {
-          const [funnel, durations, stageCounts, sourcePerformance] = await Promise.all([
+          const [funnel, durations, roleCounts, sourcePerformance] = await Promise.all([
             db
               .from("role_stage_funnel")
               .select("*")
@@ -264,18 +322,13 @@ export default async function Page({
               .from("role_stage_durations")
               .select("*")
               .eq("role_id", data.role!.id),
-            db.rpc("role_candidate_stage_counts", { p_role: data.role!.id }),
+            workspaceCounts,
             db.rpc("role_source_performance", { p_role: data.role!.id }),
           ]);
           data.roleStageFunnel = checked(funnel);
           data.roleStageDurations = checked(durations);
-          const counts: Record<string, number> = {};
-          for (const row of checked(stageCounts) as {
-            stage: string;
-            candidate_count: number;
-          }[])
-            counts[row.stage] = row.candidate_count;
-          data.roleCandidateCounts = counts;
+          data.roleCandidateCounts = roleCounts.counts;
+          data.roleDashboardCounts = [roleCounts.dashboard];
           data.roleSourcePerformance = checked(sourcePerformance);
         } else if (stageParam === "follow_ups") {
           const page = Math.max(
@@ -283,7 +336,7 @@ export default async function Page({
             Math.min(100000, Math.floor(Number(filter.page) || 1)),
           );
           data.page = page;
-          const [rows, stageCounts] = await Promise.all([
+          const [rows, roleCounts] = await Promise.all([
             db
               .from("role_candidates")
               .select("*,candidates!inner(*)", { count: "exact" })
@@ -293,17 +346,12 @@ export default async function Page({
               .order("follow_up_at")
               .order("id")
               .range((page - 1) * 50, page * 50 - 1),
-            db.rpc("role_candidate_stage_counts", { p_role: data.role!.id }),
+            workspaceCounts,
           ]);
           data.roleCandidates = checked(rows) as unknown as RoleCandidate[];
           data.total = rows.count ?? 0;
-          const counts: Record<string, number> = {};
-          for (const row of checked(stageCounts) as {
-            stage: string;
-            candidate_count: number;
-          }[])
-            counts[row.stage] = row.candidate_count;
-          data.roleCandidateCounts = counts;
+          data.roleCandidateCounts = roleCounts.counts;
+          data.roleDashboardCounts = [roleCounts.dashboard];
         } else {
           const stage = isStage(stageParam) ? stageParam : "all_profiles";
           const page = Math.max(
@@ -311,12 +359,14 @@ export default async function Page({
             Math.min(100000, Math.floor(Number(filter.page) || 1)),
           );
           data.page = page;
+          const candidateFilters = roleCandidateListFilters(filter);
           const candidateQuery = roleCandidateListQuery(
             db,
             data.role!.id,
             stage,
             data.role!.rating_threshold,
-            roleCandidateListFilters(filter),
+            candidateFilters,
+            hasRoleCandidateListFilters(candidateFilters),
           );
           const shareLinksQuery =
             stage === "recruiter_shortlisted"
@@ -329,9 +379,9 @@ export default async function Page({
                   .eq("stage", stage)
                   .order("created_at", { ascending: false })
               : null;
-          const [rows, stageCounts, fields, shareLinks] = await Promise.all([
+          const [rows, roleCounts, fields, shareLinks] = await Promise.all([
             candidateQuery.range((page - 1) * 50, page * 50 - 1),
-            db.rpc("role_candidate_stage_counts", { p_role: data.role!.id }),
+            workspaceCounts,
             db
               .from("role_fields")
               .select("*")
@@ -341,14 +391,9 @@ export default async function Page({
             shareLinksQuery,
           ]);
           data.roleCandidates = checked(rows) as unknown as RoleCandidate[];
-          data.total = rows.count ?? 0;
-          const counts: Record<string, number> = {};
-          for (const row of checked(stageCounts) as {
-            stage: string;
-            candidate_count: number;
-          }[])
-            counts[row.stage] = row.candidate_count;
-          data.roleCandidateCounts = counts;
+          data.total = rows.count ?? roleCounts.counts[stage] ?? 0;
+          data.roleCandidateCounts = roleCounts.counts;
+          data.roleDashboardCounts = [roleCounts.dashboard];
           data.roleFields = checked(fields);
           // token_hash is never selected; the app has no use for it and a
           // hash of a never-reused secret has no reason to leave the database.
@@ -597,8 +642,9 @@ export default async function Page({
     throw error;
   }
   const routeKey = `${path.join("/")}:${filter.page ?? ""}:${filter.status ?? ""}:${filter.campaign ?? ""}:${filter.q ?? ""}:${filter.contact ?? ""}:${filter.stage ?? ""}`;
+  const roleRouteKey = `${path.join("/")}:${filter.page ?? ""}:${filter.q ?? ""}:${filter.source ?? ""}:${filter.source_detail ?? ""}:${filter.rating ?? ""}:${filter.entered_from ?? ""}:${filter.entered_to ?? ""}:${filter.sort ?? ""}`;
   if (data.view === "clients") return <ClientsWorkspace key={routeKey} data={data} />;
-  if (data.view === "role") return <RoleWorkspace key={routeKey} data={data} />;
+  if (data.view === "role") return <RoleWorkspace key={roleRouteKey} data={data} />;
   if (data.view === "roles") return <RolesWorkspace key={routeKey} data={data} />;
   return (
     <Workspace

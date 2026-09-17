@@ -22,7 +22,10 @@ import {
   roleCandidateExportColumns,
   roleCandidateExportColumnsWithFields,
 } from "../src/lib/recruiting/export";
-import { roleCandidateListFilters } from "../src/lib/server/recruiting";
+import {
+  hasRoleCandidateListFilters,
+  roleCandidateListFilters,
+} from "../src/lib/server/recruiting";
 import type { RoleCandidate, RoleField } from "../src/lib/types";
 
 const migration = readFileSync(
@@ -245,6 +248,15 @@ describe("role candidate list filters", () => {
     expect(
       roleCandidateListFilters({ source: "csv", source_detail: " Upwork · August " }),
     ).toMatchObject({ source: "csv", sourceDetail: "Upwork · August" });
+  });
+  it("only requests an exact total when a recruiter narrows the list", () => {
+    expect(hasRoleCandidateListFilters(roleCandidateListFilters({}))).toBe(false);
+    expect(
+      hasRoleCandidateListFilters(roleCandidateListFilters({ sort: "rating_high" })),
+    ).toBe(false);
+    expect(
+      hasRoleCandidateListFilters(roleCandidateListFilters({ q: "Priya" })),
+    ).toBe(true);
   });
 });
 
