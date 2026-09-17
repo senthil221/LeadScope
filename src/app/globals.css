@@ -12,7 +12,7 @@
 :root {
   /* Palette — restrained neutral system, soft green reserved for
      selected / success states. */
-  --bg: #ffffff;
+  --bg: #f8faf8;
   --surface: #ffffff;
   --ink: #17211d;
   --ink-soft: #3c4741;
@@ -1166,7 +1166,7 @@ label small {
   width: min(100%, var(--page-max));
   margin-inline: auto;
   margin-block: 0;
-  padding: 28px var(--frame-pad) 72px;
+  padding: 32px var(--frame-pad) 72px;
 }
 
 /* Dynamic routes stream this frame immediately, so navigation never falls back
@@ -1244,7 +1244,9 @@ label small {
   margin-bottom: 24px;
 }
 .role-workspace-header {
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
 }
 .role-workspace-header .eyebrow { margin-bottom: 4px; }
 .role-workspace-header h1 { font-size: clamp(22px, 2.3vw, 30px); }
@@ -1380,10 +1382,22 @@ tbody tr:hover td.col-arrow a {
   overflow-x: auto;
 }
 .role-stage-tabs {
-  gap: 20px;
+  gap: 8px;
   margin: 18px 0 0;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
 }
-.role-stage-tabs a { padding: 9px 0 10px; }
+.role-stage-tabs a {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+}
+.role-stage-tabs a.selected {
+  border: 0;
+  background: var(--brand-soft);
+}
 .tabs a {
   padding: 10px 0 12px;
   border-bottom: 2px solid transparent;
@@ -1491,23 +1505,25 @@ tbody tr:hover td.col-arrow a {
   gap: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  background: #fcfdfc;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
   color: var(--muted);
   font-size: 12px;
 }
 .role-summary span {
-  padding: 9px 14px;
+  flex: 1 1 120px;
+  padding: 11px 14px;
   border-right: 1px solid var(--line);
   white-space: nowrap;
 }
 .role-summary span:last-child { border-right: 0; }
 .role-summary strong { color: var(--ink); font-weight: 650; }
 .role-action-queue {
-  margin: 16px 0 18px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
+  margin: 18px 0 22px;
+  padding: 18px;
+  border: 1px solid var(--brand-line);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, #f8fbf8 0%, var(--brand-soft) 100%);
 }
 .role-action-queue-heading { margin-bottom: 12px; }
 .role-action-queue-heading h2 { margin: 0; font-size: 15px; }
@@ -1525,13 +1541,13 @@ tbody tr:hover td.col-arrow a {
   min-height: 62px;
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   color: var(--ink);
   background: var(--bg);
 }
 .role-action-card:hover {
-  border-color: #bdcbbd;
-  background: var(--brand-soft);
+  border-color: var(--brand);
+  background: var(--surface);
   color: var(--brand-ink);
 }
 .role-action-icon {
@@ -2297,8 +2313,12 @@ details h3 {
   flex-wrap: wrap;
 }
 .candidate-toolbar {
-  padding: 8px 0 2px;
-  margin-bottom: 8px;
+  padding: 12px;
+  margin: 14px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 .candidate-toolbar input { max-width: 420px; }
 .candidate-column-menu { position: relative; }
@@ -2356,6 +2376,12 @@ details h3 {
   place-items: center;
 }
 .candidate-table { min-width: 860px; }
+.candidate-table th { background: #f5f8f5; }
+.candidate-table td { padding-block: 13px; }
+.candidate-table td:first-child,
+.candidate-table th:first-child { padding-left: 18px; }
+.candidate-table td:last-child,
+.candidate-table th:last-child { padding-right: 18px; }
 
 /* The client link has no application navigation. Its frame establishes who
    shared the shortlist and leaves candidates as the visual focus. */
@@ -2987,6 +3013,67 @@ details h3 {
   .shell-header {
     font-size: 12px;
   }
+  .shell-sidebar {
+    padding: 8px 12px 6px;
+  }
+  .shell-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(132px, 0.9fr);
+    align-items: center;
+    gap: 8px;
+    padding: 0 0 6px;
+    margin: 0;
+  }
+  .shell-brand { padding: 4px 2px; }
+  .shell-name { font-size: 13px; }
+  .beta { display: none; }
+  .shell-switcher {
+    min-height: 32px;
+    padding-left: 8px;
+  }
+  .shell-switcher select { font-size: 12px; }
+  .shell-nav {
+    padding: 0 0 4px;
+    gap: 2px;
+  }
+  .shell-label,
+  .shell-secondary { display: none; }
+  .shell-link {
+    min-height: 32px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+  .shell-link svg { width: 15px; height: 15px; }
+  .shell-footer {
+    justify-content: flex-end;
+    gap: 2px;
+    margin: 0;
+    padding-top: 0;
+  }
+  .shell-footer > .shell-link {
+    width: 30px;
+    min-height: 30px;
+    padding: 0;
+    font-size: 0;
+  }
+  .shell-footer > .shell-link svg { margin: auto; }
+  .shell-user { margin: 0; }
+  .avatar { width: 28px; height: 28px; font-size: 12px; }
+  .shell-icon-btn { padding: 5px; }
+  .page-body { padding: 18px 12px 44px; }
+  .role-workspace-header { padding-bottom: 14px; margin-bottom: 12px; }
+  .header-actions { width: 100%; }
+  .header-actions button { flex: 1; }
+  .role-summary { margin-inline: -1px; }
+  .role-summary span { flex-basis: 50%; padding: 10px 12px; }
+  .role-summary span:nth-child(2n) { border-right: 0; }
+  .role-action-queue { padding: 14px; margin: 14px 0 18px; }
+  .role-action-queue-grid { grid-template-columns: 1fr; }
+  .role-stage-tabs { margin-top: 14px; gap: 4px; }
+  .role-stage-tabs a { padding: 7px 9px; font-size: 12px; }
+  .candidate-toolbar { padding: 10px; margin-top: 12px; }
+  .candidate-toolbar > * { flex: 1 1 calc(50% - 8px); }
+  .candidate-toolbar input { min-width: 100%; max-width: none; }
   .live-indicator {
     font-size: 11px;
   }
