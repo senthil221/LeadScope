@@ -5,29 +5,28 @@
    ============================================================ */
 
 @theme {
-  --font-sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Inter, Arial, sans-serif;
+  --font-sans: Inter, Aptos, "Segoe UI Variable", "Segoe UI", Arial, sans-serif;
 }
 
 :root {
-  /* Palette — restrained neutral system, soft green reserved for
-     selected / success states. */
-  --bg: #f8faf8;
+  /* A cool, high-contrast CRM palette. Blue owns navigation and actions;
+     semantic colors are reserved for outcomes and urgency. */
+  --bg: #f6f8fc;
   --surface: #ffffff;
-  --ink: #17211d;
-  --ink-soft: #3c4741;
-  --muted: #69736e;
-  --faint: #8a948d;
-  --line: #e4e8e5;
-  --line-strong: #d3dad4;
-  --brand: #245b47;
-  --brand-ink: #1b4536;
-  --brand-soft: #eaf1ec;
-  --brand-line: #cfded5;
+  --ink: #172033;
+  --ink-soft: #3f4a5c;
+  --muted: #737f91;
+  --faint: #9aa5b5;
+  --line: #e4e9f1;
+  --line-strong: #d4dce8;
+  --brand: #2563eb;
+  --brand-ink: #1d4ed8;
+  --brand-soft: #eff6ff;
+  --brand-line: #bfdbfe;
 
   /* Backwards-compatible aliases used across page components. */
   --paper: #ffffff;
-  --green: #245b47;
+  --green: #2563eb;
 
   /* Shape */
   --radius-sm: 6px;
@@ -35,11 +34,11 @@
   --radius-lg: 10px;
 
   /* Elevation — subtle only. */
-  --shadow-sm: 0 1px 2px rgb(23 33 29 / 0.05);
-  --shadow-md: 0 12px 32px rgb(23 33 29 / 0.12);
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 14px rgb(15 23 42 / 0.03);
+  --shadow-md: 0 18px 46px rgb(15 23 42 / 0.14);
 
   /* Focus */
-  --focus-ring: 0 0 0 3px rgb(36 91 71 / 0.16);
+  --focus-ring: 0 0 0 3px rgb(37 99 235 / 0.16);
 
   /* Motion — subtle, transform/color/opacity only. */
   --t-fast: 120ms;
@@ -220,8 +219,8 @@ button,
 }
 button:hover,
 .button:hover {
-  background: #eff3ee;
-  border-color: #c2cec3;
+  background: #f1f5fb;
+  border-color: #c5d2e5;
   color: var(--ink);
 }
 button:disabled,
@@ -340,7 +339,7 @@ label small {
   display: inline-flex;
   align-items: center;
   border: 1px solid var(--line);
-  background: #f3f5f1;
+  background: #f3f6fa;
   color: var(--ink-soft);
   border-radius: var(--radius-sm);
   padding: 2px 8px;
@@ -353,38 +352,38 @@ label small {
 .badge.completed,
 .badge.pass,
 .badge.succeeded {
-  color: #396635;
-  background: #edf6e7;
-  border-color: #dcebd0;
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
 }
 .badge.rule_match {
-  color: #4c7435;
-  background: #f0f6e5;
-  border-color: #e0eacb;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-color: #bfdbfe;
 }
 .badge.review,
 .badge.retry_wait {
-  color: #a77a31;
-  background: #fff7e6;
-  border-color: #f0e5c9;
+  color: #b45309;
+  background: #fffbeb;
+  border-color: #fde68a;
 }
 .badge.rejected,
 .badge.failed,
 .badge.fail {
-  color: #ac655f;
-  background: #fff0ec;
-  border-color: #f1dcd5;
+  color: #be123c;
+  background: #fff1f2;
+  border-color: #fecdd3;
 }
 .badge.suppressed,
 .badge.cancelled {
-  color: #7e7885;
-  background: #f3f0f5;
+  color: #64748b;
+  background: #f1f5f9;
 }
 .badge.running,
 .badge.leased {
-  color: #4f7b88;
-  background: #eef5f7;
-  border-color: #daeaed;
+  color: #0369a1;
+  background: #f0f9ff;
+  border-color: #bae6fd;
 }
 
 /* ---------- Notices + toasts ---------- */
@@ -395,10 +394,10 @@ label small {
   gap: 10px;
   padding: 13px 16px;
   margin: 16px 0;
-  background: #f1f5e9;
-  border: 1px solid #e1e9d3;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
   border-radius: var(--radius-md);
-  color: #5d6c48;
+  color: #1e40af;
   font-size: 13px;
   line-height: 1.6;
 }
@@ -411,14 +410,14 @@ label small {
   font-size: 13px;
 }
 .error {
-  background: #fff1ed;
-  border: 1px solid #edcec6;
-  color: #9b5347;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #be123c;
 }
 .success {
-  background: #edf5e8;
-  border: 1px solid #d6e6cc;
-  color: #4c7342;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
 }
 .warning {
   color: #a27034;
@@ -489,7 +488,7 @@ label small {
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow:
-    0 0 0 100vmax rgb(21 43 36 / 0.4),
+    0 0 0 100vmax rgb(15 23 42 / 0.44),
     var(--shadow-md);
   width: 440px;
   max-width: calc(100vw - 32px);
@@ -525,8 +524,8 @@ label small {
   border-width: 0 0 0 1px;
   border-radius: 0;
   box-shadow:
-    0 0 0 100vmax rgb(21 43 36 / 0.28),
-    -16px 0 36px rgb(23 33 29 / 0.12);
+    0 0 0 100vmax rgb(15 23 42 / 0.3),
+    -16px 0 36px rgb(15 23 42 / 0.14);
 }
 .candidate-drawer-heading {
   align-items: flex-start;
@@ -549,7 +548,7 @@ label small {
   margin: -3px -6px 0 0;
   border-radius: 6px;
 }
-.candidate-drawer-heading > button:hover { background: #f2f4f1; }
+.candidate-drawer-heading > button:hover { background: #f1f5fb; }
 .candidate-stage-badge { text-transform: none; }
 .candidate-drawer-subtitle {
   margin: 4px 0 0;
@@ -624,7 +623,7 @@ label small {
   flex: 0 0 auto;
   padding: 8px 22px;
   border-top: 1px solid var(--line);
-  background: #fcfdfc;
+  background: #fbfcff;
 }
 .candidate-drawer-navigation button {
   display: inline-flex;
@@ -647,7 +646,7 @@ label small {
   padding: 12px 22px;
   background: var(--surface);
   border-top: 1px solid var(--line);
-  box-shadow: 0 -8px 20px rgb(23 33 29 / 0.04);
+  box-shadow: 0 -8px 20px rgb(15 23 42 / 0.04);
 }
 .candidate-drawer-actions button { flex: 1 1 170px; }
 .candidate-offer {
@@ -931,8 +930,8 @@ label small {
     background var(--t-base) var(--t-ease);
 }
 .shell-switcher:hover {
-  border-color: #c2cec3;
-  background: #edf1ea;
+  border-color: #c5d2e5;
+  background: #f1f5fb;
 }
 .shell-switcher select {
   appearance: none;
@@ -1014,7 +1013,7 @@ label small {
   transition: color var(--t-base) var(--t-ease);
 }
 .shell-link:hover {
-  background: #f1f4ef;
+  background: #f1f5fb;
   color: var(--ink);
 }
 .shell-link:hover svg {
@@ -1048,7 +1047,7 @@ label small {
     border-color var(--t-base) var(--t-ease);
 }
 .shell-user:hover {
-  background: #f6f8f4;
+  background: #f5f7fb;
   border-color: var(--line-strong);
 }
 .avatar {
@@ -1093,7 +1092,7 @@ label small {
   color: var(--muted);
 }
 .shell-icon-btn:hover {
-  background: #f1f4ef;
+  background: #f1f5fb;
   color: var(--ink);
 }
 .shell-main {
@@ -1296,7 +1295,7 @@ label small {
   display: inline-block;
   font-size: 12px;
   font-weight: 600;
-  background: #edf0eb;
+  background: #eef2f7;
   color: var(--ink-soft);
   border-radius: 5px;
   padding: 2px 7px;
@@ -1317,7 +1316,7 @@ table {
   text-align: left;
 }
 th {
-  background: #fafbf8;
+  background: #f8fafc;
   color: var(--muted);
   font-size: 11px;
   font-weight: 700;
@@ -1329,7 +1328,7 @@ th {
 }
 td {
   padding: 12px 16px;
-  border-bottom: 1px solid #eef1eb;
+  border-bottom: 1px solid #edf1f6;
   font-size: 13px;
   vertical-align: middle;
 }
@@ -1344,7 +1343,7 @@ tbody tr {
   transition: background var(--t-fast) var(--t-ease);
 }
 tbody tr:hover {
-  background: #fafbf8;
+  background: #f8faff;
 }
 th.num,
 td.num {
@@ -1398,6 +1397,36 @@ tbody tr:hover td.col-arrow a {
   border: 0;
   background: var(--brand-soft);
 }
+.role-stage-tabs .stage-all_profiles.selected {
+  color: #0369a1;
+  background: #f0f9ff;
+}
+.role-stage-tabs .stage-profile_shortlisted.selected {
+  color: #4338ca;
+  background: #eef2ff;
+}
+.role-stage-tabs .stage-recruiter_shortlisted.selected {
+  color: #7e22ce;
+  background: #faf5ff;
+}
+.role-stage-tabs .stage-client_shortlisted.selected {
+  color: #b45309;
+  background: #fffbeb;
+}
+.role-stage-tabs .stage-offer_sent.selected {
+  color: #047857;
+  background: #ecfdf5;
+}
+.role-stage-tabs .stage-rejected.selected {
+  color: #be123c;
+  background: #fff1f2;
+}
+.role-stage-tabs .stage-all_profiles.selected span { background: #e0f2fe; color: inherit; }
+.role-stage-tabs .stage-profile_shortlisted.selected span { background: #e0e7ff; color: inherit; }
+.role-stage-tabs .stage-recruiter_shortlisted.selected span { background: #f3e8ff; color: inherit; }
+.role-stage-tabs .stage-client_shortlisted.selected span { background: #fef3c7; color: inherit; }
+.role-stage-tabs .stage-offer_sent.selected span { background: #d1fae5; color: inherit; }
+.role-stage-tabs .stage-rejected.selected span { background: #ffe4e6; color: inherit; }
 .tabs a {
   padding: 10px 0 12px;
   border-bottom: 2px solid transparent;
@@ -1523,7 +1552,7 @@ tbody tr:hover td.col-arrow a {
   padding: 18px;
   border: 1px solid var(--brand-line);
   border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, #f8fbf8 0%, var(--brand-soft) 100%);
+  background: linear-gradient(135deg, #fbfdff 0%, var(--brand-soft) 100%);
 }
 .role-action-queue-heading { margin-bottom: 12px; }
 .role-action-queue-heading h2 { margin: 0; font-size: 15px; }
@@ -1556,7 +1585,7 @@ tbody tr:hover td.col-arrow a {
   height: 30px;
   place-items: center;
   border-radius: 7px;
-  background: #eaf0e8;
+  background: #e8f0ff;
   color: var(--brand);
 }
 .role-action-card strong,
@@ -2376,7 +2405,7 @@ details h3 {
   place-items: center;
 }
 .candidate-table { min-width: 860px; }
-.candidate-table th { background: #f5f8f5; }
+.candidate-table th { background: #f5f8ff; }
 .candidate-table td { padding-block: 13px; }
 .candidate-table td:first-child,
 .candidate-table th:first-child { padding-left: 18px; }

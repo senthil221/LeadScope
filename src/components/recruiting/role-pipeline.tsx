@@ -624,7 +624,7 @@ export function RolePipeline({
         {pipelineTabs.map(({ key, label }) => (
           <Link
             key={key}
-            className={tab === key ? "selected" : ""}
+            className={`stage-tab stage-${key}${tab === key ? " selected" : ""}`}
             href={tabUrl(key)}
           >
             {label}
