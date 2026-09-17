@@ -178,6 +178,31 @@ export async function POST(request: Request) {
         );
         break;
       }
+      case "sourcingProspects": {
+        const p = z
+          .object({ clientId: uuid, roleId: uuid })
+          .parse(payload);
+        // Resolve the role through the same client before exposing the
+        // client's sourcing queue. This keeps the lazy dialog request scoped
+        // to the role the recruiter is currently working in.
+        checked(
+          await db
+            .from("roles")
+            .select("id")
+            .eq("id", p.roleId)
+            .eq("client_id", p.clientId)
+            .single(),
+        );
+        result = checked(
+          await db
+            .from("accepted_prospect_rows")
+            .select("id,canonical_url,title")
+            .eq("client_id", p.clientId)
+            .order("date_added", { ascending: false })
+            .limit(200),
+        );
+        break;
+      }
       case "addExistingCandidates": {
         const p = z
           .object({

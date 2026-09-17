@@ -453,6 +453,13 @@ export function CandidatePanel({
       <p className="candidate-source candidate-drawer-source">
         Added from {candidateSourceLabel(rc.source, rc.source_detail)}
       </p>
+      <nav className="candidate-drawer-section-nav" aria-label="Candidate sections">
+        <a href="#candidate-details-heading">Profile</a>
+        <a href="#screening-heading">Screening</a>
+        <a href="#client-notes-heading">Notes</a>
+        {currentStage === "offer_sent" && <a href="#offer-heading">Offer</a>}
+        <a href="#candidate-activity-heading">Activity</a>
+      </nav>
 
       <div className="candidate-drawer-body">
         {currentStage === "offer_sent" && (

@@ -1,10 +1,12 @@
 "use client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import {
   Archive,
   CalendarClock,
+  ChevronDown,
+  ChevronUp,
   CircleHelp,
   FileCheck2,
   Link as LinkIcon,
@@ -65,19 +67,42 @@ async function act<T = { id: string }>(
 }
 
 type Tab = Stage | "follow_ups" | "master_db" | "analytics";
-type CandidateColumn = "date" | "designation" | "company" | "experience";
-const defaultVisibleColumns: CandidateColumn[] = [
-  "date",
-  "designation",
-  "company",
-  "experience",
-];
-const candidateColumnLabels: Record<CandidateColumn, string> = {
+type CandidateColumn = "date" | "designation" | "company" | "experience" | "rating" | "reject_type" | "reject_reason" | "offer_details" | "outcome" | "client_notes" | `custom:${string}`;
+type CandidateTableColumn = { id: CandidateColumn; label: string; field?: RoleField };
+const legacyCandidateColumns = ["date", "designation", "company", "experience"] as const;
+const candidateColumnLabels: Record<(typeof legacyCandidateColumns)[number], string> = {
   date: "Date added",
   designation: "Designation",
   company: "Company",
   experience: "Experience",
 };
+
+function candidateTableColumns(tab: Tab, roleFields: RoleField[]): CandidateTableColumn[] {
+  const columns: CandidateTableColumn[] = [
+    ...legacyCandidateColumns.map((id) => ({ id, label: candidateColumnLabels[id] })),
+    ...(tab === "rejected"
+      ? [
+          { id: "reject_type" as const, label: "Reject type" },
+          { id: "reject_reason" as const, label: "Reason" },
+        ]
+      : [{ id: "rating" as const, label: "Rating" }]),
+  ];
+  if (tab === "offer_sent") {
+    columns.push(
+      { id: "offer_details", label: "Offer details" },
+      { id: "outcome", label: "Outcome" },
+    );
+  }
+  if (["recruiter_shortlisted", "client_shortlisted", "offer_sent", "rejected"].includes(tab)) {
+    columns.push({ id: "client_notes", label: "Client notes" });
+    columns.push(...roleFields.map((field) => ({
+      id: `custom:${field.key}` as CandidateColumn,
+      label: field.label,
+      field,
+    })));
+  }
+  return columns;
+}
 const pipelineTabs: { key: Tab; label: string }[] = [
   ...stages
     .filter((s) => s !== "rejected")
@@ -134,7 +159,6 @@ export function RolePipeline({
   masterRoleCandidateIds,
   total,
   page,
-  sourcingProspects,
   roleFields,
   shareLinks,
   stageFunnel,
@@ -150,7 +174,6 @@ export function RolePipeline({
   masterRoleCandidateIds: string[];
   total: number;
   page: number;
-  sourcingProspects: { id: string; canonical_url: string; title: string }[];
   roleFields: RoleField[];
   shareLinks: ShareLink[];
   stageFunnel: StageFunnelRow[];
@@ -202,18 +225,10 @@ export function RolePipeline({
     "client_shortlisted",
     "offer_sent",
   ].includes(tab);
-  const showsClientNotes = [
-    "recruiter_shortlisted",
-    "client_shortlisted",
-    "offer_sent",
-    "rejected",
-  ].includes(tab);
-  const showsCustomColumns = [
-    "recruiter_shortlisted",
-    "client_shortlisted",
-    "offer_sent",
-    "rejected",
-  ].includes(tab);
+  const candidateColumns = useMemo(
+    () => candidateTableColumns(tab, roleFields),
+    [roleFields, tab],
+  );
   const advanceTo =
     isPipelineTab && tab !== "all_profiles"
       ? nextStage(tab as PipelineStage)
@@ -249,28 +264,67 @@ export function RolePipeline({
     () => "",
   );
   const visibleColumns = (() => {
+    const availableIds = candidateColumns.map((column) => column.id);
     try {
       const saved = JSON.parse(columnPreference ?? savedColumnPreference);
-      if (
-        Array.isArray(saved) &&
-        saved.every((column): column is CandidateColumn =>
-          defaultVisibleColumns.includes(column),
-        )
-      )
-        return saved;
+      // Earlier releases stored an array of the four optional basics. Keep
+      // those choices while retaining columns that used to be mandatory.
+      if (Array.isArray(saved)) {
+        const legacy = saved.filter((column): column is CandidateColumn =>
+          legacyCandidateColumns.includes(column as (typeof legacyCandidateColumns)[number]),
+        );
+        return [...new Set([...legacy, ...availableIds.filter((id) => !legacyCandidateColumns.includes(id as (typeof legacyCandidateColumns)[number]))])];
+      }
+      if (saved && Array.isArray(saved.visible))
+        return saved.visible.filter((column: unknown): column is CandidateColumn =>
+          typeof column === "string" && availableIds.includes(column as CandidateColumn),
+        );
     } catch {
       // A malformed local preference should never prevent recruiter work.
     }
-    return defaultVisibleColumns;
+    return availableIds;
   })();
+  const orderedColumns = (() => {
+    const availableIds = candidateColumns.map((column) => column.id);
+    try {
+      const saved = JSON.parse(columnPreference ?? savedColumnPreference);
+      if (saved && !Array.isArray(saved) && Array.isArray(saved.order)) {
+        const validOrder = saved.order.filter((column: unknown): column is CandidateColumn =>
+          typeof column === "string" && availableIds.includes(column as CandidateColumn),
+        );
+        return [...new Set([...validOrder, ...availableIds])];
+      }
+    } catch {
+      // Fall through to the useful default order.
+    }
+    return availableIds;
+  })();
+  const visibleCandidateColumns = orderedColumns
+    .filter((id: CandidateColumn) => visibleColumns.includes(id))
+    .map((id) => candidateColumns.find((column) => column.id === id))
+    .filter((column): column is CandidateTableColumn => Boolean(column));
 
   function toggleColumn(column: CandidateColumn) {
     const next = visibleColumns.includes(column)
-      ? visibleColumns.filter((item) => item !== column)
+      ? visibleColumns.filter((item: CandidateColumn) => item !== column)
       : [...visibleColumns, column];
-    const serialized = JSON.stringify(next);
+    const serialized = JSON.stringify({ visible: next, order: orderedColumns });
     localStorage.setItem(columnStorageKey, serialized);
     setColumnPreference(serialized);
+  }
+  function moveColumn(column: CandidateColumn, direction: -1 | 1) {
+    const index = orderedColumns.indexOf(column);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= orderedColumns.length) return;
+    const next = [...orderedColumns];
+    [next[index], next[target]] = [next[target], next[index]];
+    const serialized = JSON.stringify({ visible: visibleColumns, order: next });
+    localStorage.setItem(columnStorageKey, serialized);
+    setColumnPreference(serialized);
+  }
+  function resetColumns() {
+    localStorage.removeItem(columnStorageKey);
+    setColumnPreference("");
   }
 
   const tabUrl = (key: Tab) => {
@@ -734,16 +788,40 @@ export function RolePipeline({
             </button>
             {columnMenuOpen && (
               <div className="candidate-column-popover">
-                {defaultVisibleColumns.map((column) => (
-                  <label key={column}>
-                    <input
-                      type="checkbox"
-                      checked={visibleColumns.includes(column)}
-                      onChange={() => toggleColumn(column)}
-                    />
-                    {candidateColumnLabels[column]}
-                  </label>
-                ))}
+                <div className="candidate-column-popover-heading">
+                  <strong>Show and arrange columns</strong>
+                  <button type="button" onClick={resetColumns}>Reset</button>
+                </div>
+                {orderedColumns.map((column, index) => {
+                  const definition = candidateColumns.find((item) => item.id === column);
+                  if (!definition) return null;
+                  return (
+                    <div className="candidate-column-option" key={column}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={visibleColumns.includes(column)}
+                          onChange={() => toggleColumn(column)}
+                        />
+                        {definition.label}
+                      </label>
+                      <span className="candidate-column-order" aria-label={`Move ${definition.label}`}>
+                        <button
+                          type="button"
+                          aria-label={`Move ${definition.label} earlier`}
+                          disabled={index === 0}
+                          onClick={() => moveColumn(column, -1)}
+                        ><ChevronUp size={14} /></button>
+                        <button
+                          type="button"
+                          aria-label={`Move ${definition.label} later`}
+                          disabled={index === orderedColumns.length - 1}
+                          onClick={() => moveColumn(column, 1)}
+                        ><ChevronDown size={14} /></button>
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1046,25 +1124,8 @@ export function RolePipeline({
                     />
                   </th>
                 )}
-                {visibleColumns.includes("date") && <th>Date added</th>}
                 <th>Full name</th>
-                {visibleColumns.includes("designation") && <th>Designation</th>}
-                {visibleColumns.includes("company") && <th>Company</th>}
-                {visibleColumns.includes("experience") && <th>Experience</th>}
-                {tab === "rejected" ? (
-                  <>
-                    <th>Reject type</th>
-                    <th>Reason</th>
-                  </>
-                ) : (
-                  <th>Rating</th>
-                )}
-                {tab === "offer_sent" && <th>Offer details</th>}
-                {tab === "offer_sent" && <th>Outcome</th>}
-                {showsClientNotes && <th>Client notes</th>}
-                {showsCustomColumns && roleFields.map((f) => (
-                  <th key={f.id}>{f.label}</th>
-                ))}
+                {visibleCandidateColumns.map((column) => <th key={column.id}>{column.label}</th>)}
                 {canSelectCandidates && <th>Action</th>}
                 </tr>
               </thead>
@@ -1090,7 +1151,6 @@ export function RolePipeline({
                       />
                     </td>
                   )}
-                  {visibleColumns.includes("date") && <td>{date(rc.stage_entered_at)}</td>}
                   <td>
                     <button
                       type="button"
@@ -1103,111 +1163,62 @@ export function RolePipeline({
                       {candidateSourceLabel(rc.source, rc.source_detail)}
                     </small>
                   </td>
-                  {visibleColumns.includes("designation") && (
-                    <td>{rc.candidates.current_designation || "—"}</td>
-                  )}
-                  {visibleColumns.includes("company") && (
-                    <td>{rc.candidates.current_company || "—"}</td>
-                  )}
-                  {visibleColumns.includes("experience") && (
-                    <td>
-                      {rc.candidates.total_experience_years != null
-                        ? `${rc.candidates.total_experience_years} yrs`
-                        : "—"}
-                    </td>
-                  )}
-                  {tab === "rejected" ? (
-                    <>
-                      <td>
-                        {rc.rejection_type
-                          ? rejectionTypes[rc.rejection_type as "recruiter" | "client"]
-                          : "—"}
-                      </td>
-                      <td>{rc.rejection_reason || "—"}</td>
-                    </>
-                  ) : (
-                    <td>
-                      <RatingCell
-                        key={`${rc.id}:${rc.rating}`}
-                        clientId={client.id}
-                        roleCandidateId={rc.id}
-                        rating={rc.rating}
-                        name={rc.candidates.full_name}
-                        threshold={role.rating_threshold}
-                        autoAdvance={tab === "all_profiles"}
-                        onRated={(autoAdvanced) => {
-                          if (autoAdvanced)
-                            setMessage(
-                              `${rc.candidates.full_name} moved to Profile shortlisted after meeting the ${role.rating_threshold} / 5 threshold.`,
-                            );
-                          router.refresh();
-                        }}
-                      />
-                    </td>
-                  )}
-                  {tab === "offer_sent" && (
-                    <td className="offer-details-cell">
-                      <button
-                        className="offer-details-trigger"
-                        onClick={() => setPanelId(rc.id)}
-                        type="button"
-                      >
-                        {rc.offer_amount != null ? (
-                          <strong>
-                            {[rc.offer_currency, rc.offer_amount]
-                              .filter(Boolean)
-                              .join(" ")}
-                          </strong>
-                        ) : (
-                          <span>Add offer details</span>
-                        )}
-                        {rc.offer_response_due_at && (
-                          <small>Response due {date(rc.offer_response_due_at)}</small>
-                        )}
-                        {rc.expected_start_at && (
-                          <small>Start {date(rc.expected_start_at)}</small>
-                        )}
-                      </button>
-                    </td>
-                  )}
-                  {tab === "offer_sent" && (
-                    <td>
-                      <OutcomeCell
-                        key={`${rc.id}:${rc.outcome}`}
-                        clientId={client.id}
-                        roleCandidateId={rc.id}
-                        outcome={rc.outcome}
-                        onChanged={() => router.refresh()}
-                      />
-                    </td>
-                  )}
-                  {showsClientNotes && (
-                    <td className="candidate-client-notes-cell">
-                      {rc.client_notes ? (
-                        <button
-                          className="client-note-preview text-button"
-                          onClick={() => setPanelId(rc.id)}
-                          title="Open candidate to read the full client note"
-                          type="button"
-                        >
-                          {rc.client_notes}
-                        </button>
-                      ) : (
-                        <span className="muted">No notes yet</span>
-                      )}
-                    </td>
-                  )}
-                  {showsCustomColumns && roleFields.map((f) => (
-                    <td key={f.id}>
-                      <CustomFieldCell
-                        key={`${f.id}:${rc.id}:${JSON.stringify(rc.custom[f.key])}`}
-                        clientId={client.id}
-                        roleCandidateId={rc.id}
-                        field={f}
-                        value={rc.custom[f.key]}
-                      />
-                    </td>
-                  ))}
+                  {visibleCandidateColumns.map((column) => {
+                    switch (column.id) {
+                      case "date":
+                        return <td key={column.id}>{date(rc.stage_entered_at)}</td>;
+                      case "designation":
+                        return <td key={column.id}>{rc.candidates.current_designation || "—"}</td>;
+                      case "company":
+                        return <td key={column.id}>{rc.candidates.current_company || "—"}</td>;
+                      case "experience":
+                        return <td key={column.id}>{rc.candidates.total_experience_years != null ? `${rc.candidates.total_experience_years} yrs` : "—"}</td>;
+                      case "rating":
+                        return <td key={column.id}><RatingCell
+                          key={`${rc.id}:${rc.rating}`}
+                          clientId={client.id}
+                          roleCandidateId={rc.id}
+                          rating={rc.rating}
+                          name={rc.candidates.full_name}
+                          threshold={role.rating_threshold}
+                          autoAdvance={tab === "all_profiles"}
+                          onRated={(autoAdvanced) => {
+                            if (autoAdvanced) setMessage(`${rc.candidates.full_name} moved to Profile shortlisted after meeting the ${role.rating_threshold} / 5 threshold.`);
+                            router.refresh();
+                          }}
+                        /></td>;
+                      case "reject_type":
+                        return <td key={column.id}>{rc.rejection_type ? rejectionTypes[rc.rejection_type as "recruiter" | "client"] : "—"}</td>;
+                      case "reject_reason":
+                        return <td key={column.id}>{rc.rejection_reason || "—"}</td>;
+                      case "offer_details":
+                        return <td key={column.id} className="offer-details-cell"><button className="offer-details-trigger" onClick={() => setPanelId(rc.id)} type="button">
+                          {rc.offer_amount != null ? <strong>{[rc.offer_currency, rc.offer_amount].filter(Boolean).join(" ")}</strong> : <span>Add offer details</span>}
+                          {rc.offer_response_due_at && <small>Response due {date(rc.offer_response_due_at)}</small>}
+                          {rc.expected_start_at && <small>Start {date(rc.expected_start_at)}</small>}
+                        </button></td>;
+                      case "outcome":
+                        return <td key={column.id}><OutcomeCell
+                          key={`${rc.id}:${rc.outcome}`}
+                          clientId={client.id}
+                          roleCandidateId={rc.id}
+                          outcome={rc.outcome}
+                          onChanged={() => router.refresh()}
+                        /></td>;
+                      case "client_notes":
+                        return <td key={column.id} className="candidate-client-notes-cell">{rc.client_notes ? (
+                          <button className="client-note-preview text-button" onClick={() => setPanelId(rc.id)} title="Open candidate to read the full client note" type="button">{rc.client_notes}</button>
+                        ) : <span className="muted">No notes yet</span>}</td>;
+                      default:
+                        return column.field ? <td key={column.id}><CustomFieldCell
+                          key={`${column.field.id}:${rc.id}:${JSON.stringify(rc.custom[column.field.key])}`}
+                          clientId={client.id}
+                          roleCandidateId={rc.id}
+                          field={column.field}
+                          value={rc.custom[column.field.key]}
+                        /></td> : null;
+                    }
+                  })}
                   {canSelectCandidates && (
                     <td>
                       <div className="candidate-row-actions">
@@ -1281,7 +1292,6 @@ export function RolePipeline({
           clientId={client.id}
           roleId={role.id}
           roleFields={roleFields}
-          sourcingProspects={sourcingProspects}
           onClose={() => setImporting(false)}
           onImported={summarize}
         />

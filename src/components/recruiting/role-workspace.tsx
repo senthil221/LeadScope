@@ -22,7 +22,6 @@ export function RoleWorkspace({ data }: { data: PageData }) {
         masterRoleCandidateIds={data.masterRoleCandidateIds ?? []}
         total={data.total ?? 0}
         page={data.page ?? 1}
-        sourcingProspects={data.sourcingProspects ?? []}
         roleFields={data.roleFields ?? []}
         shareLinks={data.shareLinks ?? []}
         stageFunnel={data.roleStageFunnel ?? []}

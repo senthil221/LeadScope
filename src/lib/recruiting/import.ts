@@ -19,6 +19,7 @@ export type DraftRow = {
   location?: string;
   headline?: string;
   totalExperienceYears?: string;
+  sourceDetail?: string;
 };
 export type ImportRow = {
   name: string;
@@ -84,7 +85,14 @@ export function buildImportRow(draft: DraftRow): ImportRow | RowError {
   const years = Number(draft.totalExperienceYears);
   if (draft.totalExperienceYears?.trim() && Number.isFinite(years) && years >= 0 && years <= 70)
     fields.totalExperienceYears = years;
-  return { name, identities: deduped, fields };
+  return {
+    name,
+    identities: deduped,
+    fields,
+    ...(draft.sourceDetail?.trim()
+      ? { sourceDetail: draft.sourceDetail.trim().slice(0, 500) }
+      : {}),
+  };
 }
 
 // Guesses a display name from a profile URL slug when no name was given
@@ -187,6 +195,10 @@ const csvColumnAliases: Record<string, keyof DraftRow> = {
   experience: "totalExperienceYears",
   "experience (years)": "totalExperienceYears",
   "total experience": "totalExperienceYears",
+  source: "sourceDetail",
+  provider: "sourceDetail",
+  vendor: "sourceDetail",
+  "source / provider": "sourceDetail",
 };
 export const csvTemplateColumns = [
   "Full Name",
@@ -198,6 +210,7 @@ export const csvTemplateColumns = [
   "Designation",
   "Location",
   "Experience (years)",
+  "Source",
 ];
 
 // The first row is always treated as a header; column order does not matter

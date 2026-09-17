@@ -80,6 +80,15 @@ describe("buildImportRow", () => {
     expect(isRowError(result)).toBe(false);
     if (!isRowError(result)) expect(result.fields.phone).toBe("+919000000000");
   });
+  it("keeps a per-row source provider from a CSV import", () => {
+    const result = buildImportRow({
+      name: "Priya Nair",
+      email: "priya@example.com",
+      sourceDetail: "Upwork",
+    });
+    expect(isRowError(result)).toBe(false);
+    if (!isRowError(result)) expect(result.sourceDetail).toBe("Upwork");
+  });
 });
 
 describe("nameFromProfileUrl", () => {
@@ -174,6 +183,13 @@ describe("csvImportPreview", () => {
     expect(csvToDraftRows("\uFEFFFull Name,Email\nPriya Nair,priya@example.com")).toEqual([
       { name: "Priya Nair", email: "priya@example.com" },
     ]);
+  });
+  it("recognizes a Source column as the row-level provider", () => {
+    const preview = csvImportPreview(
+      "Full Name,Email,Source\nPriya Nair,priya@example.com,LinkedIn Recruiter",
+    );
+    expect(preview.validRows[0].sourceDetail).toBe("LinkedIn Recruiter");
+    expect(preview.recognizedColumns).toContain("Source");
   });
   it("maps matching role columns and converts their typed values", () => {
     const fields = [

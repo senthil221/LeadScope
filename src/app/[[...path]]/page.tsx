@@ -318,7 +318,18 @@ export default async function Page({
             data.role!.rating_threshold,
             roleCandidateListFilters(filter),
           );
-          const [rows, stageCounts, fields] = await Promise.all([
+          const shareLinksQuery =
+            stage === "recruiter_shortlisted"
+              ? db
+                  .from("role_share_links")
+                  .select(
+                    "id,stage,token_prefix,visible_columns,allow_decisions,expires_at,revoked_at,created_at,last_viewed_at",
+                  )
+                  .eq("role_id", data.role!.id)
+                  .eq("stage", stage)
+                  .order("created_at", { ascending: false })
+              : null;
+          const [rows, stageCounts, fields, shareLinks] = await Promise.all([
             candidateQuery.range((page - 1) * 50, page * 50 - 1),
             db.rpc("role_candidate_stage_counts", { p_role: data.role!.id }),
             db
@@ -327,6 +338,7 @@ export default async function Page({
               .eq("role_id", data.role!.id)
               .eq("archived", false)
               .order("ordinal"),
+            shareLinksQuery,
           ]);
           data.roleCandidates = checked(rows) as unknown as RoleCandidate[];
           data.total = rows.count ?? 0;
@@ -340,30 +352,7 @@ export default async function Page({
           data.roleFields = checked(fields);
           // token_hash is never selected; the app has no use for it and a
           // hash of a never-reused secret has no reason to leave the database.
-          data.shareLinks =
-            stage === "recruiter_shortlisted"
-              ? checked(
-                  await db
-                    .from("role_share_links")
-                    .select(
-                      "id,stage,token_prefix,visible_columns,allow_decisions,expires_at,revoked_at,created_at,last_viewed_at",
-                    )
-                    .eq("role_id", data.role!.id)
-                    .eq("stage", stage)
-                    .order("created_at", { ascending: false }),
-                )
-              : [];
-          // Only the All profiles tab offers "Import from sourcing", so this
-          // extra query is skipped on every other tab.
-          if (stage === "all_profiles")
-            data.sourcingProspects = checked(
-              await db
-                .from("accepted_prospect_rows")
-                .select("id,canonical_url,title")
-                .eq("client_id", clientId!)
-                .order("date_added", { ascending: false })
-                .limit(200),
-            );
+          data.shareLinks = shareLinks ? checked(shareLinks) : [];
         }
       });
     }

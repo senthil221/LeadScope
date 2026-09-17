@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { readSheet } from "read-excel-file/browser";
+import readXlsxFile from "read-excel-file/browser";
 import {
   buildImportRow,
   isRowError,
@@ -45,19 +45,28 @@ const modeLabels: Record<Mode, string> = {
   sourcing: "From sourcing",
 };
 const emptyManual: DraftRow = { name: "" };
+const providerOptions = [
+  "LinkedIn Recruiter",
+  "LinkedIn",
+  "Upwork",
+  "Naukri / Resdex",
+  "Google Search",
+  "Job post",
+  "Referral",
+];
+const maximumImportRows = 1_000;
+const importBatchSize = 200;
 
 export function AddCandidatesDialog({
   clientId,
   roleId,
   roleFields,
-  sourcingProspects,
   onClose,
   onImported,
 }: {
   clientId: string;
   roleId: string;
   roleFields: RoleField[];
-  sourcingProspects: { id: string; canonical_url: string; title: string }[];
   onClose: () => void;
   onImported: (summary: ImportSummary) => void;
 }) {
@@ -69,7 +78,14 @@ export function AddCandidatesDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [csvFileName, setCsvFileName] = useState("");
-  const [sourceDetail, setSourceDetail] = useState("");
+  const [provider, setProvider] = useState("");
+  const [customProvider, setCustomProvider] = useState("");
+  const [progress, setProgress] = useState("");
+  const [excelSheets, setExcelSheets] = useState<{ name: string; text: string }[]>([]);
+  const [selectedSheet, setSelectedSheet] = useState("");
+  const [sourcingProspects, setSourcingProspects] = useState<
+    { id: string; canonical_url: string; title: string }[] | null
+  >(null);
   const [showColumnMapping, setShowColumnMapping] = useState(false);
   const [customColumnOverrides, setCustomColumnOverrides] = useState<
     Record<string, number | undefined>
@@ -100,34 +116,61 @@ export function AddCandidatesDialog({
   function switchMode(next: Mode) {
     setMode(next);
     setError("");
+    if (next === "sourcing" && sourcingProspects === null) void loadSourcingProspects();
+  }
+
+  const selectedProvider = provider === "custom" ? customProvider.trim() : provider;
+
+  async function loadSourcingProspects() {
+    try {
+      const rows = await act<{ id: string; canonical_url: string; title: string }[]>(
+        "sourcingProspects",
+        { clientId, roleId },
+      );
+      setSourcingProspects(rows);
+    } catch (e) {
+      setError((e as Error).message);
+      setSourcingProspects([]);
+    }
   }
 
   async function chooseImportFile(file: File | undefined) {
     if (!file) return;
     const isExcel = /\.xlsx$/i.test(file.name);
-    const maxBytes = isExcel ? 5_000_000 : 60_000;
+    const maxBytes = isExcel ? 10_000_000 : 500_000;
     if (file.size > maxBytes) {
       setError(
         isExcel
-          ? "Choose an Excel file smaller than 5 MB. Split larger files into batches of 200 candidates."
-          : "Choose a CSV file smaller than 60 KB. Split larger files into batches of 200 candidates.",
+          ? "Choose an Excel file smaller than 10 MB."
+          : "Choose a CSV file smaller than 500 KB.",
       );
       return;
     }
     try {
-      const text = isExcel
-        ? spreadsheetRowsToCsv(await readSheet(file))
-        : await file.text();
-      if (!isExcel && text.length > 60_000) {
-        setError("Choose a CSV file smaller than 60 KB. Split larger files into batches of 200 candidates.");
+      const text = isExcel ? "" : await file.text();
+      if (!isExcel && text.length > 500_000) {
+        setError("Choose a CSV file smaller than 500 KB.");
         return;
       }
       setCsvFileName(file.name);
       setCustomColumnOverrides({});
-      setCsvText(text);
+      if (isExcel) {
+        const sheets = (await readXlsxFile(file)).map((sheet) => ({
+          name: sheet.sheet,
+          text: spreadsheetRowsToCsv(sheet.data),
+        }));
+        const first = sheets[0];
+        setExcelSheets(sheets);
+        setSelectedSheet(first?.name ?? "");
+        setCsvText(first?.text ?? "");
+      } else {
+        setExcelSheets([]);
+        setSelectedSheet("");
+        setCsvText(text);
+      }
       setError("");
     } catch {
-      setError("Could not read that Excel file. Export the first sheet as CSV and try again.");
+      setError("Could not read that file. Check that it is a valid CSV or Excel workbook and try again.");
     }
   }
 
@@ -136,26 +179,40 @@ export function AddCandidatesDialog({
       setError("Add at least one candidate before importing.");
       return;
     }
-    if (rows.length > 200) {
-      setError("Import at most 200 candidates at a time.");
+    if (rows.length > maximumImportRows) {
+      setError(`Import up to ${maximumImportRows.toLocaleString()} candidates at a time.`);
       return;
     }
     setBusy(true);
+    setProgress("");
     try {
-      const summary = await act<ImportSummary>("importCandidates", {
-        clientId,
-        roleId,
-        source,
-        rows: rows.map((row) => ({
-          ...row,
-          ...(sourceDetail.trim() ? { sourceDetail: sourceDetail.trim() } : {}),
-        })),
-      });
+      const summary: ImportSummary = { created: 0, matchedExisting: 0, alreadyInRole: 0, invalid: 0 };
+      const batches = Array.from({ length: Math.ceil(rows.length / importBatchSize) }, (_, index) =>
+        rows.slice(index * importBatchSize, (index + 1) * importBatchSize),
+      );
+      for (const [index, batch] of batches.entries()) {
+        setProgress(batches.length > 1 ? `Importing batch ${index + 1} of ${batches.length}…` : "Importing candidates…");
+        const result = await act<ImportSummary>("importCandidates", {
+          clientId,
+          roleId,
+          source,
+          rows: batch.map((row) => ({
+            ...row,
+            // A source supplied in the file is more specific than the batch setting.
+            ...(row.sourceDetail?.trim() || !selectedProvider ? {} : { sourceDetail: selectedProvider }),
+          })),
+        });
+        summary.created += result.created;
+        summary.matchedExisting += result.matchedExisting;
+        summary.alreadyInRole += result.alreadyInRole;
+        summary.invalid += result.invalid;
+      }
       onImported(summary);
     } catch (e) {
-      setError((e as Error).message);
+      setError(`${(e as Error).message} Any completed batch was saved. Retry the same file safely; matching candidates will not be duplicated.`);
     } finally {
       setBusy(false);
+      setProgress("");
     }
   }
 
@@ -196,16 +253,17 @@ export function AddCandidatesDialog({
     void submit([built], "manual");
   }
   function submitCsv() {
-    if (csvPreview.totalRows > 200) {
-      setError("This file has more than 200 candidate rows. Split it into smaller files before importing.");
+    if (csvPreview.totalRows > maximumImportRows) {
+      setError(`This file has more than ${maximumImportRows.toLocaleString()} candidate rows. Split it into smaller files before importing.`);
       return;
     }
     setError("");
     void submit(csvPreview.validRows, "csv");
   }
   function submitSourcing() {
+    const prospects = sourcingProspects ?? [];
     const rows: ImportRow[] = selected.flatMap((id) => {
-      const p = sourcingProspects.find((x) => x.id === id);
+      const p = prospects.find((x) => x.id === id);
       const identity = p ? normalizeIdentity("linkedin", p.canonical_url) : null;
       if (!p || !identity) return [];
       return [
@@ -242,21 +300,32 @@ export function AddCandidatesDialog({
         ))}
       </div>
       <label>
-        Source or vendor <span className="optional">optional</span>
-        <input
-          maxLength={500}
-          disabled={busy}
-          value={sourceDetail}
-          onChange={(event) => setSourceDetail(event.target.value)}
-          placeholder="e.g. Upwork, LinkedIn Recruiter, referral"
-        />
+        Source provider <span className="optional">optional</span>
+        <select disabled={busy} value={provider} onChange={(event) => setProvider(event.target.value)}>
+          <option value="">No provider selected</option>
+          {providerOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+          <option value="custom">Other provider</option>
+        </select>
       </label>
-      <p className="muted">Saved with every candidate in this import.</p>
+      {provider === "custom" && (
+        <label>
+          Other provider
+          <input
+            maxLength={500}
+            disabled={busy}
+            value={customProvider}
+            onChange={(event) => setCustomProvider(event.target.value)}
+            placeholder="e.g. specialist job board or partner"
+          />
+        </label>
+      )}
+      <p className="muted">A value in a CSV Source column takes priority over this batch setting.</p>
       {error && (
         <p className="error" role="alert">
           {error}
         </p>
       )}
+      {progress && <p className="muted" role="status">{progress}</p>}
       {mode === "paste" && (
         <>
           <label>
@@ -397,7 +466,7 @@ export function AddCandidatesDialog({
           <div className="csv-file-action">
             <div>
               <strong>{csvFileName || "Choose a CSV or Excel file"}</strong>
-              <p className="muted">CSV or first Excel sheet; up to 200 candidate rows.</p>
+              <p className="muted">CSV or Excel; up to {maximumImportRows.toLocaleString()} candidate rows, imported safely in batches.</p>
             </div>
             <button
               type="button"
@@ -407,15 +476,35 @@ export function AddCandidatesDialog({
               Browse files
             </button>
           </div>
+          {excelSheets.length > 1 && (
+            <label>
+              Workbook sheet
+              <select
+                disabled={busy}
+                value={selectedSheet}
+                onChange={(event) => {
+                  const next = excelSheets.find((sheet) => sheet.name === event.target.value);
+                  if (!next) return;
+                  setSelectedSheet(next.name);
+                  setCustomColumnOverrides({});
+                  setCsvText(next.text);
+                }}
+              >
+                {excelSheets.map((sheet) => <option key={sheet.name} value={sheet.name}>{sheet.name}</option>)}
+              </select>
+            </label>
+          )}
           <label>
             Or paste CSV rows, including a header row
             <textarea
               rows={8}
-              maxLength={60000}
+              maxLength={500000}
               disabled={busy}
               value={csvText}
               onChange={(e) => {
                 setCsvFileName("");
+                setExcelSheets([]);
+                setSelectedSheet("");
                 setCustomColumnOverrides({});
                 setCsvText(e.target.value);
               }}
@@ -522,7 +611,7 @@ export function AddCandidatesDialog({
           )}
           <button
             className="primary wide"
-            disabled={busy || !csvText.trim() || !csvPreview.validRows.length || csvPreview.totalRows > 200}
+            disabled={busy || !csvText.trim() || !csvPreview.validRows.length || csvPreview.totalRows > maximumImportRows}
             onClick={submitCsv}
           >
             {busy
@@ -533,7 +622,9 @@ export function AddCandidatesDialog({
       )}
       {mode === "sourcing" && (
         <>
-          {!sourcingProspects.length ? (
+          {sourcingProspects === null ? (
+            <p className="muted">Loading accepted sourcing prospects…</p>
+          ) : !sourcingProspects.length ? (
             <p className="muted">
               No accepted sourcing prospects for this client yet.
             </p>
