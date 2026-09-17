@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 const config: NextConfig = {
+  // The VPS image needs only Next's traced runtime files, not a full source
+  // checkout or development dependencies.
+  output: "standalone",
   poweredByHeader: false,
   async headers() {
     return [

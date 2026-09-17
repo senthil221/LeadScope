@@ -1,0 +1,12 @@
+.git
+.next
+node_modules
+.env*
+!.env.example
+coverage
+test-results
+.local-db
+.claude
+CRM_IMPLEMENTATION_PLAN.md
+CRM_PLAN_V2.md
+CRM_REVIEW.md
