@@ -15,17 +15,17 @@ export default async function Login({
     <main className="login-page">
       <div className="brand">
         <Crosshair size={30} />
-        LeadScope <span className="beta">BETA</span>
+        LeadScope
       </div>
       <section className="card">
-        <span className="eyebrow">AGENCY WORKSPACE</span>
+        <span className="eyebrow">RECRUITING CRM</span>
         <h1>
-          Your next great list
+          Run your recruiting
           <br />
-          starts here.
+          pipeline with clarity.
         </h1>
         <p className="muted">
-          Sign in to discover and review leads for your clients.
+          Sign in to manage candidates, shortlists, and client decisions.
         </p>
         {params.error && (
           <p role="alert" className="error">
@@ -53,7 +53,7 @@ export default async function Login({
           operators.
         </p>
       </section>
-      <small>Evidence-led discovery. Human-reviewed results.</small>
+      <small>Candidate review for modern recruiting teams.</small>
     </main>
   );
 }

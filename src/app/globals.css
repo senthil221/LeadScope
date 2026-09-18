@@ -5,7 +5,7 @@
    ============================================================ */
 
 @theme {
-  --font-sans: Inter, Aptos, "Segoe UI Variable", "Segoe UI", Arial, sans-serif;
+  --font-sans: var(--font-geist-sans), "Segoe UI Variable", "Segoe UI", Arial, sans-serif;
 }
 
 :root {
@@ -3228,6 +3228,202 @@ details h3 {
   .shared-intro { align-items: flex-start; flex-direction: column; gap: 14px; padding: 18px; }
   .shared-intro h1 { font-size: 21px; }
   .shared-intro-meta { justify-items: start; text-align: left; }
+}
+
+/* ============================================================
+   SaaS CRM refinement
+   A calm, data-first surface for high-volume recruiter work. This layer
+   intentionally overrides older campaign-era styling without changing data,
+   routes, or workflow behaviour.
+   ============================================================ */
+:root {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --ink: #0f172a;
+  --ink-soft: #334155;
+  --muted: #64748b;
+  --faint: #94a3b8;
+  --line: #e2e8f0;
+  --line-strong: #cbd5e1;
+  --brand: #2563eb;
+  --brand-ink: #1d4ed8;
+  --brand-soft: #eff6ff;
+  --brand-line: #bfdbfe;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+body { background: var(--bg); letter-spacing: -0.005em; }
+.light { color: var(--muted); }
+.beta { display: none; }
+
+/* Application shell */
+.shell-sidebar {
+  width: 248px;
+  padding: 16px 12px 12px;
+  border-color: var(--line);
+  box-shadow: 1px 0 0 rgb(15 23 42 / 0.01);
+}
+.shell-top { gap: 14px; padding: 0 4px 14px; }
+.shell-brand { padding: 7px 8px; }
+.shell-mark { width: 26px; height: 26px; border-radius: 7px; background: #0f172a; }
+.shell-name { font-size: 15px; font-weight: 700; }
+.shell-switcher { min-height: 38px; border-color: var(--line); background: #f8fafc; }
+.shell-switcher:hover { border-color: var(--brand-line); background: var(--brand-soft); }
+.shell-nav { gap: 18px; padding: 6px 2px; }
+.shell-label { padding: 0 8px 7px; color: #94a3b8; font-size: 10px; letter-spacing: .1em; }
+.shell-link { min-height: 38px; border-radius: 7px; color: #475569; font-weight: 550; }
+.shell-link:hover { background: #f1f5f9; color: #0f172a; }
+.shell-link.active { background: var(--brand-soft); color: var(--brand-ink); font-weight: 650; }
+.shell-link.active::before { content: ""; width: 3px; height: 17px; margin-left: -10px; border-radius: 0 3px 3px 0; background: var(--brand); }
+.shell-footer { border-color: var(--line); padding-top: 12px; }
+.shell-user { border: 0; background: transparent; border-radius: 7px; }
+.shell-user:hover { background: #f1f5f9; }
+.avatar { background: #e2e8f0; color: #334155; }
+.shell-header {
+  min-height: 56px;
+  padding: 0 var(--frame-pad);
+  background: rgb(255 255 255 / 0.92);
+  border-color: var(--line);
+  backdrop-filter: blur(12px);
+}
+.shell-workspace-label { color: var(--muted); font-size: 12px; font-weight: 600; }
+.page-body { max-width: none; padding: 28px var(--frame-pad) 44px; }
+
+/* Page hierarchy */
+.page-header { margin-bottom: 24px; align-items: flex-end; }
+.page-header h1 { font-size: clamp(24px, 2.2vw, 30px); font-weight: 700; letter-spacing: -0.035em; margin-bottom: 6px; }
+.page-header p { max-width: 680px; color: var(--muted); }
+.eyebrow { color: var(--muted); font-size: 10px; letter-spacing: .1em; }
+.role-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.role-title-row h1 { margin: 0; }
+.role-title-row .badge { text-transform: capitalize; }
+.header-actions { gap: 8px; }
+button, .button { min-height: 36px; border-color: var(--line-strong); border-radius: 7px; box-shadow: none; }
+button.primary, .button.primary { background: #2563eb; border-color: #2563eb; }
+button.primary:hover, .button.primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+.card { border-color: var(--line); border-radius: 10px; box-shadow: var(--shadow-sm); }
+
+/* Directory and role dashboards */
+.today-work, .role-action-queue { border-color: var(--line); background: var(--surface); box-shadow: var(--shadow-sm); }
+.today-work { margin-bottom: 26px; }
+.today-work-grid, .role-action-queue-grid { gap: 0; border-top: 1px solid var(--line); }
+.today-work-group, .role-action-card { border-color: var(--line); }
+.today-work-group { padding: 18px; }
+.today-work-group:not(:last-child) { border-right: 1px solid var(--line); }
+.today-work-total { color: #0f172a; }
+.today-work-items a, .role-action-card { border-radius: 6px; }
+.today-work-items a:hover, .role-action-card:hover { background: var(--brand-soft); color: var(--brand-ink); }
+.client-directory-wrap, .table-wrap { border-color: var(--line); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow-sm); }
+.client-directory-table th, table th { background: #f8fafc; color: #64748b; font-size: 11px; letter-spacing: .025em; text-transform: uppercase; }
+table td { border-color: var(--line); }
+tbody tr:hover { background: #f8fbff; }
+.client-monogram { background: #eff6ff; color: #1d4ed8; }
+.client-pipeline-summary span { background: transparent; border-color: transparent; }
+.client-pipeline-summary span strong { color: #0f172a; }
+.client-attention-list a, .role-attention-links a { color: #1d4ed8; }
+.role-dashboard-summary, .role-summary { border-color: var(--line); background: var(--surface); box-shadow: var(--shadow-sm); }
+.role-dashboard-summary > div, .role-summary span { border-color: var(--line); }
+.role-dashboard-summary strong, .role-summary strong { color: #0f172a; }
+.role-pipeline-counts a { border-color: var(--line); background: #fff; }
+.role-pipeline-counts a:hover { border-color: var(--brand-line); background: var(--brand-soft); }
+
+/* Role pipeline: neutral stage rail, focused secondary views */
+.role-action-queue { padding: 18px; margin: 0 0 20px; border-radius: 10px; }
+.role-action-card { padding: 13px 10px; border: 1px solid transparent; }
+.role-action-icon { background: #f1f5f9; color: #475569; }
+.role-stage-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0;
+  overflow-x: auto;
+  margin: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+}
+.role-stage-tabs a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  padding: 11px 13px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent !important;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.role-stage-tabs a:hover { color: #0f172a; background: #f8fafc !important; }
+.role-stage-tabs a.selected { color: var(--brand-ink); border-bottom-color: var(--brand); }
+.role-stage-tabs a span,
+.role-stage-tabs .stage-all_profiles.selected span,
+.role-stage-tabs .stage-profile_shortlisted.selected span,
+.role-stage-tabs .stage-recruiter_shortlisted.selected span,
+.role-stage-tabs .stage-client_shortlisted.selected span,
+.role-stage-tabs .stage-offer_sent.selected span,
+.role-stage-tabs .stage-rejected.selected span {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+  font-size: 11px;
+  text-align: center;
+}
+.role-stage-tabs a.selected span { background: #dbeafe !important; color: #1d4ed8 !important; }
+.role-secondary-nav { margin: 12px 0 20px; padding: 0; }
+.role-secondary-nav > span { display: none; }
+.role-secondary-nav a { border: 1px solid transparent; color: var(--muted); font-weight: 600; }
+.role-secondary-nav a:hover, .role-secondary-nav a.selected { border-color: var(--brand-line); background: var(--brand-soft); color: var(--brand-ink); }
+.role-table-heading { margin: 0 0 12px; }
+.role-table-heading h2 { font-size: 16px; }
+
+/* Candidate table and controls */
+.sheet-toolbar, .candidate-toolbar {
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.sheet-toolbar input, .sheet-toolbar select { min-height: 34px; border-color: var(--line); background: #fff; }
+.candidate-table { font-size: 13px; }
+.candidate-table th { position: sticky; top: 56px; z-index: 2; }
+.candidate-table td { vertical-align: middle; }
+.candidate-row-actions { gap: 6px; }
+.candidate-row-actions .primary { font-size: 12px; }
+.selected-row { background: #eff6ff !important; }
+.bulk-bar { border-color: var(--brand-line); background: #eff6ff; box-shadow: none; }
+.sheet-footer { border-color: var(--line); background: #fff; }
+.candidate-column-popover { border-color: var(--line); border-radius: 10px; box-shadow: 0 16px 40px rgb(15 23 42 / .14); }
+
+/* Drawers and feedback */
+.candidate-drawer { border-color: var(--line); box-shadow: 0 0 0 100vmax rgb(15 23 42 / .24), -12px 0 32px rgb(15 23 42 / .14); }
+.candidate-drawer-heading, .candidate-drawer-navigation, .candidate-drawer-actions { border-color: var(--line); }
+.candidate-drawer-navigation { background: #f8fafc; }
+.badge { border-color: var(--line); background: #f8fafc; color: #475569; font-weight: 650; }
+.badge.open, .badge.rule_match { border-color: var(--brand-line); background: var(--brand-soft); color: var(--brand-ink); }
+.badge.on_hold, .badge.review { border-color: #fde68a; background: #fffbeb; color: #a16207; }
+.badge.closed, .badge.rejected { border-color: #fecdd3; background: #fff1f2; color: #be123c; }
+.notice, .toast { border-radius: 8px; }
+
+/* Login is an operational gateway, not a marketing landing page. */
+.login-page { background: #f8fafc; }
+.login-page .brand { font-size: 18px; }
+.login-page .card { width: min(420px, calc(100vw - 32px)); box-shadow: 0 16px 40px rgb(15 23 42 / .08); }
+.login-page h1 { font-size: 26px; letter-spacing: -.03em; }
+
+@media (max-width: 900px) {
+  .shell-sidebar { width: 216px; }
+  .today-work-group:not(:last-child) { border-right: 0; border-bottom: 1px solid var(--line); }
+  .today-work-grid { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

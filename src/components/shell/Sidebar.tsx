@@ -3,15 +3,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Briefcase,
-  CheckCheck,
+  CalendarClock,
   ChevronDown,
   Crosshair,
-  FileSearch,
   FolderOpen,
-  Layers,
   LogOut,
   Settings,
-  ShieldCheck,
   Users,
 } from "lucide-react";
 import type { PageData } from "@/lib/types";
@@ -64,6 +61,10 @@ export function Sidebar({ data }: { data: PageData }) {
             <Users size={17} aria-hidden="true" />
             Clients
           </Link>
+          <Link className="shell-link" href="/clients#today">
+            <CalendarClock size={17} aria-hidden="true" />
+            Today
+          </Link>
           {client && (
             <Link
               className={itemClass(view, ["roles", "role"])}
@@ -74,49 +75,6 @@ export function Sidebar({ data }: { data: PageData }) {
             </Link>
           )}
         </div>
-        {client && (
-          <details
-            className="shell-secondary"
-            open={["client", "builder", "campaign", "runs", "leads", "lead", "prospects", "excluded"].includes(view)}
-          >
-            <summary>Sourcing tools</summary>
-            <div className="shell-group">
-              <Link
-                className={itemClass(view, [
-                  "client",
-                  "builder",
-                  "campaign",
-                  "runs",
-                ])}
-                href={`/clients/${client.id}/campaigns`}
-              >
-                <Layers size={17} aria-hidden="true" />
-                Search campaigns
-              </Link>
-              <Link
-                className={itemClass(view, ["leads", "lead"])}
-                href={`/leads?client=${client.id}`}
-              >
-                <FileSearch size={17} aria-hidden="true" />
-                Search leads
-              </Link>
-            <Link
-              className={itemClass(view, ["prospects"])}
-              href={`/clients/${client.id}/prospects`}
-            >
-              <CheckCheck size={17} aria-hidden="true" />
-              Prospect database
-            </Link>
-            <Link
-              className={itemClass(view, ["excluded"])}
-              href={`/clients/${client.id}/excluded`}
-            >
-              <ShieldCheck size={17} aria-hidden="true" />
-              Excluded profiles
-            </Link>
-            </div>
-          </details>
-        )}
       </nav>
       <div className="shell-footer">
         {client && (

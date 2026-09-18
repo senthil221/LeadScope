@@ -110,7 +110,7 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
         </div>
       )}
       {workTotal > 0 && (
-        <section className="today-work card" aria-labelledby="today-work-heading">
+        <section id="today" className="today-work card" aria-labelledby="today-work-heading">
           <div className="section-heading">
             <div>
               <div className="today-work-title">

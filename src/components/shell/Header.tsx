@@ -19,12 +19,7 @@ export function ShellHeader({ data }: { data: PageData }) {
           <span aria-current="page">Agency workspace</span>
         )}
       </nav>
-      {!data.live && (
-        <span className="live-indicator">
-          <i aria-hidden="true" />
-          Sourcing setup needed
-        </span>
-      )}
+      <span className="shell-workspace-label">Recruiting CRM</span>
     </div>
   );
 }

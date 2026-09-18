@@ -566,7 +566,10 @@ export function RolePipeline({
       <header className="page-header role-workspace-header">
         <div>
           <div className="eyebrow"><Link href={`/clients/${client.id}/roles`}>{client.name}</Link></div>
-          <h1>{role.name}</h1>
+          <div className="role-title-row">
+            <h1>{role.name}</h1>
+            <span className={`badge ${role.status}`}>{role.status.replace("_", " ")}</span>
+          </div>
           <p className="muted">
             {role.description || "Track this role's candidate pipeline."}
           </p>
