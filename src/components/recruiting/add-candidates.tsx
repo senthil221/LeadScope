@@ -512,7 +512,7 @@ export function AddCandidatesDialog({
             />
           </label>
           <p className="muted">
-            Recognized columns: {csvTemplateColumns.join(", ")}. Extra columns
+            Recognized columns: Full Name (or First Name), {csvTemplateColumns.slice(1).join(", ")}. Extra columns
             are ignored unless you map them to a role column below. Column order
             does not matter.
           </p>

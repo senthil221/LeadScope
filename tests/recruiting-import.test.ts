@@ -162,6 +162,19 @@ describe("csvToDraftRows", () => {
     const csv = "Full Name,Astrological Sign\nPriya Nair,Leo";
     expect(csvToDraftRows(csv)).toEqual([{ name: "Priya Nair" }]);
   });
+  it("accepts First Name from CSV exports as the candidate name", () => {
+    const csv = [
+      '"First Name","LinkedIn"',
+      '"Ajit","http://www.linkedin.com/in/ajitindia"',
+      '"Joel","https://www.linkedin.com/in/joellimjohan"',
+      '"Ramnik","https://www.linkedin.com/in/rrajvanshi"',
+    ].join("\n");
+    expect(csvToDraftRows(csv)).toEqual([
+      { name: "Ajit", linkedin: "http://www.linkedin.com/in/ajitindia" },
+      { name: "Joel", linkedin: "https://www.linkedin.com/in/joellimjohan" },
+      { name: "Ramnik", linkedin: "https://www.linkedin.com/in/rrajvanshi" },
+    ]);
+  });
   it("returns nothing for a header-only or empty file", () => {
     expect(csvToDraftRows("Full Name,Email")).toEqual([]);
     expect(csvToDraftRows("")).toEqual([]);

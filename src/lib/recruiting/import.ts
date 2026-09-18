@@ -176,6 +176,9 @@ export function spreadsheetRowsToCsv(
 const csvColumnAliases: Record<string, keyof DraftRow> = {
   name: "name",
   "full name": "name",
+  "first name": "name",
+  "candidate name": "name",
+  "profile name": "name",
   linkedin: "linkedin",
   "linkedin url": "linkedin",
   naukri: "naukri",
@@ -217,7 +220,13 @@ export const csvTemplateColumns = [
 // as long as the names are recognized (case-insensitive). Unknown columns
 // are ignored rather than rejected, so a richer export still imports.
 function csvColumnForHeader(header: string): keyof DraftRow | undefined {
-  return csvColumnAliases[header.replace(/^\uFEFF/, "").trim().toLowerCase()];
+  const normalized = header
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+  return csvColumnAliases[normalized];
 }
 
 export function csvHeaders(text: string): string[] {
