@@ -3,6 +3,7 @@ import { integrationDb } from "@/lib/server/db";
 import { setup } from "@/lib/server/config";
 import { stageLabels, isStage } from "@/lib/recruiting/stages";
 import { SharedFieldCell } from "@/components/recruiting/shared-field-cell";
+import { ExternalLink } from "lucide-react";
 
 // Never cached, never statically generated: every request re-checks the
 // token against the database, so a revoked or expired link stops working
@@ -14,6 +15,7 @@ export const runtime = "nodejs";
 type SharedRow = {
   id: string;
   full_name?: string;
+  linkedin?: string;
   headline?: string;
   current_company?: string;
   current_designation?: string;
@@ -40,6 +42,7 @@ const staticEditableKinds: Record<string, "text"> = { client_notes: "text" };
 const staticLabels: Record<string, string> = {
   stage_entered_at: "Date added",
   full_name: "Full name",
+  linkedin: "LinkedIn",
   headline: "Headline",
   current_designation: "Designation",
   current_company: "Company",
@@ -180,6 +183,22 @@ export default async function SharePage({
               {data.rows.map((row) => (
                 <tr key={row.id}>
                   {columns.map((key) => {
+                    if (key === "linkedin") {
+                      return (
+                        <td className="candidate-linkedin-cell" key={key}>
+                          {row.linkedin ? (
+                            <a
+                              className="candidate-link"
+                              href={row.linkedin}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Open profile <ExternalLink size={11} />
+                            </a>
+                          ) : "—"}
+                        </td>
+                      );
+                    }
                     if (!data.editableColumns.includes(key))
                       return <td key={key}>{cell(row, key, data.fields)}</td>;
                     const kind = staticEditableKinds[key] ?? "text";

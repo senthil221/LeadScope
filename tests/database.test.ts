@@ -3131,13 +3131,18 @@ describe("client sharing: recruiter shortlist and Notes-only access", () => {
 
     const { id, token } = await strictClientLink(cid, rid);
     expect(
-      (await sql("select stage,editable_columns,allow_decisions from public.role_share_links where id=$1", [id]))
+      (await sql("select stage,visible_columns,editable_columns,allow_decisions from public.role_share_links where id=$1", [id]))
         .rows[0],
     ).toEqual({
       stage: "recruiter_shortlisted",
+      visible_columns: ["full_name", "client_notes", "linkedin"],
       editable_columns: ["client_notes"],
       allow_decisions: false,
     });
+    const shared = await rpc("read_shared_stage", [hashOf(token)]);
+    expect(shared.rows[0].linkedin).toBe(
+      "https://www.linkedin.com/in/strict-client-link",
+    );
     await rpc("write_shared_cell", [hashOf(token), rcId, "client_notes", JSON.stringify("Please call")]);
     await expect(
       rpc("write_shared_cell", [hashOf(token), rcId, "full_name", JSON.stringify("Changed")]),

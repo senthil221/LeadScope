@@ -200,6 +200,12 @@ describe("candidate exports", () => {
       rejection_reason: "",
       candidates: {
         full_name: "Priya Nair",
+        candidate_identities: [
+          {
+            kind: "linkedin",
+            normalized_value: "https://www.linkedin.com/in/priya-nair",
+          },
+        ],
         headline: "Senior recruiter",
         current_designation: "Recruiter",
         current_company: "Example Co",
@@ -215,7 +221,11 @@ describe("candidate exports", () => {
     ] as RoleField[];
 
     expect(roleCandidateExportColumns).not.toContain("Internal recruiter notes");
+    expect(roleCandidateExportColumns).toContain("LinkedIn URL");
     expect(roleCandidateExportCells(row)).toContain("Offer sent");
+    expect(roleCandidateExportCells(row)).toContain(
+      "https://www.linkedin.com/in/priya-nair",
+    );
     expect(roleCandidateExportCells(row)).toContain("Available from October");
     expect(roleCandidateExportCells(row)).not.toContain("Do not export this");
     expect(roleCandidateExportColumnsWithFields(fields).slice(-2)).toEqual([

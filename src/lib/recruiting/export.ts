@@ -10,6 +10,7 @@ export const roleCandidateExportColumns = [
   "Date entered stage",
   "Stage",
   "Full name",
+  "LinkedIn URL",
   "Headline",
   "Designation",
   "Company",
@@ -43,6 +44,9 @@ export function roleCandidateExportCells(
     candidate.stage_entered_at,
     isStage(candidate.stage) ? stageLabels[candidate.stage] : candidate.stage,
     candidate.candidates.full_name,
+    candidate.candidates.candidate_identities?.find(
+      (identity) => identity.kind === "linkedin",
+    )?.normalized_value ?? "",
     candidate.candidates.headline,
     candidate.candidates.current_designation,
     candidate.candidates.current_company,

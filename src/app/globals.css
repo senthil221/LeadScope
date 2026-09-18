@@ -3419,7 +3419,6 @@ tbody tr:hover { background: #f8fbff; }
   font-weight: 600;
 }
 .candidate-link:hover { color: var(--brand-ink); text-decoration: underline; }
-.candidate-table-link { margin-top: 3px; }
 .candidate-profile-more {
   margin-top: 14px;
   border: 1px solid var(--line);
@@ -3526,7 +3525,7 @@ tbody tr:hover { background: #f8fbff; }
 .candidate-column-menu > button { min-height: 36px; }
 
 .candidate-table {
-  min-width: 940px;
+  min-width: 1090px;
   table-layout: auto;
 }
 .candidate-table th {
@@ -3550,6 +3549,13 @@ tbody tr:hover { background: #f8fbff; }
 }
 .candidate-name-heading,
 .candidate-identity-cell { min-width: 190px; }
+.candidate-linkedin-heading,
+.candidate-linkedin-cell {
+  width: 1%;
+  min-width: 150px;
+  white-space: nowrap;
+}
+.candidate-linkedin-cell .candidate-link { margin-top: 0; }
 .candidate-identity-cell .text-button {
   max-width: 230px;
   overflow: hidden;
@@ -3559,10 +3565,7 @@ tbody tr:hover { background: #f8fbff; }
   white-space: nowrap;
 }
 .candidate-identity-cell .text-button:hover { color: var(--brand-ink); }
-.candidate-identity-cell .candidate-source,
-.candidate-identity-cell .candidate-table-link {
-  line-height: 1.25;
-}
+.candidate-identity-cell .candidate-source { line-height: 1.25; }
 .candidate-rating-heading,
 .candidate-rating-cell { width: 126px; min-width: 126px; }
 .candidate-rating-cell input {

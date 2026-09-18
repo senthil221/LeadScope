@@ -18,6 +18,7 @@ async function act<T>(action: string, payload: unknown): Promise<T> {
 const shareColumns = [
   "stage_entered_at",
   "full_name",
+  "linkedin",
   "headline",
   "current_designation",
   "current_company",

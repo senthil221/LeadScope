@@ -297,7 +297,9 @@ export default async function Page({
             Math.min(100000, Math.floor(Number(filter.page) || 1)),
           );
           data.page = page;
-          let q = db.from("candidates").select("*", { count: "exact" });
+          let q = db
+            .from("candidates")
+            .select("*,candidate_identities(kind,normalized_value)", { count: "exact" });
           if (filter.q?.trim()) {
             const term = filter.q
               .trim()

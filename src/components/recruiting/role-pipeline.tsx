@@ -941,6 +941,7 @@ export function RolePipeline({
                 <tr>
                   <th>Follow-up</th>
                   <th>Candidate</th>
+                  <th className="candidate-linkedin-heading">LinkedIn</th>
                   <th>Current stage</th>
                   <th>Company</th>
                   <th>Contact</th>
@@ -971,6 +972,18 @@ export function RolePipeline({
                       <small className="candidate-source">
                         {candidateSourceLabel(rc.source, rc.source_detail)}
                       </small>
+                    </td>
+                    <td className="candidate-linkedin-cell">
+                      {linkedInUrl(rc.candidates) ? (
+                        <a
+                          className="candidate-link"
+                          href={linkedInUrl(rc.candidates)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open profile <ExternalLink size={11} />
+                        </a>
+                      ) : "—"}
                     </td>
                     <td>
                       {isStage(rc.stage) ? stageLabels[rc.stage] : rc.stage}
@@ -1102,6 +1115,7 @@ export function RolePipeline({
                     />
                   </th>
                   <th>Full name</th>
+                  <th className="candidate-linkedin-heading">LinkedIn</th>
                   <th>Headline</th>
                   <th>Company</th>
                   <th>Location</th>
@@ -1133,6 +1147,18 @@ export function RolePipeline({
                       )}
                     </td>
                     <td className="strong">{c.full_name}</td>
+                    <td className="candidate-linkedin-cell">
+                      {linkedInUrl(c) ? (
+                        <a
+                          className="candidate-link"
+                          href={linkedInUrl(c)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open profile <ExternalLink size={11} />
+                        </a>
+                      ) : "—"}
+                    </td>
                     <td>{c.headline || "—"}</td>
                     <td>{c.current_company || "—"}</td>
                     <td>{c.location || "—"}</td>
@@ -1209,6 +1235,7 @@ export function RolePipeline({
                   </th>
                 )}
                 <th className="candidate-name-heading" scope="col">Candidate</th>
+                <th className="candidate-linkedin-heading" scope="col">LinkedIn</th>
                 {visibleCandidateColumns.map((column) => (
                   <th
                     className={column.id === "rating" ? "candidate-rating-heading" : undefined}
@@ -1223,7 +1250,6 @@ export function RolePipeline({
               </thead>
               <tbody>
               {roleCandidates.map((rc) => {
-                const linkedin = linkedInUrl(rc.candidates);
                 return (
                 <tr
                   key={rc.id}
@@ -1256,16 +1282,18 @@ export function RolePipeline({
                     <small className="candidate-source">
                       {candidateSourceLabel(rc.source, rc.source_detail)}
                     </small>
-                    {linkedin && (
+                  </td>
+                  <td className="candidate-linkedin-cell">
+                    {linkedInUrl(rc.candidates) ? (
                       <a
-                        className="candidate-link candidate-table-link"
-                        href={linkedin}
+                        className="candidate-link"
+                        href={linkedInUrl(rc.candidates)}
                         target="_blank"
                         rel="noreferrer"
                       >
-                        LinkedIn <ExternalLink size={11} />
+                        Open profile <ExternalLink size={11} />
                       </a>
-                    )}
+                    ) : "—"}
                   </td>
                   {visibleCandidateColumns.map((column) => {
                     switch (column.id) {
