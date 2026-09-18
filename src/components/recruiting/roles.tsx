@@ -86,8 +86,8 @@ export function RolesPage({
       <header className="page-header">
         <div>
           <div className="eyebrow">{client.name}</div>
-          <h1>Roles</h1>
-          <p className="muted">Manage every active role and the candidate work that needs attention.</p>
+          <h1>Client overview</h1>
+          <p className="muted">See role progress, open work, and the next hiring action in one place.</p>
         </div>
         <div className="header-actions">
           <button className="primary" onClick={() => setForm("new")}>
@@ -197,6 +197,7 @@ export function RolesPage({
                           ["Recruiter", count?.recruiter_shortlisted ?? 0, "recruiter_shortlisted"],
                           ["Client", count?.client_shortlisted ?? 0, "client_shortlisted"],
                           ["Offer", count?.offer_sent ?? 0, "offer_sent"],
+                          ["Rejected", count?.rejected ?? 0, "rejected"],
                         ] as const;
                         return (
                           <div className="role-pipeline-counts">

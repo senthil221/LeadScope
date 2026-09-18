@@ -3655,6 +3655,98 @@ input[aria-invalid="true"] { border-color: var(--danger); }
   padding: 0 24px 20px;
 }
 .candidate-drawer-body > section[hidden] { display: none !important; }
+.candidate-overview {
+  padding: 18px 0 24px;
+}
+.candidate-overview-heading,
+.candidate-overview-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.candidate-overview-heading { margin-bottom: 14px; }
+.candidate-overview-heading h3,
+.candidate-overview-heading p,
+.candidate-overview-card-heading h4,
+.candidate-overview-card-heading p { margin: 0; }
+.candidate-overview-heading h3 { font-size: 16px; }
+.candidate-overview-heading p,
+.candidate-overview-card-heading p { margin-top: 3px; color: var(--muted); font-size: 11px; }
+.candidate-overview-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.candidate-overview-metrics > div {
+  min-width: 0;
+  padding: 11px 12px;
+  border-right: 1px solid var(--line);
+}
+.candidate-overview-metrics > div:last-child { border-right: 0; }
+.candidate-overview-metrics span,
+.candidate-overview-metrics strong { display: block; }
+.candidate-overview-metrics span { margin-bottom: 3px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+.candidate-overview-metrics strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.candidate-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.candidate-overview-grid > section,
+.candidate-overview-note,
+.candidate-overview-assessment,
+.candidate-overview-offer {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.candidate-overview-card-heading { margin-bottom: 10px; }
+.candidate-overview-card-heading h4,
+.candidate-overview-assessment h4 { font-size: 13px; }
+.candidate-overview-card-heading button.text-button { min-height: auto; padding: 2px 0; border: 0; }
+.candidate-overview dl { margin: 0; }
+.candidate-overview dl > div {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid #edf1f5;
+}
+.candidate-overview dl > div:last-child { border-bottom: 0; }
+.candidate-overview dt { color: var(--muted); font-size: 11px; }
+.candidate-overview dd { overflow-wrap: anywhere; margin: 0; color: var(--ink); font-size: 12px; font-weight: 600; }
+.candidate-overview-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 9px;
+  color: var(--brand-ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+.candidate-overview-note,
+.candidate-overview-assessment,
+.candidate-overview-offer { margin-top: 12px; }
+.candidate-overview-note > p,
+.candidate-overview-assessment > p,
+.candidate-overview-offer > p { margin: 8px 0 0; color: #334155; font-size: 12px; line-height: 1.55; white-space: pre-wrap; }
+.candidate-client-notes-section > .muted { margin: 0 0 14px; }
+.candidate-client-notes-section > label { display: block; font-size: 12px; }
+.candidate-client-notes-section textarea { min-height: 128px; resize: vertical; }
+.candidate-note-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+.candidate-note-actions span { color: var(--muted); font-size: 11px; }
 .candidate-drawer-section,
 .candidate-drawer .candidate-client-notes,
 .candidate-drawer .candidate-activity,
@@ -3760,6 +3852,10 @@ input[aria-invalid="true"] { border-color: var(--danger); }
   .candidate-drawer-grid,
   .candidate-screening-grid,
   .candidate-offer-grid { grid-template-columns: 1fr; }
+  .candidate-overview-grid { grid-template-columns: 1fr; }
+  .candidate-overview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .candidate-overview-metrics > div:nth-child(2) { border-right: 0; }
+  .candidate-overview-metrics > div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
   .candidate-resume-heading { align-items: flex-start; }
   .candidate-resume-upload { align-items: stretch; flex-direction: column; }
   .candidate-resume-upload button { align-self: flex-end; }

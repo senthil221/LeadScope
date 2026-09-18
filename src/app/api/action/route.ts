@@ -405,6 +405,23 @@ export async function POST(request: Request) {
         );
         break;
       }
+      case "clientNote": {
+        const p = z
+          .object({
+            clientId: uuid,
+            id: uuid,
+            note: z.string().max(4000).default(""),
+          })
+          .parse(payload);
+        checked(
+          await db.rpc("save_client_note", {
+            p_client: p.clientId,
+            p_id: p.id,
+            p_note: p.note,
+          }),
+        );
+        break;
+      }
       case "candidateActivity": {
         const p = z
           .object({ clientId: uuid, roleCandidateId: uuid })

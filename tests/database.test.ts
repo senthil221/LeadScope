@@ -2052,6 +2052,67 @@ describe("save_screening: recruiter screening answers and internal notes", () =>
   });
 });
 
+describe("candidate notes and offer details", () => {
+  it("saves the recruiter client note, scopes it to the client, and logs the change", async () => {
+    const { cid, rcId } = await pipeline("client-note-save", 3);
+    await asUser(actor, () =>
+      rpc("save_client_note", [cid, rcId, "  Strong stakeholder feedback.  "]),
+    );
+    const row = (
+      await sql("select client_notes from public.role_candidates where id=$1", [rcId])
+    ).rows[0];
+    expect(row.client_notes).toBe("Strong stakeholder feedback.");
+    expect(
+      (
+        await sql(
+          "select count(*)::int as n from public.role_candidate_events where role_candidate_id=$1 and kind='client_note'",
+          [rcId],
+        )
+      ).rows[0].n,
+    ).toBe(1);
+    const other = await client();
+    await expect(
+      asUser(actor, () => rpc("save_client_note", [other, rcId, "Wrong client"])),
+    ).rejects.toThrow("Candidate not found");
+  });
+
+  it("denies client-note updates to a non-admin", async () => {
+    const { cid, rcId } = await pipeline("client-note-denied", 3);
+    await expect(
+      asUser(outsider, () => rpc("save_client_note", [cid, rcId, "No access"])),
+    ).rejects.toThrow("Agency access");
+  });
+
+  it("allows the authenticated wrapper to save offer details", async () => {
+    const { cid, rcId } = await pipeline("offer-save-permission", 3);
+    await asUser(actor, () => rpc("move_stage", [cid, [rcId], "offer_sent", "Offer sent"]));
+    await asUser(actor, () =>
+      rpc("save_offer_details", [
+        cid,
+        rcId,
+        125000,
+        "inr",
+        "2026-09-18",
+        "2026-09-25",
+        "2026-10-01",
+        "Awaiting response.",
+      ]),
+    );
+    const row = (
+      await sql(
+        "select offer_amount::text,offer_currency,offer_response_due_at::text,offer_notes from public.role_candidates where id=$1",
+        [rcId],
+      )
+    ).rows[0];
+    expect(row).toEqual({
+      offer_amount: "125000.00",
+      offer_currency: "INR",
+      offer_response_due_at: "2026-09-25",
+      offer_notes: "Awaiting response.",
+    });
+  });
+});
+
 describe("update_candidate_details: correcting the reusable master record", () => {
   it("denies a non-admin", async () => {
     const id = await person("edit-denied");

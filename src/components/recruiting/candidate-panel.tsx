@@ -231,6 +231,9 @@ export function CandidatePanel({
   });
   const [savingDetails, setSavingDetails] = useState(false);
   const [savingScreening, setSavingScreening] = useState(false);
+  const [clientNotes, setClientNotes] = useState(rc.client_notes);
+  const [savedClientNotes, setSavedClientNotes] = useState(rc.client_notes);
+  const [savingClientNotes, setSavingClientNotes] = useState(false);
   const [savingOffer, setSavingOffer] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [advancing, setAdvancing] = useState(false);
@@ -242,10 +245,11 @@ export function CandidatePanel({
   const [activityLoading, setActivityLoading] = useState(true);
   const [activityError, setActivityError] = useState("");
   const [activeSection, setActiveSection] = useState<
-    "profile" | "screening" | "notes" | "offer" | "activity"
-  >(currentStage === "offer_sent" ? "offer" : "profile");
+    "overview" | "profile" | "screening" | "notes" | "offer" | "activity"
+  >("overview");
 
   useEffect(() => {
+    if (activeSection !== "activity" || activity.length || activityError) return;
     let cancelled = false;
     async function loadActivity() {
       try {
@@ -264,7 +268,7 @@ export function CandidatePanel({
     return () => {
       cancelled = true;
     };
-  }, [clientId, rc.id]);
+  }, [activeSection, activity.length, activityError, clientId, rc.id]);
 
   async function saveDetails() {
     const linkedin = normalizeIdentity("linkedin", details.linkedin);
@@ -329,6 +333,26 @@ export function CandidatePanel({
       setError((e as Error).message);
     } finally {
       setSavingScreening(false);
+    }
+  }
+  async function saveClientNotes() {
+    setSavingClientNotes(true);
+    setError("");
+    try {
+      await act("clientNote", {
+        clientId,
+        id: rc.id,
+        note: clientNotes,
+      });
+      const savedNote = clientNotes.trim();
+      setClientNotes(savedNote);
+      setSavedClientNotes(savedNote);
+      setMessage(savedNote ? "Client note saved." : "Client note cleared.");
+      onChanged();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSavingClientNotes(false);
     }
   }
   async function saveOffer() {
@@ -445,10 +469,12 @@ export function CandidatePanel({
       offer.responseDueAt !== (rc.offer_response_due_at ?? "") ||
       offer.expectedStartAt !== (rc.expected_start_at ?? "") ||
       offer.notes !== rc.offer_notes;
+    const clientNoteChanged = clientNotes !== savedClientNotes;
     if (
       !detailsChanged &&
       !screeningChanged &&
-      !offerChanged
+      !offerChanged &&
+      !clientNoteChanged
     ) {
       onNavigate(id);
       return;
@@ -501,6 +527,7 @@ export function CandidatePanel({
         role="tablist"
       >
         {([
+          ["overview", "Overview"],
           ["profile", "Profile"],
           ["screening", "Screening"],
           ["notes", "Client notes"],
@@ -521,6 +548,86 @@ export function CandidatePanel({
       </nav>
 
       <div className="candidate-drawer-body">
+        <section
+          className="candidate-overview"
+          aria-labelledby="candidate-overview-heading"
+          hidden={activeSection !== "overview"}
+          role="tabpanel"
+        >
+          <div className="candidate-overview-heading">
+            <div>
+              <h3 id="candidate-overview-heading">Candidate overview</h3>
+              <p>Everything needed for a quick hiring decision.</p>
+            </div>
+            <button type="button" onClick={() => setActiveSection("profile")}>Edit profile</button>
+          </div>
+          <div className="candidate-overview-metrics">
+            <div><span>Stage</span><strong>{stageLabels[currentStage]}</strong></div>
+            <div><span>Rating</span><strong>{rc.rating != null ? `${rc.rating}/5` : "Not rated"}</strong></div>
+            <div><span>Experience</span><strong>{details.totalExperienceYears ? `${details.totalExperienceYears} years` : "Not added"}</strong></div>
+            <div><span>Resume</span><strong>{c.resume_path ? "On file" : "Not added"}</strong></div>
+          </div>
+          <div className="candidate-overview-grid">
+            <section>
+              <div className="candidate-overview-card-heading">
+                <h4>Profile and contact</h4>
+                <button className="text-button" type="button" onClick={() => setActiveSection("profile")}>Edit</button>
+              </div>
+              <dl>
+                <div><dt>Role</dt><dd>{details.currentDesignation || details.headline || "Not added"}</dd></div>
+                <div><dt>Company</dt><dd>{details.currentCompany || "Not added"}</dd></div>
+                <div><dt>Location</dt><dd>{details.location || "Not added"}</dd></div>
+                <div><dt>Email</dt><dd>{details.email || "Not added"}</dd></div>
+                <div><dt>Phone</dt><dd>{details.phone ? `${getPhoneCountry(phoneCountry).dialCode} ${details.phone}` : "Not added"}</dd></div>
+              </dl>
+              {details.linkedin && normalizeIdentity("linkedin", details.linkedin) && (
+                <a className="candidate-overview-link" href={normalizeIdentity("linkedin", details.linkedin)?.value} target="_blank" rel="noreferrer">
+                  Open LinkedIn profile <ExternalLink size={13} />
+                </a>
+              )}
+            </section>
+            <section>
+              <div className="candidate-overview-card-heading">
+                <h4>Recruiter screening</h4>
+                <button className="text-button" type="button" onClick={() => setActiveSection("screening")}>Edit</button>
+              </div>
+              <dl>
+                <div><dt>Interest</dt><dd>{screening.interest === "yes" ? "Interested" : screening.interest === "maybe" ? "Maybe" : screening.interest === "no" ? "Not interested" : "Not asked"}</dd></div>
+                <div><dt>Current CTC</dt><dd>{screening.currentCtc || "Not added"}</dd></div>
+                <div><dt>Expected CTC</dt><dd>{screening.expectedCtc || "Not added"}</dd></div>
+                <div><dt>Notice period</dt><dd>{screening.noticePeriod || "Not added"}</dd></div>
+                <div><dt>Follow-up</dt><dd>{screening.followUpAt || "Not scheduled"}</dd></div>
+              </dl>
+            </section>
+          </div>
+          <section className="candidate-overview-note">
+            <div className="candidate-overview-card-heading">
+              <div>
+                <h4>Client note</h4>
+                <p>Visible through the client link.</p>
+              </div>
+              <button type="button" onClick={() => setActiveSection("notes")}>{clientNotes ? "Edit note" : "Add note"}</button>
+            </div>
+            <p>{clientNotes || "No client note has been added."}</p>
+          </section>
+          {(screening.recruiterAssessment || screening.experienceNote) && (
+            <section className="candidate-overview-assessment">
+              <h4>Recruiter summary</h4>
+              {screening.recruiterAssessment && <p>{screening.recruiterAssessment}</p>}
+              {screening.experienceNote && <p>{screening.experienceNote}</p>}
+            </section>
+          )}
+          {currentStage === "offer_sent" && (
+            <section className="candidate-overview-offer">
+              <div className="candidate-overview-card-heading">
+                <h4>Offer</h4>
+                <button className="text-button" type="button" onClick={() => setActiveSection("offer")}>Edit</button>
+              </div>
+              <p>{offer.amount ? `${offer.currency || ""} ${offer.amount}`.trim() : "Amount not added"}{offer.responseDueAt ? ` · Response due ${offer.responseDueAt}` : ""}</p>
+            </section>
+          )}
+        </section>
+
         {currentStage === "offer_sent" && (
         <section
           className="candidate-offer"
@@ -642,11 +749,24 @@ export function CandidatePanel({
           <MessageSquareText size={16} aria-hidden="true" />
           <h3 id="client-notes-heading">Client notes</h3>
         </div>
-        {rc.client_notes ? (
-          <p className="candidate-client-note">{rc.client_notes}</p>
-        ) : (
-          <p className="muted">No client notes yet.</p>
-        )}
+        <p className="muted">This note is visible to the client through their shared link.</p>
+        <label>
+          Note <span className="optional">optional</span>
+          <textarea
+            disabled={savingClientNotes}
+            maxLength={4000}
+            onChange={(event) => setClientNotes(event.target.value)}
+            placeholder="Add the client-facing context they need for this candidate"
+            rows={6}
+            value={clientNotes}
+          />
+        </label>
+        <div className="candidate-note-actions">
+          <span>{clientNotes.length}/4000</span>
+          <button disabled={savingClientNotes} onClick={() => void saveClientNotes()}>
+            {savingClientNotes ? "Saving…" : "Save client note"}
+          </button>
+        </div>
       </section>
 
       <section
