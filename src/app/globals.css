@@ -3435,6 +3435,261 @@ tbody tr:hover { background: #f8fbff; }
 }
 .candidate-profile-more[open] summary { border-bottom: 1px solid var(--line); }
 .candidate-profile-more .candidate-drawer-grid { padding: 12px; }
+
+/* Production workspace layout: dense enough for daily recruiting work while
+   keeping every action reachable on smaller screens. */
+.candidate-toolbar {
+  display: block;
+  position: relative;
+  overflow: visible;
+  padding: 8px;
+}
+.candidate-toolbar-main {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto auto auto auto;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+}
+.candidate-toolbar .candidate-search-input {
+  max-width: none;
+  min-width: 0;
+}
+.candidate-clear-filters {
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.candidate-filter-menu {
+  position: relative;
+}
+.candidate-filter-menu > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  list-style: none;
+  white-space: nowrap;
+}
+.candidate-filter-menu > summary::-webkit-details-marker { display: none; }
+.candidate-filter-menu > summary:hover,
+.candidate-filter-menu[open] > summary {
+  border-color: var(--brand-line);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+}
+.candidate-filter-menu > summary span {
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: #dbeafe;
+  font-size: 10px;
+  text-align: center;
+}
+.candidate-filter-grid {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  z-index: 12;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+  width: min(620px, calc(100vw - 32px));
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 18px 46px rgb(15 23 42 / .16);
+}
+.candidate-filter-grid label {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 650;
+}
+.candidate-filter-grid input,
+.candidate-filter-grid select {
+  min-height: 34px;
+  margin-top: 4px;
+  font-weight: 400;
+}
+.candidate-column-menu > button { min-height: 36px; }
+
+.candidate-table {
+  min-width: 940px;
+  table-layout: auto;
+}
+.candidate-table th {
+  position: static;
+  top: auto;
+  z-index: auto;
+  padding-block: 9px;
+}
+.candidate-table td {
+  height: 58px;
+  padding-block: 10px;
+}
+.candidate-table .select-cell {
+  width: 42px;
+  padding-right: 4px;
+  text-align: center;
+}
+.candidate-table .select-cell input {
+  width: 15px;
+  min-height: 15px;
+}
+.candidate-name-heading,
+.candidate-identity-cell { min-width: 190px; }
+.candidate-identity-cell .text-button {
+  max-width: 230px;
+  overflow: hidden;
+  color: var(--ink);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.candidate-identity-cell .text-button:hover { color: var(--brand-ink); }
+.candidate-identity-cell .candidate-source,
+.candidate-identity-cell .candidate-table-link {
+  line-height: 1.25;
+}
+.candidate-rating-heading,
+.candidate-rating-cell { width: 126px; min-width: 126px; }
+.candidate-rating-cell input {
+  width: 104px;
+  min-height: 32px;
+  padding-inline: 9px;
+}
+.candidate-action-heading,
+.candidate-action-cell { width: 1%; min-width: 220px; white-space: nowrap; }
+.candidate-row-actions { justify-content: flex-end; }
+.candidate-row-actions button { min-height: 30px; }
+.table-wrap { scrollbar-gutter: stable; }
+
+.candidate-drawer {
+  width: min(760px, 100vw);
+}
+.candidate-drawer-heading {
+  min-height: 84px;
+  padding: 16px 24px 12px;
+}
+.candidate-drawer-heading h2 {
+  margin-top: 5px;
+  font-size: 19px;
+}
+.candidate-drawer-source {
+  margin: 8px 24px 7px;
+}
+.candidate-drawer-section-nav {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  scrollbar-width: none;
+}
+.candidate-drawer-section-nav::-webkit-scrollbar { display: none; }
+.candidate-drawer-section-nav button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
+.candidate-drawer-section-nav button:hover {
+  background: transparent;
+  color: var(--ink);
+}
+.candidate-drawer-section-nav button.selected {
+  border-bottom-color: var(--brand);
+  color: var(--brand-ink);
+}
+.candidate-drawer-body {
+  padding: 0 24px 20px;
+}
+.candidate-drawer-body > section[hidden] { display: none !important; }
+.candidate-drawer-section,
+.candidate-drawer .candidate-client-notes,
+.candidate-drawer .candidate-activity,
+.candidate-drawer .candidate-offer {
+  margin: 0;
+  padding: 18px 0;
+  border: 0;
+}
+.candidate-profile-section {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.candidate-drawer-grid,
+.candidate-screening-grid,
+.candidate-offer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+.candidate-screening-grid { margin-bottom: 12px; }
+.candidate-screening-grid label { margin: 0; font-size: 12px; }
+.candidate-screening-section > label { display: block; margin-top: 10px; }
+.candidate-screening-section textarea { resize: vertical; }
+.candidate-profile-more {
+  margin-top: 12px;
+  background: #f8fafc;
+}
+.candidate-profile-more summary { padding: 9px 11px; }
+.candidate-profile-more .candidate-drawer-grid { padding: 12px; }
+.candidate-section-save {
+  float: right;
+  min-width: 110px;
+  margin-top: 12px !important;
+}
+.candidate-profile-section::after,
+.candidate-screening-section::after {
+  display: block;
+  clear: both;
+  content: "";
+}
+.candidate-resume-heading,
+.candidate-resume-upload {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.candidate-resume-heading h3,
+.candidate-resume-heading .muted { margin: 0; }
+.candidate-resume-upload {
+  margin-top: 10px;
+}
+.candidate-resume-upload label {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.candidate-resume-upload input { padding: 5px 7px; }
+.candidate-file-help {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.candidate-drawer-navigation { padding: 7px 24px; }
+.candidate-drawer-actions { padding: 10px 24px; }
+.candidate-drawer-actions button { min-height: 36px; }
 .badge { border-color: var(--line); background: #f8fafc; color: #475569; font-weight: 650; }
 .badge.open, .badge.rule_match { border-color: var(--brand-line); background: var(--brand-soft); color: var(--brand-ink); }
 .badge.on_hold, .badge.review { border-color: #fde68a; background: #fffbeb; color: #a16207; }
@@ -3451,6 +3706,34 @@ tbody tr:hover { background: #f8fbff; }
   .shell-sidebar { width: 216px; }
   .today-work-group:not(:last-child) { border-right: 0; border-bottom: 1px solid var(--line); }
   .today-work-grid { grid-template-columns: 1fr; }
+  .candidate-toolbar-main { grid-template-columns: minmax(180px, 1fr) auto auto auto; }
+  .candidate-clear-filters { grid-column: 1 / -1; justify-self: start; }
+}
+
+@media (max-width: 680px) {
+  .candidate-toolbar-main { grid-template-columns: minmax(0, 1fr) auto; }
+  .candidate-filter-menu,
+  .candidate-column-menu { position: static; }
+  .candidate-filter-grid,
+  .candidate-column-popover {
+    right: 8px;
+    left: 8px;
+    width: auto;
+  }
+  .candidate-filter-grid { grid-template-columns: 1fr; }
+  .candidate-clear-filters { grid-column: auto; }
+  .candidate-drawer-heading { padding-inline: 16px; }
+  .candidate-drawer-source { margin-inline: 16px; }
+  .candidate-drawer-section-nav { padding-inline: 10px; }
+  .candidate-drawer-body { padding-inline: 16px; }
+  .candidate-drawer-grid,
+  .candidate-screening-grid,
+  .candidate-offer-grid { grid-template-columns: 1fr; }
+  .candidate-resume-heading { align-items: flex-start; }
+  .candidate-resume-upload { align-items: stretch; flex-direction: column; }
+  .candidate-resume-upload button { align-self: flex-end; }
+  .candidate-drawer-navigation,
+  .candidate-drawer-actions { padding-inline: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

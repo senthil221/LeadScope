@@ -220,6 +220,7 @@ export function RolePipeline({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [columnPreference, setColumnPreference] = useState<string | null>(null);
   const [navigatingTo, setNavigatingTo] = useState<Tab | null>(null);
   const path = `/roles/${role.id}`;
@@ -243,6 +244,16 @@ export function RolePipeline({
       ? nextStage(tab as PipelineStage)
       : null;
   const canSelectCandidates = Boolean(advanceTo || canRejectFromTab);
+  const activeCandidateFilterCount = [
+    params.get("source"),
+    params.get("source_detail"),
+    params.get("rating"),
+    params.get("entered_from"),
+    params.get("entered_to"),
+    params.get("sort") && params.get("sort") !== "newest"
+      ? params.get("sort")
+      : "",
+  ].filter(Boolean).length;
   const pipelineTotal = Object.entries(counts)
     .filter(([stage]) => stage !== "rejected")
     .reduce((sum, [, n]) => sum + n, 0);
@@ -754,109 +765,138 @@ export function RolePipeline({
             );
           }}
         >
-          <input
-            name="q"
-            aria-label="Search candidates in this stage"
-            placeholder="Search name, title, or company…"
-            defaultValue={query}
-            maxLength={200}
-          />
-          <input
-            aria-label="Filter candidates by source or vendor"
-            defaultValue={params.get("source_detail") ?? ""}
-            maxLength={200}
-            name="source_detail"
-            placeholder="Source or vendor"
-          />
-          <select name="source" aria-label="Filter candidates by import method" defaultValue={params.get("source") ?? ""}>
-            <option value="">All import methods</option>
-            {candidateSources.map((source) => (
-              <option key={source} value={source}>
-                {candidateSourceLabels[source]}
-              </option>
-            ))}
-          </select>
-          <select
-            name="rating"
-            aria-label="Filter candidates by rating"
-            defaultValue={params.get("rating") ?? ""}
-          >
-            <option value="">All ratings</option>
-            {ratingFilters.map((filter) => (
-              <option key={filter} value={filter}>
-                {ratingFilterLabels[filter]}
-              </option>
-            ))}
-          </select>
-          <input
-            aria-label="Candidates entered on or after"
-            defaultValue={params.get("entered_from") ?? ""}
-            name="entered_from"
-            type="date"
-          />
-          <input
-            aria-label="Candidates entered on or before"
-            defaultValue={params.get("entered_to") ?? ""}
-            name="entered_to"
-            type="date"
-          />
-          <select name="sort" aria-label="Sort candidates" defaultValue={params.get("sort") ?? "newest"}>
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-            <option value="rating_high">Highest rating</option>
-            <option value="rating_low">Lowest rating</option>
-          </select>
-          <button>Search</button>
-          <div className="candidate-column-menu">
-            <button
-              type="button"
-              aria-expanded={columnMenuOpen}
-              onClick={() => setColumnMenuOpen((open) => !open)}
+          <div className="candidate-toolbar-main">
+            <input
+              className="candidate-search-input"
+              name="q"
+              aria-label="Search candidates in this stage"
+              placeholder="Search candidates…"
+              defaultValue={query}
+              maxLength={200}
+            />
+            <button className="primary" type="submit">Search</button>
+            <details
+              className="candidate-filter-menu"
+              open={filterMenuOpen}
+              onToggle={(event) => setFilterMenuOpen(event.currentTarget.open)}
             >
-              Columns
-            </button>
-            {columnMenuOpen && (
-              <div className="candidate-column-popover">
-                <div className="candidate-column-popover-heading">
-                  <strong>Show and arrange columns</strong>
-                  <button type="button" onClick={resetColumns}>Reset</button>
-                </div>
-                {orderedColumns.map((column, index) => {
-                  const definition = candidateColumns.find((item) => item.id === column);
-                  if (!definition) return null;
-                  return (
-                    <div className="candidate-column-option" key={column}>
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={visibleColumns.includes(column)}
-                          onChange={() => toggleColumn(column)}
-                        />
-                        {definition.label}
-                      </label>
-                      <span className="candidate-column-order" aria-label={`Move ${definition.label}`}>
-                        <button
-                          type="button"
-                          aria-label={`Move ${definition.label} earlier`}
-                          disabled={index === 0}
-                          onClick={() => moveColumn(column, -1)}
-                        ><ChevronUp size={14} /></button>
-                        <button
-                          type="button"
-                          aria-label={`Move ${definition.label} later`}
-                          disabled={index === orderedColumns.length - 1}
-                          onClick={() => moveColumn(column, 1)}
-                        ><ChevronDown size={14} /></button>
-                      </span>
-                    </div>
-                  );
-                })}
+              <summary>
+                <SlidersHorizontal size={14} aria-hidden="true" />
+                Filters
+                {activeCandidateFilterCount > 0 && (
+                  <span>{activeCandidateFilterCount}</span>
+                )}
+              </summary>
+              <div className="candidate-filter-grid">
+                <label>
+                  Source or vendor
+                  <input
+                    defaultValue={params.get("source_detail") ?? ""}
+                    maxLength={200}
+                    name="source_detail"
+                    placeholder="e.g. LinkedIn"
+                  />
+                </label>
+                <label>
+                  Import method
+                  <select name="source" defaultValue={params.get("source") ?? ""}>
+                    <option value="">All methods</option>
+                    {candidateSources.map((source) => (
+                      <option key={source} value={source}>
+                        {candidateSourceLabels[source]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Rating
+                  <select name="rating" defaultValue={params.get("rating") ?? ""}>
+                    <option value="">All ratings</option>
+                    {ratingFilters.map((filter) => (
+                      <option key={filter} value={filter}>
+                        {ratingFilterLabels[filter]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Added from
+                  <input
+                    defaultValue={params.get("entered_from") ?? ""}
+                    name="entered_from"
+                    type="date"
+                  />
+                </label>
+                <label>
+                  Added to
+                  <input
+                    defaultValue={params.get("entered_to") ?? ""}
+                    name="entered_to"
+                    type="date"
+                  />
+                </label>
+                <label>
+                  Sort by
+                  <select name="sort" defaultValue={params.get("sort") ?? "newest"}>
+                    <option value="newest">Newest first</option>
+                    <option value="oldest">Oldest first</option>
+                    <option value="rating_high">Highest rating</option>
+                    <option value="rating_low">Lowest rating</option>
+                  </select>
+                </label>
               </div>
+            </details>
+            <div className="candidate-column-menu">
+              <button
+                type="button"
+                aria-expanded={columnMenuOpen}
+                onClick={() => setColumnMenuOpen((open) => !open)}
+              >
+                Columns
+              </button>
+              {columnMenuOpen && (
+                <div className="candidate-column-popover">
+                  <div className="candidate-column-popover-heading">
+                    <strong>Show and arrange columns</strong>
+                    <button type="button" onClick={resetColumns}>Reset</button>
+                  </div>
+                  {orderedColumns.map((column, index) => {
+                    const definition = candidateColumns.find((item) => item.id === column);
+                    if (!definition) return null;
+                    return (
+                      <div className="candidate-column-option" key={column}>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={visibleColumns.includes(column)}
+                            onChange={() => toggleColumn(column)}
+                          />
+                          {definition.label}
+                        </label>
+                        <span className="candidate-column-order" aria-label={`Move ${definition.label}`}>
+                          <button
+                            type="button"
+                            aria-label={`Move ${definition.label} earlier`}
+                            disabled={index === 0}
+                            onClick={() => moveColumn(column, -1)}
+                          ><ChevronUp size={14} /></button>
+                          <button
+                            type="button"
+                            aria-label={`Move ${definition.label} later`}
+                            disabled={index === orderedColumns.length - 1}
+                            onClick={() => moveColumn(column, 1)}
+                          ><ChevronDown size={14} /></button>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            {(query || activeCandidateFilterCount > 0 || params.get("sort")) && (
+              <Link className="candidate-clear-filters" href={stageFilterUrl({ q: "", source: "", source_detail: "", rating: "", entered_from: "", entered_to: "", sort: "" })}>Clear</Link>
             )}
           </div>
-          {(query || params.get("source") || params.get("source_detail") || params.get("rating") || params.get("entered_from") || params.get("entered_to") || params.get("sort")) && (
-            <Link href={stageFilterUrl({ q: "", source: "", source_detail: "", rating: "", entered_from: "", entered_to: "", sort: "" })}>Clear</Link>
-          )}
         </form>
       )}
       {tab === "analytics" ? (
@@ -1137,7 +1177,7 @@ export function RolePipeline({
               <thead>
                 <tr>
                 {canSelectCandidates && (
-                  <th className="select-cell">
+                  <th className="select-cell" scope="col">
                     <input
                       aria-label="Select all visible candidates"
                       type="checkbox"
@@ -1153,9 +1193,17 @@ export function RolePipeline({
                     />
                   </th>
                 )}
-                <th>Full name</th>
-                {visibleCandidateColumns.map((column) => <th key={column.id}>{column.label}</th>)}
-                {canSelectCandidates && <th>Action</th>}
+                <th className="candidate-name-heading" scope="col">Candidate</th>
+                {visibleCandidateColumns.map((column) => (
+                  <th
+                    className={column.id === "rating" ? "candidate-rating-heading" : undefined}
+                    key={column.id}
+                    scope="col"
+                  >
+                    {column.label}
+                  </th>
+                ))}
+                {canSelectCandidates && <th className="candidate-action-heading" scope="col">Action</th>}
                 </tr>
               </thead>
               <tbody>
@@ -1167,7 +1215,7 @@ export function RolePipeline({
                   className={selected.includes(rc.id) ? "selected-row" : ""}
                 >
                   {canSelectCandidates && (
-                    <td>
+                    <td className="select-cell">
                       <input
                         aria-label={`Select ${rc.candidates.full_name}`}
                         type="checkbox"
@@ -1182,7 +1230,7 @@ export function RolePipeline({
                       />
                     </td>
                   )}
-                  <td>
+                  <td className="candidate-identity-cell">
                     <button
                       type="button"
                       className="text-button strong"
@@ -1215,7 +1263,7 @@ export function RolePipeline({
                       case "experience":
                         return <td key={column.id}>{rc.candidates.total_experience_years != null ? `${rc.candidates.total_experience_years} yrs` : "—"}</td>;
                       case "rating":
-                        return <td key={column.id}><RatingCell
+                        return <td className="candidate-rating-cell" key={column.id}><RatingCell
                           key={`${rc.id}:${rc.rating}`}
                           clientId={client.id}
                           roleCandidateId={rc.id}
@@ -1261,7 +1309,7 @@ export function RolePipeline({
                     }
                   })}
                   {canSelectCandidates && (
-                    <td>
+                    <td className="candidate-action-cell">
                       <div className="candidate-row-actions">
                         {advanceTo && (
                           <button

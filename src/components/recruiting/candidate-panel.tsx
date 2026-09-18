@@ -232,6 +232,9 @@ export function CandidatePanel({
   const [activity, setActivity] = useState<CandidateActivity[]>([]);
   const [activityLoading, setActivityLoading] = useState(true);
   const [activityError, setActivityError] = useState("");
+  const [activeSection, setActiveSection] = useState<
+    "profile" | "screening" | "notes" | "offer" | "activity"
+  >(currentStage === "offer_sent" ? "offer" : "profile");
 
   useEffect(() => {
     let cancelled = false;
@@ -466,17 +469,39 @@ export function CandidatePanel({
       <p className="candidate-source candidate-drawer-source">
         Added from {candidateSourceLabel(rc.source, rc.source_detail)}
       </p>
-      <nav className="candidate-drawer-section-nav" aria-label="Candidate sections">
-        <a href="#candidate-details-heading">Profile</a>
-        <a href="#screening-heading">Screening</a>
-        <a href="#client-notes-heading">Notes</a>
-        {currentStage === "offer_sent" && <a href="#offer-heading">Offer</a>}
-        <a href="#candidate-activity-heading">Activity</a>
+      <nav
+        className="candidate-drawer-section-nav"
+        aria-label="Candidate sections"
+        role="tablist"
+      >
+        {([
+          ["profile", "Profile"],
+          ["screening", "Screening"],
+          ["notes", "Client notes"],
+          ...(currentStage === "offer_sent" ? [["offer", "Offer"]] : []),
+          ["activity", "Activity"],
+        ] as const).map(([section, label]) => (
+          <button
+            aria-selected={activeSection === section}
+            className={activeSection === section ? "selected" : ""}
+            key={section}
+            onClick={() => setActiveSection(section as typeof activeSection)}
+            role="tab"
+            type="button"
+          >
+            {label}
+          </button>
+        ))}
       </nav>
 
       <div className="candidate-drawer-body">
         {currentStage === "offer_sent" && (
-        <section className="candidate-offer" aria-labelledby="offer-heading">
+        <section
+          className="candidate-offer"
+          aria-labelledby="offer-heading"
+          hidden={activeSection !== "offer"}
+          role="tabpanel"
+        >
           <div className="candidate-panel-section-heading">
             <CalendarDays size={16} aria-hidden="true" />
             <h3 id="offer-heading">Offer details</h3>
@@ -547,7 +572,12 @@ export function CandidatePanel({
         </section>
       )}
 
-      <section className="candidate-activity" aria-labelledby="candidate-activity-heading">
+      <section
+        className="candidate-activity"
+        aria-labelledby="candidate-activity-heading"
+        hidden={activeSection !== "activity"}
+        role="tabpanel"
+      >
         <div className="candidate-panel-section-heading">
           <History size={16} aria-hidden="true" />
           <h3 id="candidate-activity-heading">Activity</h3>
@@ -579,6 +609,8 @@ export function CandidatePanel({
       <section
         className="candidate-client-notes candidate-client-notes-section"
         aria-labelledby="client-notes-heading"
+        hidden={activeSection !== "notes"}
+        role="tabpanel"
       >
         <div className="candidate-panel-section-heading">
           <MessageSquareText size={16} aria-hidden="true" />
@@ -594,6 +626,8 @@ export function CandidatePanel({
       <section
         className="candidate-drawer-section candidate-profile-section"
         aria-labelledby="candidate-details-heading"
+        hidden={activeSection !== "profile"}
+        role="tabpanel"
       >
         <h3 id="candidate-details-heading">Candidate details</h3>
         <p className="muted">Shared across every role this candidate is part of. LinkedIn is required.</p>
@@ -705,7 +739,11 @@ export function CandidatePanel({
           </label>
           </div>
         </details>
-        <button disabled={savingDetails} onClick={() => void saveDetails()}>
+        <button
+          className="candidate-section-save"
+          disabled={savingDetails}
+          onClick={() => void saveDetails()}
+        >
           {savingDetails ? "Saving…" : "Save details"}
         </button>
       </section>
@@ -713,40 +751,53 @@ export function CandidatePanel({
       <section
         className="candidate-drawer-section candidate-resume-section"
         aria-labelledby="resume-heading"
+        hidden={activeSection !== "profile"}
       >
-        <h3 id="resume-heading">Resume</h3>
-      {c.resume_path ? (
-        <button type="button" onClick={() => void viewResume()}>
-          View current resume
-        </button>
-      ) : (
-        <p className="muted">No resume on file.</p>
-      )}
-      <label>
-        {c.resume_path ? "Replace resume" : "Upload resume"}{" "}
-        <span className="optional">PDF or Word, up to 10 MB</span>
-        <input
-          type="file"
-          ref={fileRef}
-          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          disabled={uploading}
-        />
-      </label>
-      <button
-        type="button"
-        disabled={uploading}
-        onClick={() => void uploadResume()}
-      >
-        {uploading ? "Uploading…" : "Upload"}
-      </button>
+        <div className="candidate-resume-heading">
+          <div>
+            <h3 id="resume-heading">Resume</h3>
+            <p className="muted">
+              {c.resume_path ? "A resume is on file." : "No resume on file."}
+            </p>
+          </div>
+          {c.resume_path && (
+            <button type="button" onClick={() => void viewResume()}>
+              View resume
+            </button>
+          )}
+        </div>
+        <div className="candidate-resume-upload">
+          <label>
+            <span className="sr-only">
+              {c.resume_path ? "Replace resume" : "Upload resume"}
+            </span>
+            <input
+              type="file"
+              ref={fileRef}
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              disabled={uploading}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={uploading}
+            onClick={() => void uploadResume()}
+          >
+            {uploading ? "Uploading…" : c.resume_path ? "Replace" : "Upload"}
+          </button>
+        </div>
+        <p className="candidate-file-help">PDF or Word, up to 10 MB</p>
       </section>
 
       <section
         className="candidate-drawer-section candidate-screening-section"
         aria-labelledby="screening-heading"
+        hidden={activeSection !== "screening"}
+        role="tabpanel"
       >
         <h3 id="screening-heading">Recruiter screening</h3>
       <p className="muted">For this role only. Never shown to the client.</p>
+      <div className="candidate-screening-grid">
       <label>
         Interest
         <select
@@ -788,6 +839,7 @@ export function CandidatePanel({
           onChange={(e) => setScreening({ ...screening, followUpAt: e.target.value })}
         />
       </label>
+      </div>
       <label>
         Experience notes <span className="optional">optional</span>
         <textarea
@@ -822,7 +874,11 @@ export function CandidatePanel({
           onChange={(e) => setInternalNotes(e.target.value)}
         />
       </label>
-      <button disabled={savingScreening} onClick={() => void saveScreening()}>
+      <button
+        className="candidate-section-save"
+        disabled={savingScreening}
+        onClick={() => void saveScreening()}
+      >
         {savingScreening ? "Saving…" : "Save screening"}
       </button>
       </section>
