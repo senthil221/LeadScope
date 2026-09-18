@@ -3,7 +3,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Briefcase,
-  CalendarClock,
   ChevronDown,
   Crosshair,
   FolderOpen,
@@ -60,10 +59,6 @@ export function Sidebar({ data }: { data: PageData }) {
           <Link className={itemClass(view, ["clients"])} href="/clients">
             <Users size={17} aria-hidden="true" />
             Clients
-          </Link>
-          <Link className="shell-link" href="/clients#today">
-            <CalendarClock size={17} aria-hidden="true" />
-            Today
           </Link>
           {client && (
             <Link
