@@ -1,4 +1,8 @@
 import { canonicalLinkedIn } from "../urls";
+import {
+  isE164Phone,
+  normalizeCandidateEmail,
+} from "./contact";
 
 // Identity kinds the database will merge candidates on. Phone is stored and
 // searchable but never merges: a shared office line is not one person.
@@ -56,14 +60,14 @@ export function normalizeIdentity(
     return url ? { kind, value: url } : null;
   }
   if (kind === "email") {
-    const value = input.toLowerCase();
-    return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value) ? { kind, value } : null;
+    const value = normalizeCandidateEmail(input);
+    return value ? { kind, value } : null;
   }
   if (kind === "phone") {
     // Keep a leading +, drop separators. Not a merge key, so this only has to
     // be stable enough to search on.
     const digits = input.replace(/(?!^\+)[^0-9]/g, "");
-    return /^\+?[0-9]{7,15}$/.test(digits) ? { kind, value: digits } : null;
+    return isE164Phone(digits) ? { kind, value: digits } : null;
   }
   return { kind: "external", value: input };
 }

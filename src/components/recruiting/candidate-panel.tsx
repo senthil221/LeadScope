@@ -19,6 +19,13 @@ import {
 } from "@/lib/recruiting/stages";
 import { RejectDialog } from "./reject-dialog";
 import { normalizeIdentity } from "@/lib/recruiting/identity";
+import {
+  getPhoneCountry,
+  normalizeCandidateEmail,
+  normalizeCandidatePhone,
+  parseStoredPhone,
+  phoneCountries,
+} from "@/lib/recruiting/contact";
 
 async function act<T = { ok: true }>(action: string, payload: unknown): Promise<T> {
   const response = await fetch("/api/action", {
@@ -195,6 +202,7 @@ export function CandidatePanel({
   const existingLinkedin =
     c.candidate_identities?.find((identity) => identity.kind === "linkedin")
       ?.normalized_value ?? "";
+  const initialPhone = parseStoredPhone(c.phone);
 
   const [details, setDetails] = useState({
     fullName: c.full_name,
@@ -204,10 +212,11 @@ export function CandidatePanel({
     location: c.location,
     totalExperienceYears:
       c.total_experience_years != null ? String(c.total_experience_years) : "",
-    phone: c.phone ?? "",
+    phone: initialPhone.nationalNumber,
     email: c.email ?? "",
     linkedin: existingLinkedin,
   });
+  const [phoneCountry, setPhoneCountry] = useState(initialPhone.countryIso);
   const [screening, setScreening] = useState<Screening>(
     (rc.screening as Screening) ?? {},
   );
@@ -263,6 +272,17 @@ export function CandidatePanel({
       setError("A valid LinkedIn profile URL is required.");
       return;
     }
+    const phone = normalizeCandidatePhone(phoneCountry, details.phone);
+    if (phone.error) {
+      setError(phone.error);
+      return;
+    }
+    const emailInput = details.email.trim();
+    const email = normalizeCandidateEmail(emailInput);
+    if (emailInput && !email) {
+      setError("Enter a valid email address, such as name@company.com.");
+      return;
+    }
     setSavingDetails(true);
     setError("");
     try {
@@ -276,10 +296,15 @@ export function CandidatePanel({
         totalExperienceYears: details.totalExperienceYears.trim()
           ? Number(details.totalExperienceYears)
           : null,
-        phone: details.phone.trim() || null,
-        email: details.email.trim() || null,
+        phone: phone.value,
+        email,
         linkedin: linkedin.value,
       });
+      setDetails((current) => ({
+        ...current,
+        phone: current.phone.replace(/\D/g, ""),
+        email: email ?? "",
+      }));
       setMessage("Candidate details saved.");
       onChanged();
     } catch (e) {
@@ -406,7 +431,8 @@ export function CandidatePanel({
       details.location !== c.location ||
       details.totalExperienceYears !==
         (c.total_experience_years != null ? String(c.total_experience_years) : "") ||
-      details.phone !== (c.phone ?? "") ||
+      phoneCountry !== initialPhone.countryIso ||
+      details.phone !== initialPhone.nationalNumber ||
       details.email !== (c.email ?? "") ||
       details.linkedin !== existingLinkedin;
     const screeningChanged =
@@ -721,21 +747,69 @@ export function CandidatePanel({
               }
             />
           </label>
-          <label>
-            Phone <span className="optional">optional</span>
-            <input
-              disabled={savingDetails}
-              value={details.phone}
-              onChange={(e) => setDetails({ ...details, phone: e.target.value })}
-            />
-          </label>
+          <fieldset className="candidate-contact-field">
+            <legend>Phone <span className="optional">optional</span></legend>
+            <div className="phone-input-group">
+              <select
+                aria-label="Phone country code"
+                disabled={savingDetails}
+                value={phoneCountry}
+                onChange={(event) => setPhoneCountry(event.target.value)}
+              >
+                {phoneCountries.map((country) => (
+                  <option key={country.iso} value={country.iso}>
+                    {country.name} ({country.dialCode})
+                  </option>
+                ))}
+              </select>
+              <input
+                aria-label="National phone number"
+                aria-invalid={Boolean(
+                  details.phone &&
+                    normalizeCandidatePhone(phoneCountry, details.phone).error,
+                )}
+                autoComplete="tel-national"
+                disabled={savingDetails}
+                inputMode="numeric"
+                maxLength={getPhoneCountry(phoneCountry).maxDigits}
+                placeholder={getPhoneCountry(phoneCountry).example}
+                type="tel"
+                value={details.phone}
+                onChange={(event) =>
+                  setDetails({
+                    ...details,
+                    phone: event.target.value.replace(/\D/g, ""),
+                  })
+                }
+              />
+            </div>
+            <small className={details.phone && normalizeCandidatePhone(phoneCountry, details.phone).error ? "candidate-field-help field-error-text" : "candidate-field-help"}>
+              {details.phone
+                ? normalizeCandidatePhone(phoneCountry, details.phone).error ??
+                  `Will be saved as ${normalizeCandidatePhone(phoneCountry, details.phone).value}.`
+                : `Choose a country, then enter the number without ${getPhoneCountry(phoneCountry).dialCode}.`}
+            </small>
+          </fieldset>
           <label>
             Email <span className="optional">optional</span>
             <input
+              aria-invalid={Boolean(
+                details.email.trim() && !normalizeCandidateEmail(details.email),
+              )}
+              autoComplete="email"
               disabled={savingDetails}
+              inputMode="email"
+              maxLength={254}
+              placeholder="name@company.com"
+              type="email"
               value={details.email}
               onChange={(e) => setDetails({ ...details, email: e.target.value })}
             />
+            {details.email.trim() && !normalizeCandidateEmail(details.email) && (
+              <small className="candidate-field-help field-error-text">
+                Enter a complete email address, such as name@company.com.
+              </small>
+            )}
           </label>
           </div>
         </details>

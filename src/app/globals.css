@@ -3409,6 +3409,34 @@ tbody tr:hover { background: #f8fbff; }
 .candidate-drawer-heading, .candidate-drawer-navigation, .candidate-drawer-actions { border-color: var(--line); }
 .candidate-drawer-navigation { background: #f8fafc; }
 .candidate-drawer-link-field label { margin: 0; }
+.candidate-contact-field {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.candidate-contact-field legend {
+  margin-bottom: 5px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+.phone-input-group {
+  display: grid;
+  grid-template-columns: minmax(155px, .9fr) minmax(140px, 1.1fr);
+  gap: 8px;
+}
+.phone-input-group select,
+.phone-input-group input { min-width: 0; }
+.candidate-field-help {
+  display: block;
+  margin-top: 5px;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.field-error-text { color: var(--danger); }
+input[aria-invalid="true"] { border-color: var(--danger); }
 .candidate-link {
   display: inline-flex;
   align-items: center;

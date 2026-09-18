@@ -18,6 +18,11 @@ import {
   type Identity,
 } from "../src/lib/recruiting/identity";
 import {
+  normalizeCandidateEmail,
+  normalizeCandidatePhone,
+  parseStoredPhone,
+} from "../src/lib/recruiting/contact";
+import {
   roleCandidateExportCells,
   roleCandidateExportColumns,
   roleCandidateExportColumnsWithFields,
@@ -167,6 +172,36 @@ describe("candidate identity normalization", () => {
     expect(
       hasMergeableIdentity([{ kind: "phone", value: "+919000000000" }]),
     ).toBe(false);
+  });
+});
+
+describe("candidate contact details", () => {
+  it("normalizes valid email and rejects incomplete addresses", () => {
+    expect(normalizeCandidateEmail(" Priya.Nair@Example.COM ")).toBe(
+      "priya.nair@example.com",
+    );
+    expect(normalizeCandidateEmail("priya@example")).toBeNull();
+    expect(normalizeCandidateEmail("priya @example.com")).toBeNull();
+  });
+
+  it("combines a selected country code with the required national digits", () => {
+    expect(normalizeCandidatePhone("IN", "98765 43210")).toEqual({
+      value: "+919876543210",
+      error: null,
+    });
+    expect(normalizeCandidatePhone("IN", "541354").error).toContain(
+      "10 digits",
+    );
+    expect(normalizeCandidatePhone("SG", "81234567").value).toBe(
+      "+6581234567",
+    );
+  });
+
+  it("splits a stored international number back into its form controls", () => {
+    expect(parseStoredPhone("+919876543210")).toEqual({
+      countryIso: "IN",
+      nationalNumber: "9876543210",
+    });
   });
 });
 

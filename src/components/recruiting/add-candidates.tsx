@@ -15,6 +15,13 @@ import {
   type ImportRow,
 } from "@/lib/recruiting/import";
 import { normalizeIdentity } from "@/lib/recruiting/identity";
+import {
+  defaultPhoneCountry,
+  getPhoneCountry,
+  normalizeCandidateEmail,
+  normalizeCandidatePhone,
+  phoneCountries,
+} from "@/lib/recruiting/contact";
 import type { CandidateSource } from "@/lib/recruiting/stages";
 import type { RoleField } from "@/lib/types";
 
@@ -73,6 +80,7 @@ export function AddCandidatesDialog({
   const [mode, setMode] = useState<Mode>("paste");
   const [pasteText, setPasteText] = useState("");
   const [manual, setManual] = useState<DraftRow>(emptyManual);
+  const [manualPhoneCountry, setManualPhoneCountry] = useState(defaultPhoneCountry);
   const [csvText, setCsvText] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -244,7 +252,24 @@ export function AddCandidatesDialog({
     void submit(rows, "url_paste");
   }
   function submitManual() {
-    const built = buildImportRow(manual, { requireLinkedin: true });
+    const emailInput = manual.email?.trim() ?? "";
+    const email = normalizeCandidateEmail(emailInput);
+    if (emailInput && !email) {
+      setError("Enter a valid email address, such as name@company.com.");
+      return;
+    }
+    const phone = normalizeCandidatePhone(
+      manualPhoneCountry,
+      manual.phone ?? "",
+    );
+    if (phone.error) {
+      setError(phone.error);
+      return;
+    }
+    const built = buildImportRow(
+      { ...manual, email: email ?? undefined, phone: phone.value ?? undefined },
+      { requireLinkedin: true },
+    );
     if (isRowError(built)) {
       setError(built.reason);
       return;
@@ -376,19 +401,67 @@ export function AddCandidatesDialog({
           <label>
             Email <span className="optional">optional</span>
             <input
+              aria-invalid={Boolean(
+                manual.email?.trim() && !normalizeCandidateEmail(manual.email),
+              )}
+              autoComplete="email"
               disabled={busy}
+              inputMode="email"
+              maxLength={254}
+              placeholder="name@company.com"
+              type="email"
               value={manual.email ?? ""}
               onChange={(e) => setManual({ ...manual, email: e.target.value })}
             />
+            {manual.email?.trim() && !normalizeCandidateEmail(manual.email) && (
+              <small className="candidate-field-help field-error-text">
+                Enter a complete email address, such as name@company.com.
+              </small>
+            )}
           </label>
-          <label>
-            Phone <span className="optional">optional</span>
-            <input
-              disabled={busy}
-              value={manual.phone ?? ""}
-              onChange={(e) => setManual({ ...manual, phone: e.target.value })}
-            />
-          </label>
+          <fieldset className="candidate-contact-field">
+            <legend>Phone <span className="optional">optional</span></legend>
+            <div className="phone-input-group">
+              <select
+                aria-label="Phone country code"
+                disabled={busy}
+                value={manualPhoneCountry}
+                onChange={(event) => setManualPhoneCountry(event.target.value)}
+              >
+                {phoneCountries.map((country) => (
+                  <option key={country.iso} value={country.iso}>
+                    {country.name} ({country.dialCode})
+                  </option>
+                ))}
+              </select>
+              <input
+                aria-label="National phone number"
+                aria-invalid={Boolean(
+                  manual.phone &&
+                    normalizeCandidatePhone(manualPhoneCountry, manual.phone).error,
+                )}
+                autoComplete="tel-national"
+                disabled={busy}
+                inputMode="numeric"
+                maxLength={getPhoneCountry(manualPhoneCountry).maxDigits}
+                placeholder={getPhoneCountry(manualPhoneCountry).example}
+                type="tel"
+                value={manual.phone ?? ""}
+                onChange={(event) =>
+                  setManual({
+                    ...manual,
+                    phone: event.target.value.replace(/\D/g, ""),
+                  })
+                }
+              />
+            </div>
+            <small className={manual.phone && normalizeCandidatePhone(manualPhoneCountry, manual.phone).error ? "candidate-field-help field-error-text" : "candidate-field-help"}>
+              {manual.phone
+                ? normalizeCandidatePhone(manualPhoneCountry, manual.phone).error ??
+                  `Will be saved as ${normalizeCandidatePhone(manualPhoneCountry, manual.phone).value}.`
+                : `Choose a country, then enter the number without ${getPhoneCountry(manualPhoneCountry).dialCode}.`}
+            </small>
+          </fieldset>
           <label>
             Current company <span className="optional">optional</span>
             <input

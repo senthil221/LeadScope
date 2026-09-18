@@ -2094,6 +2094,17 @@ describe("update_candidate_details: correcting the reusable master record", () =
       email: null,
     });
   });
+  it("lets the authenticated wrapper save the candidate LinkedIn identity", async () => {
+    const id = await person("edit-linkedin-permission");
+    await expect(
+      asUser(actor, () =>
+        rpc("set_candidate_linkedin", [
+          id,
+          "https://www.linkedin.com/in/edit-linkedin-permission",
+        ]),
+      ),
+    ).resolves.toBeDefined();
+  });
   it("rejects a blank name, an out-of-range experience, and an invalid email", async () => {
     const id = await person("edit-invalid");
     await expect(
@@ -2109,6 +2120,33 @@ describe("update_candidate_details: correcting the reusable master record", () =
         rpc("update_candidate_details", [id, "Name", "", "", "", "", null, null, "not-an-email"]),
       ),
     ).rejects.toThrow("valid email");
+    await expect(
+      asUser(actor, () =>
+        rpc("update_candidate_details", [id, "Name", "", "", "", "", null, "541354", null]),
+      ),
+    ).rejects.toThrow("country code");
+    await expect(
+      sql("update public.candidates set phone='not-a-phone' where id=$1", [id]),
+    ).rejects.toThrow("valid phone");
+  });
+  it("stores email in a consistent lowercase format", async () => {
+    const id = await person("edit-email-normalized");
+    await asUser(actor, () =>
+      rpc("update_candidate_details", [
+        id,
+        "Name",
+        "",
+        "",
+        "",
+        "",
+        null,
+        "+919876543210",
+        "Recruiter@Example.COM",
+      ]),
+    );
+    expect(
+      (await sql("select phone,email from public.candidates where id=$1", [id])).rows[0],
+    ).toEqual({ phone: "+919876543210", email: "recruiter@example.com" });
   });
   it("fails for a candidate that does not exist", async () => {
     await expect(

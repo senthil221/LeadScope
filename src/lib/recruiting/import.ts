@@ -57,6 +57,16 @@ export function buildImportRow(
   if (name.length > 200)
     return { row: draft, reason: "Name is too long." };
   const identities: Identity[] = [];
+  if (draft.email?.trim() && !normalizeIdentity("email", draft.email))
+    return {
+      row: draft,
+      reason: "Enter a valid email address, such as name@company.com.",
+    };
+  if (draft.phone?.trim() && !normalizeIdentity("phone", draft.phone))
+    return {
+      row: draft,
+      reason: "Enter the phone with its country code, such as +91 98765 43210.",
+    };
   const tryAdd = (kind: "linkedin" | "naukri" | "email" | "phone", raw?: string) => {
     if (!raw?.trim()) return;
     const identity = normalizeIdentity(kind, raw);

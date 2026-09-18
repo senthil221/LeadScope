@@ -7,6 +7,10 @@ import { campaignSchema, configSchema, uuid } from "@/lib/domain";
 import { generateQueries, normalizeQuery, signature } from "@/lib/queries";
 import { canonicalLinkedIn } from "@/lib/urls";
 import { parseExcludedUrls } from "@/lib/exclusions";
+import {
+  isE164Phone,
+  normalizeCandidateEmail,
+} from "@/lib/recruiting/contact";
 import { processNext } from "@/lib/server/process";
 import { qualify, mergeAssessment } from "@/lib/qualification";
 export const runtime = "nodejs";
@@ -168,11 +172,50 @@ export async function POST(request: Request) {
               .max(200),
           })
           .parse(payload);
+        const rows = p.rows.map((row, index) => {
+          const fields = { ...row.fields };
+          const rawEmail = fields.email;
+          if (rawEmail != null) {
+            const normalized =
+              typeof rawEmail === "string"
+                ? normalizeCandidateEmail(rawEmail)
+                : null;
+            if (!normalized)
+              throw new AppError(
+                `Candidate row ${index + 1} has an invalid email address.`,
+              );
+            fields.email = normalized;
+          }
+          const rawPhone = fields.phone;
+          if (
+            rawPhone != null &&
+            (typeof rawPhone !== "string" || !isE164Phone(rawPhone))
+          )
+            throw new AppError(
+              `Candidate row ${index + 1} needs a phone country code and valid number.`,
+            );
+          const identities = row.identities.map((entry) => {
+            if (entry.kind === "phone" && !isE164Phone(entry.value))
+              throw new AppError(
+                `Candidate row ${index + 1} needs a phone country code and valid number.`,
+              );
+            if (entry.kind === "email") {
+              const normalized = normalizeCandidateEmail(entry.value);
+              if (!normalized)
+                throw new AppError(
+                  `Candidate row ${index + 1} has an invalid email address.`,
+                );
+              return { ...entry, value: normalized };
+            }
+            return entry;
+          });
+          return { ...row, fields, identities };
+        });
         result = checked(
           await db.rpc("import_candidates", {
             p_client: p.clientId,
             p_role: p.roleId,
-            p_rows: p.rows,
+            p_rows: rows,
             p_source: p.source,
           }),
         );
@@ -387,11 +430,22 @@ export async function POST(request: Request) {
             currentDesignation: z.string().max(200).default(""),
             location: z.string().max(200).default(""),
             totalExperienceYears: z.number().min(0).max(70).nullable().default(null),
-            phone: z.string().max(40).nullable().default(null),
-            email: z.string().max(320).nullable().default(null),
+            phone: z.string().max(16).nullable().default(null),
+            email: z.string().max(254).nullable().default(null),
             linkedin: z.string().url().max(500),
           })
           .parse(payload);
+        if (p.phone && !isE164Phone(p.phone))
+          throw new AppError(
+            "Choose the phone country and enter a valid national number.",
+          );
+        const normalizedEmail = p.email
+          ? normalizeCandidateEmail(p.email)
+          : null;
+        if (p.email && !normalizedEmail)
+          throw new AppError(
+            "Enter a valid email address, such as name@company.com.",
+          );
         checked(
           await db.rpc("update_candidate_details", {
             p_id: p.id,
@@ -402,7 +456,7 @@ export async function POST(request: Request) {
             p_location: p.location,
             p_total_experience_years: p.totalExperienceYears,
             p_phone: p.phone,
-            p_email: p.email,
+            p_email: normalizedEmail,
           }),
         );
         checked(

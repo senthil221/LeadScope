@@ -43,20 +43,22 @@ describe("buildImportRow", () => {
       expect(result.fields).toEqual({});
     }
   });
-  it("collects multiple identities and drops invalid ones silently", () => {
+  it("marks a row for attention when an optional contact value is invalid", () => {
     const result = buildImportRow({
       name: "Arjun Mehta",
       linkedin: "https://www.linkedin.com/in/arjun-mehta",
       email: "not-an-email",
       phone: "+91 90000 00000",
     });
-    expect(isRowError(result)).toBe(false);
-    if (!isRowError(result)) {
-      expect(result.identities.map((i) => i.kind).sort()).toEqual([
-        "linkedin",
-        "phone",
-      ]);
-    }
+    expect(isRowError(result) && result.reason).toContain("valid email");
+  });
+  it("requires an international country code for imported phone numbers", () => {
+    const result = buildImportRow({
+      name: "Arjun Mehta",
+      linkedin: "https://www.linkedin.com/in/arjun-mehta",
+      phone: "9000000000",
+    });
+    expect(isRowError(result) && result.reason).toContain("country code");
   });
   it("carries optional fields only when present, trimmed and bounded", () => {
     const result = buildImportRow({
