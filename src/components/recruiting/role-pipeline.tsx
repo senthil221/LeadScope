@@ -791,6 +791,7 @@ export function RolePipeline({
                 <label>
                   Source or vendor
                   <input
+                    aria-label="Filter candidates by source or vendor"
                     defaultValue={params.get("source_detail") ?? ""}
                     maxLength={200}
                     name="source_detail"
@@ -799,7 +800,11 @@ export function RolePipeline({
                 </label>
                 <label>
                   Import method
-                  <select name="source" defaultValue={params.get("source") ?? ""}>
+                  <select
+                    aria-label="Filter candidates by import method"
+                    name="source"
+                    defaultValue={params.get("source") ?? ""}
+                  >
                     <option value="">All methods</option>
                     {candidateSources.map((source) => (
                       <option key={source} value={source}>
@@ -810,7 +815,11 @@ export function RolePipeline({
                 </label>
                 <label>
                   Rating
-                  <select name="rating" defaultValue={params.get("rating") ?? ""}>
+                  <select
+                    aria-label="Filter candidates by rating"
+                    name="rating"
+                    defaultValue={params.get("rating") ?? ""}
+                  >
                     <option value="">All ratings</option>
                     {ratingFilters.map((filter) => (
                       <option key={filter} value={filter}>
@@ -822,6 +831,7 @@ export function RolePipeline({
                 <label>
                   Added from
                   <input
+                    aria-label="Candidates entered on or after"
                     defaultValue={params.get("entered_from") ?? ""}
                     name="entered_from"
                     type="date"
@@ -830,6 +840,7 @@ export function RolePipeline({
                 <label>
                   Added to
                   <input
+                    aria-label="Candidates entered on or before"
                     defaultValue={params.get("entered_to") ?? ""}
                     name="entered_to"
                     type="date"
@@ -837,7 +848,11 @@ export function RolePipeline({
                 </label>
                 <label>
                   Sort by
-                  <select name="sort" defaultValue={params.get("sort") ?? "newest"}>
+                  <select
+                    aria-label="Sort candidates"
+                    name="sort"
+                    defaultValue={params.get("sort") ?? "newest"}
+                  >
                     <option value="newest">Newest first</option>
                     <option value="oldest">Oldest first</option>
                     <option value="rating_high">Highest rating</option>
