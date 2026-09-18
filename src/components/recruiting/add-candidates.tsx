@@ -109,7 +109,7 @@ export function AddCandidatesDialog({
     [automaticMappings, customColumnOverrides, roleFields],
   );
   const csvPreview = useMemo(
-    () => csvImportPreview(csvText, roleFields, customMappings),
+    () => csvImportPreview(csvText, roleFields, customMappings, { requireLinkedin: true }),
     [csvText, customMappings, roleFields],
   );
 
@@ -225,7 +225,7 @@ export function AddCandidatesDialog({
     let invalid = 0;
     for (const line of lines) {
       const identity =
-        normalizeIdentity("linkedin", line) ?? normalizeIdentity("naukri", line);
+        normalizeIdentity("linkedin", line);
       if (!identity) {
         invalid++;
         continue;
@@ -238,13 +238,13 @@ export function AddCandidatesDialog({
     }
     setError(
       invalid
-        ? `${invalid} line${invalid === 1 ? "" : "s"} were not a valid LinkedIn or Naukri profile URL and were skipped.`
+        ? `${invalid} line${invalid === 1 ? "" : "s"} were not a valid LinkedIn profile URL and were skipped.`
         : "",
     );
     void submit(rows, "url_paste");
   }
   function submitManual() {
-    const built = buildImportRow(manual);
+    const built = buildImportRow(manual, { requireLinkedin: true });
     if (isRowError(built)) {
       setError(built.reason);
       return;
@@ -329,7 +329,7 @@ export function AddCandidatesDialog({
       {mode === "paste" && (
         <>
           <label>
-            LinkedIn or Naukri profile URLs, one per line
+            LinkedIn profile URLs, one per line
             <textarea
               rows={8}
               maxLength={20000}
@@ -340,7 +340,7 @@ export function AddCandidatesDialog({
             />
           </label>
           <p className="muted">
-            We&rsquo;ll guess a name from each profile URL. Edit it later once
+            LinkedIn is required for every candidate. We&rsquo;ll guess a name from each profile URL. Edit it later once
             you have real details.
           </p>
           <button
@@ -365,19 +365,12 @@ export function AddCandidatesDialog({
             />
           </label>
           <label>
-            LinkedIn URL <span className="optional">optional</span>
+            LinkedIn URL
             <input
+              required
               disabled={busy}
               value={manual.linkedin ?? ""}
               onChange={(e) => setManual({ ...manual, linkedin: e.target.value })}
-            />
-          </label>
-          <label>
-            Naukri URL <span className="optional">optional</span>
-            <input
-              disabled={busy}
-              value={manual.naukri ?? ""}
-              onChange={(e) => setManual({ ...manual, naukri: e.target.value })}
             />
           </label>
           <label>
@@ -439,11 +432,11 @@ export function AddCandidatesDialog({
             />
           </label>
           <p className="muted">
-            Add at least one of LinkedIn, Naukri, or email.
+            A valid LinkedIn profile URL is required. Email and phone are optional.
           </p>
           <button
             className="primary wide"
-            disabled={busy || !manual.name.trim()}
+            disabled={busy || !manual.name.trim() || !manual.linkedin?.trim()}
             onClick={submitManual}
           >
             {busy ? "Adding…" : "Add candidate"}
@@ -512,7 +505,7 @@ export function AddCandidatesDialog({
             />
           </label>
           <p className="muted">
-            Recognized columns: Full Name (or First Name), {csvTemplateColumns.slice(1).join(", ")}. Extra columns
+            LinkedIn URL is required. Recognized columns: Full Name (or First Name), {csvTemplateColumns.slice(1).join(", ")}. Extra columns
             are ignored unless you map them to a role column below. Column order
             does not matter.
           </p>

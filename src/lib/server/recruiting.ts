@@ -86,7 +86,10 @@ export function roleCandidateListQuery(
 ) {
   let query = db
     .from("role_candidates")
-    .select("*,candidates!inner(*)", includeTotal ? { count: "exact" } : undefined)
+    .select(
+      "*,candidates!inner(*,candidate_identities(kind,normalized_value))",
+      includeTotal ? { count: "exact" } : undefined,
+    )
     .eq("role_id", roleId)
     .eq("stage", stage);
   if (filters.source) query = query.eq("source", filters.source);

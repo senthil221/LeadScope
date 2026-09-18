@@ -389,6 +389,7 @@ export async function POST(request: Request) {
             totalExperienceYears: z.number().min(0).max(70).nullable().default(null),
             phone: z.string().max(40).nullable().default(null),
             email: z.string().max(320).nullable().default(null),
+            linkedin: z.string().url().max(500),
           })
           .parse(payload);
         checked(
@@ -402,6 +403,12 @@ export async function POST(request: Request) {
             p_total_experience_years: p.totalExperienceYears,
             p_phone: p.phone,
             p_email: p.email,
+          }),
+        );
+        checked(
+          await db.rpc("set_candidate_linkedin", {
+            p_id: p.id,
+            p_linkedin: p.linkedin,
           }),
         );
         break;

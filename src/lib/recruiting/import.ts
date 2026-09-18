@@ -32,6 +32,7 @@ export type RowError = { row: DraftRow; reason: string };
 export function isRowError(x: ImportRow | RowError): x is RowError {
   return "reason" in x;
 }
+export type ImportRules = { requireLinkedin?: boolean };
 
 export type CsvImportPreview = {
   totalRows: number;
@@ -47,7 +48,10 @@ export type CsvCustomField = {
   options: string[];
 };
 
-export function buildImportRow(draft: DraftRow): ImportRow | RowError {
+export function buildImportRow(
+  draft: DraftRow,
+  rules: ImportRules = {},
+): ImportRow | RowError {
   const name = draft.name.trim();
   if (!name) return { row: draft, reason: "Missing a name." };
   if (name.length > 200)
@@ -63,6 +67,8 @@ export function buildImportRow(draft: DraftRow): ImportRow | RowError {
   tryAdd("email", draft.email);
   tryAdd("phone", draft.phone);
   const deduped = dedupeIdentities(identities);
+  if (rules.requireLinkedin && !deduped.some((identity) => identity.kind === "linkedin"))
+    return { row: draft, reason: "Add a valid LinkedIn profile URL." };
   if (!hasMergeableIdentity(deduped))
     return {
       row: draft,
@@ -295,6 +301,7 @@ export function csvImportPreview(
   text: string,
   customFields: CsvCustomField[] = [],
   customMappings: Record<string, number | undefined> = {},
+  rules: ImportRules = {},
 ): CsvImportPreview {
   const parsed = parseCsv(text);
   const headers = csvHeaders(text);
@@ -314,7 +321,7 @@ export function csvImportPreview(
   const invalidRows: RowError[] = [];
   const drafts = csvToDraftRows(text);
   for (const [index, draft] of drafts.entries()) {
-    const built = buildImportRow(draft);
+    const built = buildImportRow(draft, rules);
     if (isRowError(built)) {
       invalidRows.push(built);
       continue;

@@ -21,6 +21,15 @@ describe("buildImportRow", () => {
     const result = buildImportRow({ name: "Priya Nair", phone: "+919876543210" });
     expect(isRowError(result) && result.reason).toContain("LinkedIn, Naukri, or email");
   });
+  it("can require a LinkedIn identity for recruiter candidate intake", () => {
+    const result = buildImportRow(
+      { name: "Priya Nair", email: "priya@example.com" },
+      { requireLinkedin: true },
+    );
+    expect(isRowError(result) && result.reason).toBe(
+      "Add a valid LinkedIn profile URL.",
+    );
+  });
   it("builds a row from a LinkedIn URL and normalizes it", () => {
     const result = buildImportRow({
       name: "Priya Nair",
@@ -203,6 +212,18 @@ describe("csvImportPreview", () => {
     );
     expect(preview.validRows[0].sourceDetail).toBe("LinkedIn Recruiter");
     expect(preview.recognizedColumns).toContain("Source");
+  });
+  it("holds CSV rows without LinkedIn when intake requires it", () => {
+    const preview = csvImportPreview(
+      "Full Name,Email\nPriya Nair,priya@example.com",
+      [],
+      {},
+      { requireLinkedin: true },
+    );
+    expect(preview.validRows).toHaveLength(0);
+    expect(preview.invalidRows[0].reason).toBe(
+      "Add a valid LinkedIn profile URL.",
+    );
   });
   it("maps matching role columns and converts their typed values", () => {
     const fields = [

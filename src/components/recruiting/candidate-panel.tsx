@@ -4,6 +4,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
   History,
   MessageSquareText,
   X,
@@ -17,6 +18,7 @@ import {
   type Stage,
 } from "@/lib/recruiting/stages";
 import { RejectDialog } from "./reject-dialog";
+import { normalizeIdentity } from "@/lib/recruiting/identity";
 
 async function act<T = { ok: true }>(action: string, payload: unknown): Promise<T> {
   const response = await fetch("/api/action", {
@@ -190,6 +192,9 @@ export function CandidatePanel({
     "offer_sent",
   ].includes(currentStage);
   const fileRef = useRef<HTMLInputElement>(null);
+  const existingLinkedin =
+    c.candidate_identities?.find((identity) => identity.kind === "linkedin")
+      ?.normalized_value ?? "";
 
   const [details, setDetails] = useState({
     fullName: c.full_name,
@@ -201,6 +206,7 @@ export function CandidatePanel({
       c.total_experience_years != null ? String(c.total_experience_years) : "",
     phone: c.phone ?? "",
     email: c.email ?? "",
+    linkedin: existingLinkedin,
   });
   const [screening, setScreening] = useState<Screening>(
     (rc.screening as Screening) ?? {},
@@ -249,6 +255,11 @@ export function CandidatePanel({
   }, [clientId, rc.id]);
 
   async function saveDetails() {
+    const linkedin = normalizeIdentity("linkedin", details.linkedin);
+    if (!linkedin) {
+      setError("A valid LinkedIn profile URL is required.");
+      return;
+    }
     setSavingDetails(true);
     setError("");
     try {
@@ -264,6 +275,7 @@ export function CandidatePanel({
           : null,
         phone: details.phone.trim() || null,
         email: details.email.trim() || null,
+        linkedin: linkedin.value,
       });
       setMessage("Candidate details saved.");
       onChanged();
@@ -392,7 +404,8 @@ export function CandidatePanel({
       details.totalExperienceYears !==
         (c.total_experience_years != null ? String(c.total_experience_years) : "") ||
       details.phone !== (c.phone ?? "") ||
-      details.email !== (c.email ?? "");
+      details.email !== (c.email ?? "") ||
+      details.linkedin !== existingLinkedin;
     const screeningChanged =
       JSON.stringify(screening) !== JSON.stringify((rc.screening as Screening) ?? {}) ||
       internalNotes !== rc.internal_notes;
@@ -583,7 +596,7 @@ export function CandidatePanel({
         aria-labelledby="candidate-details-heading"
       >
         <h3 id="candidate-details-heading">Candidate details</h3>
-        <p className="muted">Shared across every role this candidate is part of.</p>
+        <p className="muted">Shared across every role this candidate is part of. LinkedIn is required.</p>
         <div className="candidate-drawer-grid">
           <label>
             Full name
@@ -594,6 +607,34 @@ export function CandidatePanel({
               onChange={(e) => setDetails({ ...details, fullName: e.target.value })}
             />
           </label>
+          <div className="candidate-drawer-link-field">
+            <label>
+              LinkedIn profile
+              <input
+                type="url"
+                required
+                maxLength={500}
+                placeholder="https://www.linkedin.com/in/name"
+                disabled={savingDetails}
+                value={details.linkedin}
+                onChange={(e) => setDetails({ ...details, linkedin: e.target.value })}
+              />
+            </label>
+            {details.linkedin && normalizeIdentity("linkedin", details.linkedin) && (
+              <a
+                className="candidate-link"
+                href={normalizeIdentity("linkedin", details.linkedin)?.value}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open LinkedIn profile <ExternalLink size={12} />
+              </a>
+            )}
+          </div>
+        </div>
+        <details className="candidate-profile-more">
+          <summary>Professional and contact details</summary>
+          <div className="candidate-drawer-grid">
           <label>
             Headline <span className="optional">optional</span>
             <input
@@ -662,7 +703,8 @@ export function CandidatePanel({
               onChange={(e) => setDetails({ ...details, email: e.target.value })}
             />
           </label>
-        </div>
+          </div>
+        </details>
         <button disabled={savingDetails} onClick={() => void saveDetails()}>
           {savingDetails ? "Saving…" : "Save details"}
         </button>

@@ -361,7 +361,7 @@ export default async function Page({
           const [rows, roleCounts] = await Promise.all([
             db
               .from("role_candidates")
-              .select("*,candidates!inner(*)", { count: "exact" })
+              .select("*,candidates!inner(*,candidate_identities(kind,normalized_value))", { count: "exact" })
               .eq("role_id", data.role!.id)
               .not("follow_up_at", "is", null)
               .neq("stage", "rejected")

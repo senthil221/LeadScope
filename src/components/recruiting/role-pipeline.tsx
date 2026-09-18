@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronUp,
   CircleHelp,
+  ExternalLink,
   FileCheck2,
   Link as LinkIcon,
   Plus,
@@ -147,6 +148,12 @@ function followUpDate(value: string | null) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function linkedInUrl(candidate: RoleCandidate["candidates"]) {
+  return candidate.candidate_identities?.find(
+    (identity) => identity.kind === "linkedin",
+  )?.normalized_value;
 }
 
 export function RolePipeline({
@@ -1152,7 +1159,9 @@ export function RolePipeline({
                 </tr>
               </thead>
               <tbody>
-              {roleCandidates.map((rc) => (
+              {roleCandidates.map((rc) => {
+                const linkedin = linkedInUrl(rc.candidates);
+                return (
                 <tr
                   key={rc.id}
                   className={selected.includes(rc.id) ? "selected-row" : ""}
@@ -1184,6 +1193,16 @@ export function RolePipeline({
                     <small className="candidate-source">
                       {candidateSourceLabel(rc.source, rc.source_detail)}
                     </small>
+                    {linkedin && (
+                      <a
+                        className="candidate-link candidate-table-link"
+                        href={linkedin}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        LinkedIn <ExternalLink size={11} />
+                      </a>
+                    )}
                   </td>
                   {visibleCandidateColumns.map((column) => {
                     switch (column.id) {
@@ -1268,7 +1287,8 @@ export function RolePipeline({
                     </td>
                   )}
                 </tr>
-              ))}
+                );
+              })}
               </tbody>
             </table>
             {!roleCandidates.length && (

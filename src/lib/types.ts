@@ -148,6 +148,11 @@ export type MasterCandidate = {
   resume_path: string | null;
   enrichment_state: string;
   created_at: string;
+  candidate_identities?: CandidateIdentity[];
+};
+export type CandidateIdentity = {
+  kind: "linkedin" | "naukri" | "email" | "phone" | "external";
+  normalized_value: string;
 };
 export type RoleCandidate = {
   id: string;
