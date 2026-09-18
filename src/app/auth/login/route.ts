@@ -9,6 +9,7 @@ const credentials = z.object({
 });
 export async function POST(request: Request) {
   try {
+    const origin = setup().appUrl ?? new URL(request.url).origin;
     sameOrigin(request);
     if (
       !request.headers
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
     const parsed = credentials.safeParse(Object.fromEntries(form));
     if (!parsed.success)
       return Response.redirect(
-        new URL("/login?error=invalid", request.url),
+        new URL("/login?error=invalid", origin),
         303,
       );
     const { email, password, mode } = parsed.data;
@@ -33,13 +34,13 @@ export async function POST(request: Request) {
       });
       if (error)
         return Response.redirect(
-          new URL("/login?error=signup", request.url),
+          new URL("/login?error=signup", origin),
           303,
         );
       return Response.redirect(
         new URL(
           data.session ? "/clients" : "/login?message=confirm",
-          request.url,
+          origin,
         ),
         303,
       );
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
         }),
       );
     return Response.redirect(
-      new URL(error ? `/login?error=${errorKind}` : "/clients", request.url),
+      new URL(error ? `/login?error=${errorKind}` : "/clients", origin),
       303,
     );
   } catch (error) {
