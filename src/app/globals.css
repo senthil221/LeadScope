@@ -1317,9 +1317,10 @@ label small {
 
 /* The grid scrolls inside its own frame and fills the rest of the viewport,
    so the header row stays put and more candidates are visible at once. */
+/* Tall enough to be worth scrolling, but a short stage should not leave a
+   void underneath it. */
 .sheet-table-frame {
   max-height: calc(100vh - var(--header-h) - 186px);
-  min-height: 340px;
   overflow: auto;
   scrollbar-gutter: stable;
 }
@@ -3892,10 +3893,10 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 
 /* Each column takes the room its data needs. A date and a job title are not
    the same width, and forcing them to be pushed the table past the screen. */
-.sheet-table .w-xs { width: 78px; min-width: 78px; }
-.sheet-table .w-sm { width: 108px; min-width: 108px; }
-.sheet-table .w-md { width: 150px; min-width: 150px; }
-.sheet-table .w-lg { width: 210px; min-width: 210px; }
+.sheet-table .w-xs { width: 76px; min-width: 76px; }
+.sheet-table .w-sm { width: 104px; min-width: 104px; }
+.sheet-table .w-md { width: 138px; min-width: 138px; }
+.sheet-table .w-lg { width: 188px; min-width: 188px; }
 .sheet-table .is-numeric .sheet-cell { justify-content: flex-end; }
 .sheet-table th.is-numeric { text-align: right; }
 
@@ -4025,7 +4026,7 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .sheet-link-button:hover { text-decoration: underline; }
 
 .candidate-action-heading,
-.candidate-action-cell { width: 1%; min-width: 220px; white-space: nowrap; }
+.candidate-action-cell { width: 1%; min-width: 150px; white-space: nowrap; }
 .candidate-row-actions { justify-content: flex-end; }
 .candidate-row-actions button { min-height: 30px; }
 .table-wrap { scrollbar-gutter: stable; }

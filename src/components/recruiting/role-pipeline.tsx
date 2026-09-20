@@ -1591,10 +1591,9 @@ export function RolePipeline({
                             className="small primary"
                             disabled={busy || Boolean(movingCandidateId) || role.archived}
                             onClick={() => void moveCandidateToNextStage(rc)}
+                            title={`Move to ${stageLabels[advanceTo]}`}
                           >
-                            {movingCandidateId === rc.id
-                              ? "Moving…"
-                              : `Move to ${stageLabels[advanceTo]}`}
+                            {movingCandidateId === rc.id ? "Moving…" : "Advance"}
                           </button>
                         )}
                         {canRejectFromTab && (
