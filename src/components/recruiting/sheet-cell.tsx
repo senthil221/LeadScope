@@ -116,6 +116,23 @@ export function SheetCell({
       node.select();
   }, [editing]);
 
+  // Committing moves focus to the next cell while this one is still mounted,
+  // so close the editor once focus has actually left rather than relying on
+  // every exit path to tear it down itself.
+  useEffect(() => {
+    if (!editing) return;
+    const node = rootRef.current;
+    if (!node) return;
+    const onFocusOut = (event: FocusEvent) => {
+      const next = event.relatedTarget as Node | null;
+      if (next && node.contains(next)) return;
+      editingRef.current = false;
+      setEditing(false);
+    };
+    node.addEventListener("focusout", onFocusOut);
+    return () => node.removeEventListener("focusout", onFocusOut);
+  }, [editing]);
+
   function beginEdit(initial?: string) {
     if (readOnly) return;
     editingRef.current = true;
