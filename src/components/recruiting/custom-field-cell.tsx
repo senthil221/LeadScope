@@ -1,17 +1,10 @@
 "use client";
 import { useState } from "react";
 import type { RoleField } from "@/lib/types";
+import { act as sharedAct } from "@/lib/client/act";
 
-async function act(action: string, payload: unknown): Promise<void> {
-  const response = await fetch("/api/action", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, payload }),
-  });
-  if (!response.ok) {
-    const result = await response.json();
-    throw new Error(result.error ?? "Could not save this column.");
-  }
+function act(action: string, payload: unknown): Promise<void> {
+  return sharedAct<void>(action, payload, "Could not save this column.");
 }
 
 type Value = string | number | boolean | undefined;

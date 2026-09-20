@@ -1,17 +1,10 @@
 "use client";
 import { useState } from "react";
 import { outcomes, type Outcome } from "@/lib/recruiting/stages";
+import { act as sharedAct } from "@/lib/client/act";
 
-async function act(payload: unknown): Promise<void> {
-  const response = await fetch("/api/action", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "recordOutcome", payload }),
-  });
-  if (!response.ok) {
-    const result = await response.json();
-    throw new Error(result.error ?? "Could not save. Try again.");
-  }
+function act(payload: unknown): Promise<void> {
+  return sharedAct<void>("recordOutcome", payload, "Could not save. Try again.");
 }
 
 // Keyed by the current outcome ("none" for null): what this candidate can

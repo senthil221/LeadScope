@@ -24,17 +24,10 @@ import {
 } from "@/lib/recruiting/contact";
 import type { CandidateSource } from "@/lib/recruiting/stages";
 import type { RoleField } from "@/lib/types";
+import { act as sharedAct } from "@/lib/client/act";
 
-async function act<T>(action: string, payload: unknown): Promise<T> {
-  const response = await fetch("/api/action", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, payload }),
-  });
-  const result = await response.json();
-  if (!response.ok)
-    throw new Error(result.error ?? "The import failed. Try again.");
-  return result;
+function act<T>(action: string, payload: unknown): Promise<T> {
+  return sharedAct<T>(action, payload, "The import failed. Try again.");
 }
 
 export type ImportSummary = {

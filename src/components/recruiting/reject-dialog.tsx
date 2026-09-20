@@ -2,17 +2,10 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { rejectionTypes, type RejectionType } from "@/lib/recruiting/stages";
+import { act as sharedAct } from "@/lib/client/act";
 
-async function act(action: string, payload: unknown): Promise<void> {
-  const response = await fetch("/api/action", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, payload }),
-  });
-  if (!response.ok) {
-    const result = await response.json();
-    throw new Error(result.error ?? "Could not reject. Try again.");
-  }
+function act(action: string, payload: unknown): Promise<void> {
+  return sharedAct<void>(action, payload, "Could not reject. Try again.");
 }
 
 // Mirrors reject_candidate_form.html: a mandatory reason, a choice between a

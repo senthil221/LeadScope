@@ -26,16 +26,10 @@ import {
   parseStoredPhone,
   phoneCountries,
 } from "@/lib/recruiting/contact";
+import { act as sharedAct } from "@/lib/client/act";
 
-async function act<T = { ok: true }>(action: string, payload: unknown): Promise<T> {
-  const response = await fetch("/api/action", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, payload }),
-  });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error ?? "Could not save. Try again.");
-  return result;
+function act<T = { ok: true }>(action: string, payload: unknown): Promise<T> {
+  return sharedAct<T>(action, payload, "Could not save. Try again.");
 }
 
 // Screening keys, matching the spec's list minus location and recruiter

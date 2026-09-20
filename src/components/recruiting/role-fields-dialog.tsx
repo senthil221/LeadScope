@@ -2,16 +2,10 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import type { RoleField } from "@/lib/types";
+import { act as sharedAct } from "@/lib/client/act";
 
-async function act(action: string, payload: unknown): Promise<{ id: string }> {
-  const response = await fetch("/api/action", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, payload }),
-  });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error ?? "Could not save. Try again.");
-  return result;
+function act(action: string, payload: unknown): Promise<{ id: string }> {
+  return sharedAct<{ id: string }>(action, payload, "Could not save. Try again.");
 }
 
 const kindLabels: Record<RoleField["kind"], string> = {

@@ -3,16 +3,10 @@
 import { useState } from "react";
 import { CircleHelp, X } from "lucide-react";
 import type { RoleField, ShareLink } from "@/lib/types";
+import { act as sharedAct } from "@/lib/client/act";
 
-async function act<T>(action: string, payload: unknown): Promise<T> {
-  const response = await fetch("/api/action", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, payload }),
-  });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error ?? "Could not save. Try again.");
-  return result;
+function act<T>(action: string, payload: unknown): Promise<T> {
+  return sharedAct<T>(action, payload, "Could not save. Try again.");
 }
 
 const shareColumns = [

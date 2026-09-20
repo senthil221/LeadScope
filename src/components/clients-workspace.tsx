@@ -6,16 +6,10 @@ import { useState } from "react";
 import { ArrowRight, FolderOpen, ListChecks, Plus, X } from "lucide-react";
 import { AppShell } from "@/components/shell/AppShell";
 import type { PageData } from "@/lib/types";
+import { act as sharedAct } from "@/lib/client/act";
 
-async function act<T>(action: string, payload: unknown): Promise<T> {
-  const response = await fetch("/api/action", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, payload }),
-  });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error ?? "Could not save the client.");
-  return result;
+function act<T>(action: string, payload: unknown): Promise<T> {
+  return sharedAct<T>(action, payload, "Could not save the client.");
 }
 
 const date = (value: string) =>
