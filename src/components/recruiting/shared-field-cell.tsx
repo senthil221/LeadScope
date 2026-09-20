@@ -28,6 +28,7 @@ export function SharedFieldCell({
   value,
   kind,
   options,
+  multiline = false,
 }: {
   token: string;
   roleCandidateId: string;
@@ -35,11 +36,13 @@ export function SharedFieldCell({
   value: Value;
   kind: Kind;
   options?: string[];
+  multiline?: boolean;
 }) {
   const [current, setCurrent] = useState<Value>(value);
   const [saved, setSaved] = useState<Value>(value);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [saveNote, setSaveNote] = useState("");
 
   async function commit(next: Value) {
     if (saving) return;
@@ -53,6 +56,10 @@ export function SharedFieldCell({
         value: next === undefined ? null : next,
       });
       setSaved(next);
+      // Clients are giving feedback the agency acts on, so confirm the note
+      // reached them rather than leaving the field looking unsent.
+      setSaveNote("Saved");
+      setTimeout(() => setSaveNote(""), 2000);
     } catch (e) {
       setCurrent(previous);
       setError((e as Error).message);
@@ -60,6 +67,39 @@ export function SharedFieldCell({
       setSaving(false);
     }
   }
+
+  if (multiline)
+    return (
+      <div className="shared-note">
+        <textarea
+          aria-label="Notes"
+          className="shared-note-input"
+          disabled={saving}
+          onBlur={() => {
+            if (current !== saved) void commit(current);
+          }}
+          onChange={(event) => {
+            setCurrent(event.target.value || undefined);
+            // Grow with the note so a long comment stays readable instead of
+            // scrolling inside a two-line box.
+            event.target.style.height = "auto";
+            event.target.style.height = `${event.target.scrollHeight}px`;
+          }}
+          placeholder="Add your feedback for this candidate…"
+          rows={2}
+          value={(current as string) ?? ""}
+        />
+        <div className="shared-note-status" aria-live="polite">
+          {error ? (
+            <small className="error" role="alert">
+              {error}
+            </small>
+          ) : (
+            <small>{saving ? "Saving…" : saveNote}</small>
+          )}
+        </div>
+      </div>
+    );
 
   if (kind === "boolean")
     return (

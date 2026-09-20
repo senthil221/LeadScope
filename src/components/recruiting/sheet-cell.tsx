@@ -8,6 +8,12 @@ import {
 } from "react";
 import type { CellKind } from "@/lib/recruiting/columns";
 
+// A pasted block is written through the cells themselves so each one keeps its
+// own validation, optimistic value and error handling.
+export type SheetCellNode = HTMLElement & {
+  __sheetCommit?: ((value: string) => Promise<void>) | null;
+};
+
 // Cells are addressed through the DOM rather than a registry: columns differ
 // per tab and rows paginate, so a coordinate lookup that reads what is
 // actually rendered stays correct without a second source of truth.
@@ -91,6 +97,7 @@ export function SheetCell({
   const editingRef = useRef(false);
   const pendingRef = useRef("");
   const selectOnEditRef = useRef(true);
+  const savedRef = useRef<string | null>(null);
 
   // A refresh after a save elsewhere (a stage move, an import) should win over
   // whatever this cell last rendered. Adjusting during render rather than in an
@@ -98,7 +105,14 @@ export function SheetCell({
   const [lastValue, setLastValue] = useState(value);
   if (value !== lastValue) {
     setLastValue(value);
-    setCurrent(value);
+    // A save that refreshes the page (a rating, an outcome) can read the row
+    // back before the write is visible. Keep the value this cell just saved
+    // until the server reports that same value, so an edit never appears to
+    // undo itself a moment after it landed.
+    if (savedRef.current === null || value === savedRef.current) {
+      savedRef.current = null;
+      setCurrent(value);
+    }
   }
 
   useEffect(() => {
@@ -132,6 +146,19 @@ export function SheetCell({
     node.addEventListener("focusout", onFocusOut);
     return () => node.removeEventListener("focusout", onFocusOut);
   }, [editing]);
+
+  // Re-attached on every render so the handler a paste calls always closes over
+  // the current value rather than the one from the render that mounted it.
+  useEffect(() => {
+    const node = rootRef.current as SheetCellNode | null;
+    if (!node) return;
+    node.__sheetCommit = readOnly
+      ? null
+      : (next: string) => commit(next, null);
+    return () => {
+      node.__sheetCommit = null;
+    };
+  });
 
   function beginEdit(initial?: string) {
     if (readOnly) return;
@@ -176,6 +203,7 @@ export function SheetCell({
       return;
     }
     const previous = current;
+    savedRef.current = next;
     setCurrent(next);
     setStatus("saving");
     setError("");
@@ -185,6 +213,7 @@ export function SheetCell({
       setStatus("idle");
       onSaved?.(next);
     } catch (e) {
+      savedRef.current = null;
       // A rejected save puts the recruiter back on the cell that failed, with
       // the old value restored, rather than leaving a half-open editor behind.
       editingRef.current = false;

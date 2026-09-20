@@ -204,13 +204,17 @@ export default async function SharePage({
                     const kind = staticEditableKinds[key] ?? "text";
                     const value = (row as Record<string, unknown>)[key] as string | undefined;
                     return (
-                      <td key={key}>
+                      <td
+                        className={key === "client_notes" ? "shared-note-cell" : undefined}
+                        key={key}
+                      >
                         <SharedFieldCell
                           token={token}
                           roleCandidateId={row.id}
                           column={key}
                           value={value}
                           kind={kind}
+                          multiline={key === "client_notes"}
                         />
                       </td>
                     );

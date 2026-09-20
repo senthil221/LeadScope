@@ -47,7 +47,7 @@ import { CandidatePanel } from "./candidate-panel";
 import { RoleFieldsDialog } from "./role-fields-dialog";
 import { ShareDialog } from "./share-dialog";
 import { RoleAnalytics } from "./role-analytics";
-import { SheetCell } from "./sheet-cell";
+import { SheetCell, type SheetCellNode } from "./sheet-cell";
 import { candidateColumns, type CandidateColumn } from "@/lib/recruiting/columns";
 import { act as sharedAct } from "@/lib/client/act";
 
@@ -316,6 +316,76 @@ export function RolePipeline({
     }
     setNavigatingTo(key);
   }
+  // Paste a block copied out of Google Sheets or Excel. Both put tab-separated
+  // rows on the clipboard, so the grid fills right and down from the selected
+  // cell the way a spreadsheet does, skipping anything read-only.
+  async function pasteIntoGrid(event: React.ClipboardEvent<HTMLTableElement>) {
+    const active = document.activeElement as HTMLElement | null;
+    // While a cell is being edited the input handles its own paste.
+    if (!active?.matches("[data-sheet-cell]")) return;
+    const text = event.clipboardData.getData("text/plain");
+    if (!text) return;
+    const block = text
+      .replace(/\r\n?/g, "\n")
+      .replace(/\n$/, "")
+      .split("\n")
+      .slice(0, 200)
+      .map((line) => line.split("\t").slice(0, 40));
+    if (block.length === 1 && block[0].length === 1) return;
+    event.preventDefault();
+    const grid = active.closest("[data-sheet-grid]");
+    if (!grid) return;
+    const startRow = Number(active.dataset.row);
+    const rowCells = (row: number) =>
+      [...grid.querySelectorAll<SheetCellNode>(`[data-sheet-cell][data-row="${row}"]`)]
+        .sort((a, b) => Number(a.dataset.col) - Number(b.dataset.col));
+    const startColumn = rowCells(startRow).indexOf(active as SheetCellNode);
+    const writes: { node: SheetCellNode; value: string }[] = [];
+    let skipped = 0;
+    block.forEach((line, rowOffset) => {
+      const cells = rowCells(startRow + rowOffset);
+      if (!cells.length) {
+        skipped += 1;
+        return;
+      }
+      line.forEach((value, columnOffset) => {
+        const node = cells[startColumn + columnOffset];
+        if (node?.__sheetCommit) writes.push({ node, value: value.trim() });
+      });
+    });
+    if (!writes.length) {
+      setError("That paste did not line up with any editable column.");
+      return;
+    }
+    setError("");
+    setMessage(`Pasting ${writes.length} cells…`);
+    // A wide paste is a lot of single-field saves; a small window keeps the
+    // API responsive without dropping any of them.
+    const failures: string[] = [];
+    for (let index = 0; index < writes.length; index += 6) {
+      await Promise.all(
+        writes.slice(index, index + 6).map(async ({ node, value }) => {
+          try {
+            await node.__sheetCommit?.(value);
+          } catch (e) {
+            failures.push((e as Error).message);
+          }
+        }),
+      );
+    }
+    const pastedRows = block.length - skipped;
+    setMessage(
+      [
+        `Pasted ${writes.length} cells across ${pastedRows} row${pastedRows === 1 ? "" : "s"}.`,
+        skipped ? `${skipped} row${skipped === 1 ? "" : "s"} had no matching row in this tab — add those candidates first.` : "",
+        failures.length ? `${failures.length} cells could not be saved.` : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
+    router.refresh();
+  }
+
   // One cell renderer for the whole grid. Every editable column resolves to a
   // single-field save so one recruiter typing in a cell never overwrites a
   // column another recruiter changed a moment earlier.
@@ -715,9 +785,12 @@ export function RolePipeline({
             <h1>{role.name}</h1>
             <span className={`badge ${role.status}`}>{role.status.replace("_", " ")}</span>
           </div>
-          <p className="muted">
-            {role.description || "Track this role's candidate pipeline."}
-          </p>
+          <div className="role-summary" aria-label="Role summary">
+            <span><strong>{pipelineTotal}</strong> active</span>
+            <span><strong>{counts.all_profiles ?? 0}</strong> awaiting rating</span>
+            <span>Floor <strong>{role.rating_threshold} / 5</strong></span>
+            <span><strong>{counts.rejected ?? 0}</strong> rejected</span>
+          </div>
         </div>
         <div className="header-actions">
           {!role.archived && (
@@ -752,12 +825,7 @@ export function RolePipeline({
           </div>
         </div>
       )}
-      <div className="role-summary" aria-label="Role summary">
-        <span><strong>{pipelineTotal}</strong> active candidates</span>
-        <span><strong>{counts.all_profiles ?? 0}</strong> awaiting rating</span>
-        <span>Rating floor <strong>{role.rating_threshold} / 5</strong></span>
-        <span><strong>{counts.rejected ?? 0}</strong> rejected</span>
-      </div>
+      <div className="role-tab-bar">
       <div className="tabs role-stage-tabs" aria-label="Candidate stages">
         {pipelineTabs.map(({ key, label }) => (
           <Link
@@ -776,7 +844,6 @@ export function RolePipeline({
         ))}
       </div>
       <nav className="role-secondary-nav" aria-label="Role tools">
-        <span>Views</span>
         <Link className={isFollowUpsTab ? "selected" : ""} href={tabUrl("follow_ups")}>
           Follow-ups
         </Link>
@@ -787,12 +854,12 @@ export function RolePipeline({
           Analytics
         </Link>
       </nav>
+      </div>
       {isStage(tab) && (
-        <div className="section-heading role-table-heading">
-          <div>
-            <h2>{tab === "rejected" ? "Rejects" : stageLabels[tab as Stage]}</h2>
-            <p className="muted">{total} candidate{total === 1 ? "" : "s"}</p>
-          </div>
+        <div className="role-table-actions">
+          <span className="role-table-count">
+            {total} candidate{total === 1 ? "" : "s"}
+          </span>
           <div className="row">
             <button
               disabled={!total || exporting}
@@ -807,7 +874,7 @@ export function RolePipeline({
               <>
                 <button onClick={() => setSharing("client")}>Manage links</button>
                 <button
-                  className="primary small"
+                  className="primary"
                   disabled={!total || role.archived}
                   onClick={() => setSharing("client")}
                 >
@@ -817,12 +884,10 @@ export function RolePipeline({
               </>
             ) : null}
             {tab === "all_profiles" && !role.archived && (
-              <>
-                <button onClick={() => setApplying(true)}>
-                  <SlidersHorizontal size={15} />
-                  Apply threshold
-                </button>
-              </>
+              <button onClick={() => setApplying(true)}>
+                <SlidersHorizontal size={15} />
+                Apply threshold
+              </button>
             )}
           </div>
         </div>
@@ -1316,10 +1381,11 @@ export function RolePipeline({
         </>
       ) : (
         <>
-          <div className="card table-wrap">
+          <div className="card table-wrap sheet-table-frame">
             <table
               className={`candidate-table sheet-table${canSelectCandidates ? " has-select" : ""}`}
               data-sheet-grid=""
+              onPaste={(event) => void pasteIntoGrid(event)}
               role="grid"
             >
               <thead>

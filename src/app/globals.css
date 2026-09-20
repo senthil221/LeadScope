@@ -797,12 +797,10 @@ label small {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 14px 0 22px;
+  margin: 0;
+  padding-left: 14px;
+  border-left: 1px solid var(--line);
   font-size: 13px;
-}
-.role-secondary-nav > span {
-  color: var(--muted);
-  margin-right: 4px;
 }
 .role-secondary-nav a {
   padding: 4px 8px;
@@ -1243,12 +1241,49 @@ label small {
   margin-bottom: 24px;
 }
 .role-workspace-header {
-  margin-bottom: 16px;
-  padding-bottom: 18px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
 }
-.role-workspace-header .eyebrow { margin-bottom: 4px; }
-.role-workspace-header h1 { font-size: clamp(22px, 2.3vw, 30px); }
+.role-workspace-header .eyebrow { margin-bottom: 2px; }
+.role-workspace-header h1 {
+  margin-bottom: 0;
+  font-size: clamp(20px, 1.9vw, 25px);
+}
+
+/* Stage tabs and the secondary views share one row, so the grid starts
+   higher up the page. */
+.role-tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.role-tab-bar .role-stage-tabs { margin: 0; }
+
+.role-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.role-table-count {
+  color: var(--muted);
+  font-size: 13px;
+}
+.role-table-actions button { min-height: 32px; }
+
+/* The grid scrolls inside its own frame and fills the rest of the viewport,
+   so the header row stays put and more candidates are visible at once. */
+.sheet-table-frame {
+  max-height: calc(100vh - var(--header-h) - 250px);
+  min-height: 320px;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
 .page-header h1 {
   margin-bottom: 6px;
 }
@@ -1527,25 +1562,18 @@ tbody tr:hover td.col-arrow a {
   gap: 14px;
   margin: 24px 0 0;
 }
+/* Role stats sit with the title rather than in their own band: the grid below
+   is the work surface and every block above it costs rows on screen. */
 .role-summary {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  gap: 16px;
+  margin-top: 6px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 12.5px;
 }
-.role-summary span {
-  flex: 1 1 120px;
-  padding: 11px 14px;
-  border-right: 1px solid var(--line);
-  white-space: nowrap;
-}
-.role-summary span:last-child { border-right: 0; }
+.role-summary span { white-space: nowrap; }
 .role-summary strong { color: var(--ink); font-weight: 650; }
 .role-action-queue {
   margin: 18px 0 22px;
@@ -3715,6 +3743,37 @@ input[aria-invalid="true"] { border-color: var(--danger); }
   border-top: 5px solid #dc2626;
   border-left: 5px solid transparent;
 }
+/* Client-facing notes. This is the one field a client actually fills in, so
+   it gets real room and a clear saved state. */
+.shared-note-cell {
+  min-width: 280px;
+  vertical-align: top;
+}
+.shared-note-input {
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  max-height: 280px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  overflow: hidden;
+}
+.shared-note-input:focus {
+  border-color: var(--brand);
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+.shared-note-status {
+  min-height: 16px;
+  margin-top: 3px;
+}
+.shared-note-status small { color: var(--muted); font-size: 11.5px; }
+
 .sheet-link-button {
   min-height: 30px;
   padding: 0 10px;
