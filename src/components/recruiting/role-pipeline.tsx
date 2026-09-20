@@ -320,9 +320,16 @@ export function RolePipeline({
   // rows on the clipboard, so the grid fills right and down from the selected
   // cell the way a spreadsheet does, skipping anything read-only.
   async function pasteIntoGrid(event: React.ClipboardEvent<HTMLTableElement>) {
-    const active = document.activeElement as HTMLElement | null;
-    // While a cell is being edited the input handles its own paste.
-    if (!active?.matches("[data-sheet-cell]")) return;
+    const target = event.target as HTMLElement;
+    // While a cell is being edited its own editor handles the paste.
+    if (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+    const active =
+      target.closest<HTMLElement>("[data-sheet-cell]") ??
+      (document.activeElement as HTMLElement | null)?.closest?.<HTMLElement>(
+        "[data-sheet-cell]",
+      ) ??
+      null;
+    if (!active) return;
     const text = event.clipboardData.getData("text/plain");
     if (!text) return;
     const block = text
