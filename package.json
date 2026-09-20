@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --project unit",
-    "test:db": "vitest run --project database"
+    "test:db": "vitest run --project database",
+    "test:e2e": "playwright test"
   },
   "engines": {
     "node": ">=22"
@@ -27,6 +28,7 @@
     "zod": "4.5.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "26.5.0",
     "@types/pg": "8.23.1",
