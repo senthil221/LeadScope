@@ -196,6 +196,10 @@ export function SheetCell({
   function onCellKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     const node = rootRef.current;
     if (!node) return;
+    // The editor lives inside this div, so its keydowns bubble here too. The
+    // input has already handled them — re-reading Enter after it committed
+    // would immediately reopen the editor on a cell that just saved.
+    if (event.target !== event.currentTarget) return;
     // Keys that land here after an edit started belong to the input that is
     // about to take focus, not to grid navigation. Escape, Enter and Tab are
     // still answered here: if the input never takes focus, swallowing them
