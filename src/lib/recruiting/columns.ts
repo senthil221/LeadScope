@@ -23,11 +23,18 @@ export type CandidateColumnId =
   | "offer_details"
   | "outcome";
 
+// Columns are sized to the data they hold rather than a uniform minimum, so
+// a date does not take the same room as a job title and the table stays
+// narrow enough to read without scrolling for the common stages.
+export type ColumnWidth = "xs" | "sm" | "md" | "lg";
+
 export type CandidateColumn = {
   id: CandidateColumnId | `custom:${string}`;
   label: string;
   kind: CellKind;
   editable: boolean;
+  width: ColumnWidth;
+  numeric?: boolean;
   placeholder?: string;
   field?: RoleField;
 };
@@ -51,84 +58,98 @@ const triageStages: Stage[] = ["all_profiles", "profile_shortlisted"];
 
 type Spec = Omit<CandidateColumn, "field"> & { stages: Stage[] };
 
+// Labels are what a recruiter would write at the top of a column. "Current"
+// is redundant in a table of current employment, and the shorter heading
+// leaves the column sized by its data instead of its title.
 const specs: Spec[] = [
-  { id: "date_added", label: "Date added", kind: "date", editable: false, stages: everyStage },
-  { id: "linkedin", label: "LinkedIn", kind: "text", editable: false, stages: everyStage },
-  { id: "source", label: "Source", kind: "text", editable: false, stages: triageStages },
+  { id: "date_added", label: "Added", kind: "date", editable: false, width: "sm", stages: everyStage },
+  { id: "linkedin", label: "LinkedIn", kind: "text", editable: false, width: "sm", stages: everyStage },
+  { id: "source", label: "Source", kind: "text", editable: false, width: "md", stages: triageStages },
   {
     id: "rating",
     label: "Rating",
     kind: "number",
     editable: true,
+    width: "xs",
+    numeric: true,
     placeholder: "0.0–5.0",
     stages: triageStages,
   },
   {
     id: "phone",
-    label: "Mobile number",
+    label: "Mobile",
     kind: "text",
     editable: true,
+    width: "md",
     placeholder: "+91…",
     stages: ["profile_shortlisted", ...detailStages],
   },
-  { id: "email", label: "Email", kind: "text", editable: true, stages: detailStages },
+  { id: "email", label: "Email", kind: "text", editable: true, width: "lg", stages: detailStages },
   {
     id: "location",
-    label: "Current location",
+    label: "Location",
     kind: "text",
     editable: true,
+    width: "md",
     stages: detailStages,
   },
   {
     id: "current_company",
-    label: "Current company",
+    label: "Company",
     kind: "text",
     editable: true,
+    width: "md",
     stages: detailStages,
   },
   {
     id: "current_designation",
-    label: "Current designation",
+    label: "Designation",
     kind: "text",
     editable: true,
+    width: "lg",
     stages: detailStages,
   },
   {
     id: "total_experience_years",
-    label: "Experience (yrs)",
+    label: "Exp",
     kind: "number",
     editable: true,
+    width: "xs",
+    numeric: true,
     stages: detailStages,
   },
   {
     id: "current_ctc",
-    label: "Current CTC",
+    label: "CTC",
     kind: "text",
     editable: true,
+    width: "sm",
+    numeric: true,
     placeholder: "18 LPA",
     stages: detailStages,
   },
   {
     id: "highest_qualification",
-    label: "Highest qualification",
+    label: "Qualification",
     kind: "text",
     editable: true,
+    width: "md",
     stages: detailStages,
   },
-  { id: "resume", label: "Resume", kind: "text", editable: false, stages: detailStages },
-  { id: "notes", label: "Notes", kind: "text", editable: true, stages: detailStages },
+  { id: "resume", label: "Resume", kind: "text", editable: false, width: "xs", stages: detailStages },
+  { id: "notes", label: "Notes", kind: "text", editable: true, width: "lg", stages: detailStages },
 ];
 
 // Rejections and offers are outcomes rather than details to fill in, so they
 // sit after the detail block on the one tab each belongs to.
 const tabExtras: Partial<Record<Stage, Spec[]>> = {
   rejected: [
-    { id: "reject_type", label: "Reject type", kind: "text", editable: false, stages: [] },
-    { id: "reject_reason", label: "Reason", kind: "text", editable: false, stages: [] },
+    { id: "reject_type", label: "Reject type", kind: "text", editable: false, width: "sm", stages: [] },
+    { id: "reject_reason", label: "Reason", kind: "text", editable: false, width: "lg", stages: [] },
   ],
   offer_sent: [
-    { id: "offer_details", label: "Offer details", kind: "text", editable: false, stages: [] },
-    { id: "outcome", label: "Outcome", kind: "select", editable: true, stages: [] },
+    { id: "offer_details", label: "Offer", kind: "text", editable: false, width: "md", stages: [] },
+    { id: "outcome", label: "Outcome", kind: "select", editable: true, width: "md", stages: [] },
   ],
 };
 
@@ -138,6 +159,8 @@ function withoutStages(spec: Spec): CandidateColumn {
     label: spec.label,
     kind: spec.kind,
     editable: spec.editable,
+    width: spec.width,
+    numeric: spec.numeric,
     placeholder: spec.placeholder,
   };
 }
@@ -156,6 +179,10 @@ export function candidateColumns(
         label: field.label,
         kind: field.kind as CellKind,
         editable: true,
+        width: (field.kind === "number" || field.kind === "date"
+          ? "sm"
+          : "md") as ColumnWidth,
+        numeric: field.kind === "number",
         field,
       })),
     );

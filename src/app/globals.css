@@ -2481,44 +2481,169 @@ details h3 {
 
 /* The client link has no application navigation. Its frame establishes who
    shared the shortlist and leaves candidates as the visual focus. */
+/* ---------- Client shortlist ----------
+   The one page a client sees. They read a handful of people and write a
+   sentence about each, so it is a review list rather than a wide table:
+   nothing scrolls sideways, and the feedback box is the obvious thing to
+   use on every card. */
+
 .shared-page {
   min-height: 100vh;
-  padding: 28px;
-  background: #f7f8f6;
+  padding: 0 0 56px;
+  background: var(--bg);
 }
-.shared-frame { width: min(100%, 1180px); margin: 0 auto; }
-.shared-header {
+.shared-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 42px;
-  padding: 0 2px 16px;
+  gap: 16px;
+  padding: 14px clamp(16px, 4vw, 40px);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
   color: var(--muted);
   font-size: 13px;
 }
-.shared-header-brand,
 .shared-brand {
   color: var(--ink);
   font-weight: 700;
   letter-spacing: -0.02em;
 }
-.shared-header-client { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.shared-intro {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 24px 26px;
-  margin-bottom: 14px;
-  background: var(--surface);
+.shared-topbar-client {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shared-frame {
+  width: min(100%, 780px);
+  margin: 0 auto;
+  padding: 0 clamp(16px, 4vw, 24px);
+}
+
+.shared-intro { padding: 40px 0 26px; }
+.shared-eyebrow {
+  margin: 0 0 8px;
+  color: var(--brand-ink);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.shared-intro h1 {
+  margin: 0 0 10px;
+  font-size: clamp(26px, 4vw, 34px);
+  letter-spacing: -0.025em;
+}
+.shared-lede {
+  max-width: 60ch;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.shared-list {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.shared-candidate {
+  padding: 22px clamp(18px, 3vw, 26px);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
-.shared-intro h1 { margin: 3px 0 4px; font-size: 24px; }
-.shared-intro p { margin: 0; color: var(--muted); font-size: 13px; }
-.shared-intro-meta { display: grid; justify-items: end; gap: 7px; color: var(--muted); font-size: 12px; text-align: right; }
-.shared-table { background: var(--surface); }
-.shared-table table { min-width: 760px; }
+.shared-candidate-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.shared-candidate-index {
+  flex: none;
+  min-width: 26px;
+  padding-top: 3px;
+  color: var(--faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.shared-candidate-identity { flex: 1 1 auto; min-width: 0; }
+.shared-candidate-identity h2 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: -0.015em;
+}
+.shared-candidate-identity p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.shared-profile-link {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--brand-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.shared-profile-link:hover {
+  border-color: var(--brand-line);
+  background: var(--brand-soft);
+}
+
+.shared-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px 20px;
+  margin: 20px 0 0;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--line);
+}
+.shared-fact { min-width: 0; }
+.shared-fact dt {
+  margin-bottom: 3px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.shared-fact dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+
+.shared-feedback {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.shared-feedback-label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+.shared-feedback-readonly {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.shared-footer {
+  margin-top: 28px;
+  color: var(--faint);
+  font-size: 12px;
+  text-align: center;
+}
 .shared-message-page { display: grid; place-items: center; padding: 24px; }
 .shared-message { width: min(100%, 430px); padding: 30px; text-align: center; }
 .shared-message h1 { margin: 14px 0 8px; font-size: 19px; }
@@ -3688,19 +3813,24 @@ input[aria-invalid="true"] { border-color: var(--danger); }
   position: sticky;
   top: 0;
   z-index: 3;
-  padding: 7px 10px;
-  background: #f5f8ff;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line-strong);
+  background: #f7f9fd;
+  color: var(--ink-soft);
   font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
   white-space: nowrap;
 }
 .sheet-table .select-cell,
 .sheet-table .candidate-open-cell,
 .sheet-table .candidate-open-heading { border-right: 1px solid var(--line); }
-.sheet-table tbody tr:hover .sheet-cell.is-editable:not(:focus) {
-  background: #fbfcff;
-}
+.sheet-table tbody tr:hover td { background: #f9fbff; }
+.sheet-table tbody tr:hover .sheet-td-pinned,
+.sheet-table tbody tr:hover .sheet-serial,
+.sheet-table tbody tr:hover .select-cell,
+.sheet-table tbody tr:hover .candidate-open-cell { background: #f9fbff; }
 
 /* Pinned identity columns. Offsets are fixed widths so the sticky stack lines
    up whether or not the selection checkbox column is present. */
@@ -3740,22 +3870,34 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .selected-row .sheet-serial,
 .selected-row .candidate-open-cell { background: var(--brand-soft); }
 
+/* The expander is a per-row control, not something to look at seventeen times
+   over. It appears on the row you are working in. */
 .candidate-open-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  min-height: 24px;
+  width: 22px;
+  min-height: 22px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
   color: var(--faint);
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--t-ease);
 }
+.sheet-table tbody tr:hover .candidate-open-button,
+.candidate-open-button:focus-visible { opacity: 1; }
 .candidate-open-button:hover { background: var(--brand-soft); color: var(--brand-ink); }
 
-.sheet-th { min-width: 130px; }
-.sheet-td { min-width: 130px; }
+/* Each column takes the room its data needs. A date and a job title are not
+   the same width, and forcing them to be pushed the table past the screen. */
+.sheet-table .w-xs { width: 78px; min-width: 78px; }
+.sheet-table .w-sm { width: 108px; min-width: 108px; }
+.sheet-table .w-md { width: 150px; min-width: 150px; }
+.sheet-table .w-lg { width: 210px; min-width: 210px; }
+.sheet-table .is-numeric .sheet-cell { justify-content: flex-end; }
+.sheet-table th.is-numeric { text-align: right; }
 
 .sheet-cell {
   display: flex;
@@ -3818,10 +3960,6 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 }
 /* Client-facing notes. This is the one field a client actually fills in, so
    it gets real room and a clear saved state. */
-.shared-note-cell {
-  min-width: 280px;
-  vertical-align: top;
-}
 .shared-note-input {
   display: block;
   width: 100%;

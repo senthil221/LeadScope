@@ -491,7 +491,10 @@ export function RolePipeline({
         save: (value: string) => Promise<void>;
       },
     ) => (
-      <td className="sheet-td" key={column.id}>
+      <td
+        className={`sheet-td w-${column.width}${column.numeric ? " is-numeric" : ""}`}
+        key={column.id}
+      >
         <SheetCell
           col={colIndex}
           kind={column.kind}
@@ -549,7 +552,10 @@ export function RolePipeline({
       case "linkedin": {
         const url = linkedInUrl(rc.candidates);
         return (
-          <td className="sheet-td candidate-linkedin-cell" key={column.id}>
+          <td
+            className={`sheet-td w-${column.width} candidate-linkedin-cell`}
+            key={column.id}
+          >
             {url ? (
               <a className="candidate-link" href={url} rel="noreferrer" target="_blank">
                 Open profile <ExternalLink size={11} />
@@ -562,13 +568,13 @@ export function RolePipeline({
       }
       case "resume":
         return (
-          <td className="sheet-td" key={column.id}>
+          <td className={`sheet-td w-${column.width}`} key={column.id}>
             <button
               className="sheet-link-button"
               onClick={() => setPanelId(rc.id)}
               type="button"
             >
-              {rc.candidates.resume_path ? "View resume" : "Upload"}
+              {rc.candidates.resume_path ? "View" : "Upload"}
             </button>
           </td>
         );
@@ -618,7 +624,10 @@ export function RolePipeline({
         });
       case "offer_details":
         return (
-          <td className="sheet-td offer-details-cell" key={column.id}>
+          <td
+            className={`sheet-td w-${column.width} offer-details-cell`}
+            key={column.id}
+          >
             <button
               className="offer-details-trigger"
               onClick={() => setPanelId(rc.id)}
@@ -1509,7 +1518,11 @@ export function RolePipeline({
                 </th>
                 <th className="sheet-th sheet-th-pinned" scope="col">Full name</th>
                 {visibleCandidateColumns.map((column) => (
-                  <th className="sheet-th" key={column.id} scope="col">
+                  <th
+                    className={`sheet-th w-${column.width}${column.numeric ? " is-numeric" : ""}`}
+                    key={column.id}
+                    scope="col"
+                  >
                     {column.label}
                   </th>
                 ))}
@@ -1629,7 +1642,10 @@ export function RolePipeline({
                       {visibleCandidateColumns.map((column, columnIndex) => {
                         const editable = isDraftColumnEditable(column.id);
                         return (
-                          <td className="sheet-td" key={column.id}>
+                          <td
+                            className={`sheet-td w-${column.width}`}
+                            key={column.id}
+                          >
                             {editable ? (
                               <SheetCell
                                 col={columnIndex + 1}
@@ -1662,13 +1678,6 @@ export function RolePipeline({
                 })}
               </tbody>
             </table>
-            {!role.archived && (
-              <p className="sheet-draft-note">
-                Type or paste into the blank row to add candidates. A LinkedIn
-                profile URL identifies each person, so a row is added once it has
-                a name and that URL.
-              </p>
-            )}
             {!roleCandidates.length && (
               <div className="empty">
                 <h3>{candidateEmptyMessage(tab, query)}</h3>

@@ -138,97 +138,135 @@ export default async function SharePage({
     );
   }
 
-  const columns = staticOrder
-    .filter((k) => data.visibleColumns.includes(k))
-    .concat(data.fields.map((f) => f.key));
   const stageName = isStage(data.stage) ? stageLabels[data.stage] : data.stage;
-  const editableLabels = data.editableColumns.map(
-    (key) => staticLabels[key] ?? data.fields.find((f) => f.key === key)?.label ?? key,
-  );
+  const shown = (key: string) => data.visibleColumns.includes(key);
+  const canEdit = (key: string) => data.editableColumns.includes(key);
+  // Name, profile and current role introduce a person; everything else reads
+  // better as labelled facts than as another column to scroll past.
+  const summarised = new Set([
+    "full_name",
+    "linkedin",
+    "current_designation",
+    "current_company",
+    "client_notes",
+  ]);
+  const factKeys = staticOrder
+    .filter((key) => shown(key) && !summarised.has(key))
+    .concat(data.fields.map((field) => field.key));
+  const labelFor = (key: string) =>
+    staticLabels[key] ?? data.fields.find((field) => field.key === key)?.label ?? key;
 
   return (
     <main className="shared-page">
+      <header className="shared-topbar">
+        <span className="shared-brand">LeadScope</span>
+        <span className="shared-topbar-client">{data.clientName}</span>
+      </header>
       <div className="shared-frame">
-        <header className="shared-header">
-          <div className="shared-header-brand">LeadScope</div>
-          <div className="shared-header-client">{data.clientName}</div>
-        </header>
         <section className="shared-intro">
-          <div>
-            <div className="eyebrow">Candidate shortlist</div>
-            <h1>{data.roleName}</h1>
-            <p>{data.rows.length} candidate{data.rows.length === 1 ? "" : "s"} ready for your review.</p>
-          </div>
-          <div className="shared-intro-meta">
-            <span className="badge accepted">{stageName}</span>
-            <span>
-              {editableLabels.length
-                ? `You can update ${editableLabels.join(", ")}.`
-                : "View-only access"}
-            </span>
-          </div>
+          <p className="shared-eyebrow">{stageName}</p>
+          <h1>{data.roleName}</h1>
+          <p className="shared-lede">
+            {data.rows.length
+              ? `${data.rows.length} candidate${data.rows.length === 1 ? "" : "s"} for your review.`
+              : "No candidates have been shared yet."}
+            {canEdit("client_notes") && data.rows.length
+              ? " Leave your feedback under any profile — it saves as you type and reaches the recruiting team straight away."
+              : ""}
+          </p>
         </section>
-        <div className="card table-wrap shared-table">
-          <table>
-            <thead>
-              <tr>
-                {columns.map((key) => (
-                  <th key={key}>
-                    {staticLabels[key] ?? data.fields.find((f) => f.key === key)?.label ?? key}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {data.rows.map((row) => (
-                <tr key={row.id}>
-                  {columns.map((key) => {
-                    if (key === "linkedin") {
-                      return (
-                        <td className="candidate-linkedin-cell" key={key}>
-                          {row.linkedin ? (
-                            <a
-                              className="candidate-link"
-                              href={row.linkedin}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              Open profile <ExternalLink size={11} />
-                            </a>
-                          ) : "—"}
-                        </td>
-                      );
-                    }
-                    if (!data.editableColumns.includes(key))
-                      return <td key={key}>{cell(row, key, data.fields)}</td>;
-                    const kind = staticEditableKinds[key] ?? "text";
-                    const value = (row as Record<string, unknown>)[key] as string | undefined;
-                    return (
-                      <td
-                        className={key === "client_notes" ? "shared-note-cell" : undefined}
-                        key={key}
+
+        {data.rows.length ? (
+          <ol className="shared-list">
+            {data.rows.map((row, index) => {
+              const subtitle = [
+                shown("current_designation") ? row.current_designation : "",
+                shown("current_company") ? row.current_company : "",
+              ]
+                .filter(Boolean)
+                .join(" · ");
+              return (
+                <li className="shared-candidate" key={row.id}>
+                  <div className="shared-candidate-head">
+                    <span className="shared-candidate-index" aria-hidden="true">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <div className="shared-candidate-identity">
+                      <h2>{(shown("full_name") && row.full_name) || "Candidate"}</h2>
+                      {subtitle && <p>{subtitle}</p>}
+                    </div>
+                    {shown("linkedin") && row.linkedin && (
+                      <a
+                        className="shared-profile-link"
+                        href={row.linkedin}
+                        rel="noreferrer"
+                        target="_blank"
                       >
+                        LinkedIn <ExternalLink size={13} />
+                      </a>
+                    )}
+                  </div>
+
+                  {factKeys.length > 0 && (
+                    <dl className="shared-facts">
+                      {factKeys.map((key) => (
+                        <div className="shared-fact" key={key}>
+                          <dt>{labelFor(key)}</dt>
+                          <dd>
+                            {canEdit(key) ? (
+                              <SharedFieldCell
+                                token={token}
+                                roleCandidateId={row.id}
+                                column={key}
+                                value={
+                                  (row as Record<string, unknown>)[key] as string | undefined
+                                }
+                                kind={staticEditableKinds[key] ?? "text"}
+                              />
+                            ) : (
+                              cell(row, key, data.fields)
+                            )}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+
+                  {shown("client_notes") && (
+                    <div className="shared-feedback">
+                      <span className="shared-feedback-label">
+                        {canEdit("client_notes") ? "Your feedback" : "Notes"}
+                      </span>
+                      {canEdit("client_notes") ? (
                         <SharedFieldCell
                           token={token}
                           roleCandidateId={row.id}
-                          column={key}
-                          value={value}
-                          kind={kind}
-                          multiline={key === "client_notes"}
+                          column="client_notes"
+                          value={row.client_notes}
+                          kind="text"
+                          multiline
                         />
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!data.rows.length && (
-            <div className="empty">
-              <h3>No candidates in this stage yet.</h3>
-            </div>
-          )}
-        </div>
+                      ) : (
+                        <p className="shared-feedback-readonly">
+                          {row.client_notes || "No notes yet."}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <div className="card empty">
+            <h3>Nothing to review yet</h3>
+            <p>Your recruiter will add candidates to this shortlist shortly.</p>
+          </div>
+        )}
+
+        <footer className="shared-footer">
+          Shared by {data.clientName}&rsquo;s recruiting team via LeadScope.
+        </footer>
       </div>
     </main>
   );
