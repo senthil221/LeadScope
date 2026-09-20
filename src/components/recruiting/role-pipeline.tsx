@@ -49,6 +49,7 @@ import { ShareDialog } from "./share-dialog";
 import { RoleAnalytics } from "./role-analytics";
 import { SheetCell, type SheetCellNode } from "./sheet-cell";
 import { candidateColumns, type CandidateColumn } from "@/lib/recruiting/columns";
+import { isSingleValue, parsePastedBlock } from "@/lib/recruiting/paste";
 import { act as sharedAct } from "@/lib/client/act";
 
 function act<T = { id: string }>(action: string, payload: unknown = {}): Promise<T> {
@@ -330,15 +331,8 @@ export function RolePipeline({
       ) ??
       null;
     if (!active) return;
-    const text = event.clipboardData.getData("text/plain");
-    if (!text) return;
-    const block = text
-      .replace(/\r\n?/g, "\n")
-      .replace(/\n$/, "")
-      .split("\n")
-      .slice(0, 200)
-      .map((line) => line.split("\t").slice(0, 40));
-    if (block.length === 1 && block[0].length === 1) return;
+    const block = parsePastedBlock(event.clipboardData.getData("text/plain"));
+    if (!block.length || isSingleValue(block)) return;
     event.preventDefault();
     const grid = active.closest("[data-sheet-grid]");
     if (!grid) return;
@@ -357,7 +351,7 @@ export function RolePipeline({
       }
       line.forEach((value, columnOffset) => {
         const node = cells[startColumn + columnOffset];
-        if (node?.__sheetCommit) writes.push({ node, value: value.trim() });
+        if (node?.__sheetCommit) writes.push({ node, value });
       });
     });
     if (!writes.length) {
