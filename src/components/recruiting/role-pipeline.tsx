@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   Archive,
   ChevronDown,
@@ -12,6 +12,7 @@ import {
   Maximize2,
   Plus,
   SlidersHorizontal,
+  X,
 } from "lucide-react";
 import type {
   Client,
@@ -188,6 +189,19 @@ export function RolePipeline({
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
   const [drafts, setDrafts] = useState<DraftRow[]>(() => [newDraft()]);
   const creatingDrafts = useRef(new Set<string>());
+
+  // Confirmations are not worth reading twice; clear them on their own.
+  // Failures stay longer, and can be dismissed, because they need acting on.
+  useEffect(() => {
+    if (!message) return;
+    const timer = setTimeout(() => setMessage(""), 3000);
+    return () => clearTimeout(timer);
+  }, [message]);
+  useEffect(() => {
+    if (!error) return;
+    const timer = setTimeout(() => setError(""), 9000);
+    return () => clearTimeout(timer);
+  }, [error]);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [columnPreference, setColumnPreference] = useState<string | null>(null);
   const [navigatingTo, setNavigatingTo] = useState<Tab | null>(null);
@@ -881,15 +895,22 @@ export function RolePipeline({
           </button>
         </div>
       </header>
-      {error && (
-        <p className="toast error" role="alert">
-          {error}
-        </p>
-      )}
-      {message && (
-        <p className="toast success" role="status">
-          {message}
-        </p>
+      {(error || message) && (
+        <div className="toast-stack">
+          {error && (
+            <p className="toast error" role="alert">
+              {error}
+              <button aria-label="Dismiss" onClick={() => setError("")} type="button">
+                <X size={14} />
+              </button>
+            </p>
+          )}
+          {message && (
+            <p className="toast success" role="status">
+              {message}
+            </p>
+          )}
+        </div>
       )}
       {role.archived && (
         <div className="notice">
@@ -930,43 +951,6 @@ export function RolePipeline({
         </Link>
       </nav>
       </div>
-      {isStage(tab) && (
-        <div className="role-table-actions">
-          <span className="role-table-count">
-            {total} candidate{total === 1 ? "" : "s"}
-          </span>
-          <div className="row">
-            <button
-              disabled={!total || exporting}
-              onClick={() => void exportCandidates()}
-            >
-              {exporting ? "Preparing…" : "Export CSV"}
-            </button>
-            {tab === "recruiter_shortlisted" && (
-              <button onClick={() => setManagingFields(true)}>Manage columns</button>
-            )}
-            {tab === "recruiter_shortlisted" ? (
-              <>
-                <button onClick={() => setSharing("client")}>Manage links</button>
-                <button
-                  className="primary"
-                  disabled={!total || role.archived}
-                  onClick={() => setSharing("client")}
-                >
-                  <LinkIcon size={15} />
-                  Share with client
-                </button>
-              </>
-            ) : null}
-            {tab === "all_profiles" && !role.archived && (
-              <button onClick={() => setApplying(true)}>
-                <SlidersHorizontal size={15} />
-                Apply threshold
-              </button>
-            )}
-          </div>
-        </div>
-      )}
       {canSelectCandidates && selected.length > 0 && (
         <div className="bulk-bar">
           <strong>{selected.length} selected</strong>
@@ -990,6 +974,7 @@ export function RolePipeline({
         </div>
       )}
       {isStage(tab) && (
+        <div className="sheet-bar">
         <form
           className="sheet-toolbar candidate-search candidate-toolbar"
           onSubmit={(event) => {
@@ -1156,6 +1141,40 @@ export function RolePipeline({
             )}
           </div>
         </form>
+        <div className="sheet-bar-actions">
+          <span className="role-table-count">
+            {total} candidate{total === 1 ? "" : "s"}
+          </span>
+          <button
+            disabled={!total || exporting}
+            onClick={() => void exportCandidates()}
+          >
+            {exporting ? "Preparing…" : "Export CSV"}
+          </button>
+          {tab === "recruiter_shortlisted" && (
+            <button onClick={() => setManagingFields(true)}>Manage columns</button>
+          )}
+          {tab === "recruiter_shortlisted" && (
+            <>
+              <button onClick={() => setSharing("client")}>Manage links</button>
+              <button
+                className="primary"
+                disabled={!total || role.archived}
+                onClick={() => setSharing("client")}
+              >
+                <LinkIcon size={15} />
+                Share with client
+              </button>
+            </>
+          )}
+          {tab === "all_profiles" && !role.archived && (
+            <button onClick={() => setApplying(true)}>
+              <SlidersHorizontal size={15} />
+              Apply threshold
+            </button>
+          )}
+        </div>
+        </div>
       )}
       {tab === "analytics" ? (
         <>
@@ -1482,6 +1501,9 @@ export function RolePipeline({
                     />
                   </th>
                 )}
+                <th className="sheet-serial-heading" scope="col">
+                  <span className="sr-only">Row</span>
+                </th>
                 <th className="candidate-open-heading" scope="col">
                   <span className="sr-only">Open candidate</span>
                 </th>
@@ -1517,6 +1539,7 @@ export function RolePipeline({
                       />
                     </td>
                   )}
+                  <td className="sheet-serial">{(page - 1) * 50 + rowIndex + 1}</td>
                   <td className="candidate-open-cell">
                     <button
                       aria-label={`Open ${rc.candidates.full_name}`}
@@ -1583,6 +1606,9 @@ export function RolePipeline({
                   return (
                     <tr className="sheet-draft-row" key={draft.key}>
                       {canSelectCandidates && <td className="select-cell" />}
+                      <td className="sheet-serial sheet-serial-draft">
+                        {(page - 1) * 50 + rowIndex + 1}
+                      </td>
                       <td className="candidate-open-cell">
                         <span className="sheet-draft-marker" aria-hidden="true">
                           +
