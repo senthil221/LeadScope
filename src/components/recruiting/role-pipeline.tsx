@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import {
   Archive,
   ChevronDown,
@@ -50,6 +50,14 @@ import { RoleAnalytics } from "./role-analytics";
 import { SheetCell, type SheetCellNode } from "./sheet-cell";
 import { candidateColumns, type CandidateColumn } from "@/lib/recruiting/columns";
 import { isSingleValue, parsePastedBlock } from "@/lib/recruiting/paste";
+import {
+  draftBlocker,
+  draftImportRow,
+  isDraftColumnEditable,
+  isDraftEmpty,
+  isDraftReady,
+  type DraftRow,
+} from "@/lib/recruiting/drafts";
 import { act as sharedAct } from "@/lib/client/act";
 
 function act<T = { id: string }>(action: string, payload: unknown = {}): Promise<T> {
@@ -58,6 +66,12 @@ function act<T = { id: string }>(action: string, payload: unknown = {}): Promise
 
 type Tab = Stage | "follow_ups" | "master_db" | "analytics";
 type ColumnId = CandidateColumn["id"];
+
+// Keys only have to be unique and stable for React's benefit, and a draft
+// never outlives the browser session that created it.
+function newDraft(): DraftRow {
+  return { key: crypto.randomUUID(), values: {} };
+}
 const pipelineTabs: { key: Tab; label: string }[] = [
   ...stages
     .filter((s) => s !== "rejected")
@@ -172,6 +186,8 @@ export function RolePipeline({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
+  const [drafts, setDrafts] = useState<DraftRow[]>(() => [newDraft()]);
+  const creatingDrafts = useRef(new Set<string>());
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [columnPreference, setColumnPreference] = useState<string | null>(null);
   const [navigatingTo, setNavigatingTo] = useState<Tab | null>(null);
@@ -189,10 +205,8 @@ export function RolePipeline({
     "client_shortlisted",
     "offer_sent",
   ].includes(tab);
-  const tabColumns = useMemo(
-    () => (isStage(tab) ? candidateColumns(tab, roleFields) : []),
-    [roleFields, tab],
-  );
+  // Cheap and pure; the compiler memoizes it without a manual dependency list.
+  const tabColumns = isStage(tab) ? candidateColumns(tab, roleFields) : [];
 
   const advanceTo =
     isPipelineTab && tab !== "all_profiles"
@@ -317,6 +331,66 @@ export function RolePipeline({
     }
     setNavigatingTo(key);
   }
+  // Blank rows wait at the bottom of the grid the way they do in a spreadsheet.
+  // A row turns into a real candidate as soon as it has a name and a LinkedIn
+  // profile; until then it is local and costs nothing.
+  // The ref is the source of truth rather than the state: a pasted block
+  // commits many cells at once, and each one has to see what the previous cell
+  // just wrote instead of the state from the last render.
+  const draftsRef = useRef(drafts);
+  const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function setDraftValue(key: string, columnId: string, value: string) {
+    const next = draftsRef.current.map((row) =>
+      row.key === key
+        ? { ...row, values: { ...row.values, [columnId]: value } }
+        : row,
+    );
+    // Always leave one untouched row to type into.
+    draftsRef.current = next.some(isDraftEmpty) ? next : [...next, newDraft()];
+    setDrafts(draftsRef.current);
+    // Coalesce, so filling a row cell by cell — or pasting twenty — becomes a
+    // single import rather than one per keystroke.
+    if (flushTimer.current) clearTimeout(flushTimer.current);
+    flushTimer.current = setTimeout(() => void flushDrafts(), 400);
+  }
+
+  async function flushDrafts() {
+    const ready = draftsRef.current.filter(
+      (row) => isDraftReady(row) && !creatingDrafts.current.has(row.key),
+    );
+    if (!ready.length) return;
+    ready.forEach((row) => creatingDrafts.current.add(row.key));
+    try {
+      const summary = await act<ImportSummary>("importCandidates", {
+        clientId: client.id,
+        roleId: role.id,
+        source: "manual",
+        rows: ready.map(draftImportRow),
+      });
+      const addedKeys = new Set(ready.map((row) => row.key));
+      const remaining = draftsRef.current.filter((row) => !addedKeys.has(row.key));
+      draftsRef.current = remaining.some(isDraftEmpty)
+        ? remaining
+        : [...remaining, newDraft()];
+      setDrafts(draftsRef.current);
+      const parts = [
+        summary.created ? `${summary.created} added` : "",
+        summary.matchedExisting
+          ? `${summary.matchedExisting} matched an existing candidate`
+          : "",
+        summary.alreadyInRole ? `${summary.alreadyInRole} already in this role` : "",
+        summary.invalid ? `${summary.invalid} could not be read` : "",
+      ].filter(Boolean);
+      setMessage(parts.join(" · ") || "Nothing to add.");
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      ready.forEach((row) => creatingDrafts.current.delete(row.key));
+    }
+  }
+
   // Paste a block copied out of Google Sheets or Excel. Both put tab-separated
   // rows on the clipboard, so the grid fills right and down from the selected
   // cell the way a spreadsheet does, skipping anything read-only.
@@ -1502,8 +1576,73 @@ export function RolePipeline({
                 </tr>
                 );
               })}
+              {!role.archived &&
+                drafts.map((draft, draftIndex) => {
+                  const rowIndex = roleCandidates.length + draftIndex;
+                  const blocker = draftBlocker(draft);
+                  return (
+                    <tr className="sheet-draft-row" key={draft.key}>
+                      {canSelectCandidates && <td className="select-cell" />}
+                      <td className="candidate-open-cell">
+                        <span className="sheet-draft-marker" aria-hidden="true">
+                          +
+                        </span>
+                      </td>
+                      <td className="sheet-td sheet-td-pinned">
+                        <SheetCell
+                          col={0}
+                          label={`New candidate name, row ${rowIndex + 1}`}
+                          placeholder="Add a candidate…"
+                          row={rowIndex}
+                          save={async (value) =>
+                            setDraftValue(draft.key, "full_name", value)
+                          }
+                          value={draft.values.full_name ?? ""}
+                        />
+                      </td>
+                      {visibleCandidateColumns.map((column, columnIndex) => {
+                        const editable = isDraftColumnEditable(column.id);
+                        return (
+                          <td className="sheet-td" key={column.id}>
+                            {editable ? (
+                              <SheetCell
+                                col={columnIndex + 1}
+                                kind={column.id === "linkedin" ? "text" : column.kind}
+                                label={`New candidate ${column.label.toLowerCase()}, row ${rowIndex + 1}`}
+                                placeholder={
+                                  column.id === "linkedin"
+                                    ? "linkedin.com/in/…"
+                                    : column.placeholder
+                                }
+                                row={rowIndex}
+                                save={async (value) =>
+                                  setDraftValue(draft.key, column.id, value)
+                                }
+                                value={draft.values[column.id] ?? ""}
+                              />
+                            ) : (
+                              <span className="sheet-cell is-readonly is-empty" />
+                            )}
+                          </td>
+                        );
+                      })}
+                      {canSelectCandidates && (
+                        <td className="candidate-action-cell">
+                          {blocker && <span className="sheet-draft-hint">{blocker}</span>}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
+            {!role.archived && (
+              <p className="sheet-draft-note">
+                Type or paste into the blank row to add candidates. A LinkedIn
+                profile URL identifies each person, so a row is added once it has
+                a name and that URL.
+              </p>
+            )}
             {!roleCandidates.length && (
               <div className="empty">
                 <h3>{candidateEmptyMessage(tab, query)}</h3>

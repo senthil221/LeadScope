@@ -3774,6 +3774,32 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 }
 .shared-note-status small { color: var(--muted); font-size: 11.5px; }
 
+/* The always-present blank rows. Kept visibly lighter than saved rows so it is
+   obvious nothing has been created yet. */
+.sheet-draft-row .sheet-td-pinned,
+.sheet-draft-row .candidate-open-cell { background: #fcfdff; }
+.sheet-draft-row td { background: #fcfdff; }
+.sheet-draft-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: var(--faint);
+  font-size: 15px;
+  line-height: 1;
+}
+.sheet-draft-hint {
+  color: var(--muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.sheet-draft-note {
+  margin: 8px 2px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .sheet-link-button {
   min-height: 30px;
   padding: 0 10px;
