@@ -175,7 +175,10 @@ export function RolePipeline({
   const [columnPreference, setColumnPreference] = useState<string | null>(null);
   const [navigatingTo, setNavigatingTo] = useState<Tab | null>(null);
   const path = `/roles/${role.id}`;
-  const columnStorageKey = `leadscope:role-columns:${role.id}:${tab}`;
+  // v2: the stage-aware column set replaced the old fixed ids. A preference
+  // saved under the old key names columns that no longer exist, which would
+  // otherwise filter the table down to whichever id happened to survive.
+  const columnStorageKey = `leadscope:role-columns:v2:${role.id}:${tab}`;
   // Rating is the only way out of All profiles. Later stages support both
   // direct row actions and batch actions.
   const isPipelineTab = isStage(tab) && tab !== "rejected";
@@ -238,10 +241,15 @@ export function RolePipeline({
     const availableIds = tabColumns.map((column) => column.id);
     try {
       const saved = JSON.parse(columnPreference ?? savedColumnPreference);
-      if (saved && !Array.isArray(saved) && Array.isArray(saved.visible))
-        return saved.visible.filter((column: unknown): column is ColumnId =>
-          typeof column === "string" && availableIds.includes(column as ColumnId),
+      if (saved && !Array.isArray(saved) && Array.isArray(saved.visible)) {
+        const stored = saved.visible.filter(
+          (column: unknown): column is ColumnId =>
+            typeof column === "string" && availableIds.includes(column as ColumnId),
         );
+        // An empty result means the stored choice no longer describes this
+        // tab. Showing the tab's real columns beats showing none.
+        if (stored.length) return stored;
+      }
     } catch {
       // A malformed local preference should never prevent recruiter work.
     }
