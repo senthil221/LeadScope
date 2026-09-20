@@ -155,12 +155,21 @@ export function SheetCell({
   async function commit(next: string, move?: (() => boolean) | null) {
     editingRef.current = false;
     setEditing(false);
-    const restoreFocus = () => {
+    const applyFocus = () => {
       if (move === undefined) rootRef.current?.focus();
       // A move that finds no neighbour (the last row, the last column) must
       // still land somewhere, or focus falls to the body and the grid stops
       // responding to the keyboard.
       else if (move && move() === false) rootRef.current?.focus();
+    };
+    const restoreFocus = () => {
+      applyFocus();
+      // React unmounts the editor after this handler returns, and that removal
+      // can drop focus to the body. Put it back where the move intended so the
+      // next keystroke still reaches the grid.
+      requestAnimationFrame(() => {
+        if (document.activeElement === document.body) applyFocus();
+      });
     };
     if (next === current) {
       restoreFocus();
