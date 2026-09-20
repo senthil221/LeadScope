@@ -180,8 +180,28 @@ export function SheetCell({
     const node = rootRef.current;
     if (!node) return;
     // Keys that land here after an edit started belong to the input that is
-    // about to take focus, not to grid navigation.
+    // about to take focus, not to grid navigation. Escape, Enter and Tab are
+    // still answered here: if the input never takes focus, swallowing them
+    // would leave the cell in an edit nothing can close.
     if (editingRef.current) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancel();
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void commit(pendingRef.current, () => moveFocus(node, 1, 0));
+        return;
+      }
+      if (event.key === "Tab") {
+        event.preventDefault();
+        const shift = event.shiftKey;
+        void commit(pendingRef.current, () =>
+          moveFocus(node, 0, shift ? -1 : 1),
+        );
+        return;
+      }
       if (
         event.key.length === 1 &&
         !event.ctrlKey &&
@@ -321,6 +341,15 @@ export function SheetCell({
       data-row={row}
       data-sheet-cell=""
       onDoubleClick={() => beginEdit()}
+      onFocus={(event) => {
+        // Focus landing on the cell itself while an edit is open means the
+        // input never took it. Close the edit rather than leave a cell whose
+        // editor cannot be reached or dismissed.
+        if (event.target !== rootRef.current || !editingRef.current) return;
+        editingRef.current = false;
+        setEditing(false);
+        setDraft(current);
+      }}
       onKeyDown={onCellKeyDown}
       ref={rootRef}
       role="gridcell"
