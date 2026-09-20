@@ -13,9 +13,6 @@ export function RoleWorkspace({ data }: { data: PageData }) {
       <RolePipeline
         client={data.client}
         role={data.role}
-        workQueue={
-          data.roleDashboardCounts?.find((item) => item.role_id === data.role?.id)
-        }
         roleCandidates={data.roleCandidates ?? []}
         counts={data.roleCandidateCounts ?? {}}
         masterCandidates={data.masterCandidates ?? []}

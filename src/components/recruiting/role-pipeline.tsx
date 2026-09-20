@@ -4,16 +4,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import {
   Archive,
-  CalendarClock,
   ChevronDown,
   ChevronUp,
   CircleHelp,
   ExternalLink,
-  FileCheck2,
   Link as LinkIcon,
+  Maximize2,
   Plus,
   SlidersHorizontal,
-  UsersRound,
 } from "lucide-react";
 import type {
   Client,
@@ -21,7 +19,6 @@ import type {
   Role,
   RoleCandidate,
   RoleField,
-  RoleDashboardCount,
   ShareLink,
   StageDurationRow,
   StageFunnelRow,
@@ -38,19 +35,20 @@ import {
   candidateSourceLabels,
   ratingFilters,
   ratingFilterLabels,
+  outcomes,
   type PipelineStage,
+  type RejectionType,
   type Stage,
 } from "@/lib/recruiting/stages";
 import { RoleFormDialog } from "./role-form";
 import { AddCandidatesDialog, type ImportSummary } from "./add-candidates";
 import { RejectDialog } from "./reject-dialog";
-import { RatingCell } from "./rating-cell";
 import { CandidatePanel } from "./candidate-panel";
-import { CustomFieldCell } from "./custom-field-cell";
-import { OutcomeCell } from "./outcome-cell";
 import { RoleFieldsDialog } from "./role-fields-dialog";
 import { ShareDialog } from "./share-dialog";
 import { RoleAnalytics } from "./role-analytics";
+import { SheetCell } from "./sheet-cell";
+import { candidateColumns, type CandidateColumn } from "@/lib/recruiting/columns";
 import { act as sharedAct } from "@/lib/client/act";
 
 function act<T = { id: string }>(action: string, payload: unknown = {}): Promise<T> {
@@ -58,42 +56,7 @@ function act<T = { id: string }>(action: string, payload: unknown = {}): Promise
 }
 
 type Tab = Stage | "follow_ups" | "master_db" | "analytics";
-type CandidateColumn = "date" | "designation" | "company" | "experience" | "rating" | "reject_type" | "reject_reason" | "offer_details" | "outcome" | "client_notes" | `custom:${string}`;
-type CandidateTableColumn = { id: CandidateColumn; label: string; field?: RoleField };
-const legacyCandidateColumns = ["date", "designation", "company", "experience"] as const;
-const candidateColumnLabels: Record<(typeof legacyCandidateColumns)[number], string> = {
-  date: "Date added",
-  designation: "Designation",
-  company: "Company",
-  experience: "Experience",
-};
-
-function candidateTableColumns(tab: Tab, roleFields: RoleField[]): CandidateTableColumn[] {
-  const columns: CandidateTableColumn[] = [
-    ...legacyCandidateColumns.map((id) => ({ id, label: candidateColumnLabels[id] })),
-    ...(tab === "rejected"
-      ? [
-          { id: "reject_type" as const, label: "Reject type" },
-          { id: "reject_reason" as const, label: "Reason" },
-        ]
-      : [{ id: "rating" as const, label: "Rating" }]),
-  ];
-  if (tab === "offer_sent") {
-    columns.push(
-      { id: "offer_details", label: "Offer details" },
-      { id: "outcome", label: "Outcome" },
-    );
-  }
-  if (["recruiter_shortlisted", "client_shortlisted", "offer_sent", "rejected"].includes(tab)) {
-    columns.push({ id: "client_notes", label: "Client notes" });
-    columns.push(...roleFields.map((field) => ({
-      id: `custom:${field.key}` as CandidateColumn,
-      label: field.label,
-      field,
-    })));
-  }
-  return columns;
-}
+type ColumnId = CandidateColumn["id"];
 const pipelineTabs: { key: Tab; label: string }[] = [
   ...stages
     .filter((s) => s !== "rejected")
@@ -149,7 +112,6 @@ function linkedInUrl(candidate: RoleCandidate["candidates"]) {
 export function RolePipeline({
   client,
   role,
-  workQueue,
   roleCandidates,
   counts,
   masterCandidates,
@@ -164,7 +126,6 @@ export function RolePipeline({
 }: {
   client: Client;
   role: Role;
-  workQueue?: RoleDashboardCount;
   roleCandidates: RoleCandidate[];
   counts: Record<string, number>;
   masterCandidates: MasterCandidate[];
@@ -224,8 +185,8 @@ export function RolePipeline({
     "client_shortlisted",
     "offer_sent",
   ].includes(tab);
-  const candidateColumns = useMemo(
-    () => candidateTableColumns(tab, roleFields),
+  const tabColumns = useMemo(
+    () => (isStage(tab) ? candidateColumns(tab, roleFields) : []),
     [roleFields, tab],
   );
 
@@ -274,20 +235,12 @@ export function RolePipeline({
     () => "",
   );
   const visibleColumns = (() => {
-    const availableIds = candidateColumns.map((column) => column.id);
+    const availableIds = tabColumns.map((column) => column.id);
     try {
       const saved = JSON.parse(columnPreference ?? savedColumnPreference);
-      // Earlier releases stored an array of the four optional basics. Keep
-      // those choices while retaining columns that used to be mandatory.
-      if (Array.isArray(saved)) {
-        const legacy = saved.filter((column): column is CandidateColumn =>
-          legacyCandidateColumns.includes(column as (typeof legacyCandidateColumns)[number]),
-        );
-        return [...new Set([...legacy, ...availableIds.filter((id) => !legacyCandidateColumns.includes(id as (typeof legacyCandidateColumns)[number]))])];
-      }
-      if (saved && Array.isArray(saved.visible))
-        return saved.visible.filter((column: unknown): column is CandidateColumn =>
-          typeof column === "string" && availableIds.includes(column as CandidateColumn),
+      if (saved && !Array.isArray(saved) && Array.isArray(saved.visible))
+        return saved.visible.filter((column: unknown): column is ColumnId =>
+          typeof column === "string" && availableIds.includes(column as ColumnId),
         );
     } catch {
       // A malformed local preference should never prevent recruiter work.
@@ -295,12 +248,12 @@ export function RolePipeline({
     return availableIds;
   })();
   const orderedColumns = (() => {
-    const availableIds = candidateColumns.map((column) => column.id);
+    const availableIds = tabColumns.map((column) => column.id);
     try {
       const saved = JSON.parse(columnPreference ?? savedColumnPreference);
       if (saved && !Array.isArray(saved) && Array.isArray(saved.order)) {
-        const validOrder = saved.order.filter((column: unknown): column is CandidateColumn =>
-          typeof column === "string" && availableIds.includes(column as CandidateColumn),
+        const validOrder = saved.order.filter((column: unknown): column is ColumnId =>
+          typeof column === "string" && availableIds.includes(column as ColumnId),
         );
         return [...new Set([...validOrder, ...availableIds])];
       }
@@ -310,19 +263,19 @@ export function RolePipeline({
     return availableIds;
   })();
   const visibleCandidateColumns = orderedColumns
-    .filter((id: CandidateColumn) => visibleColumns.includes(id))
-    .map((id) => candidateColumns.find((column) => column.id === id))
-    .filter((column): column is CandidateTableColumn => Boolean(column));
+    .filter((id: ColumnId) => visibleColumns.includes(id))
+    .map((id) => tabColumns.find((column) => column.id === id))
+    .filter((column): column is CandidateColumn => Boolean(column));
 
-  function toggleColumn(column: CandidateColumn) {
+  function toggleColumn(column: ColumnId) {
     const next = visibleColumns.includes(column)
-      ? visibleColumns.filter((item: CandidateColumn) => item !== column)
+      ? visibleColumns.filter((item: ColumnId) => item !== column)
       : [...visibleColumns, column];
     const serialized = JSON.stringify({ visible: next, order: orderedColumns });
     localStorage.setItem(columnStorageKey, serialized);
     setColumnPreference(serialized);
   }
-  function moveColumn(column: CandidateColumn, direction: -1 | 1) {
+  function moveColumn(column: ColumnId, direction: -1 | 1) {
     const index = orderedColumns.indexOf(column);
     const target = index + direction;
     if (index < 0 || target < 0 || target >= orderedColumns.length) return;
@@ -355,33 +308,209 @@ export function RolePipeline({
     }
     setNavigatingTo(key);
   }
-  const dailyWork = [
-    {
-      key: "follow-ups",
-      label: "Due follow-ups",
-      description: "Due today or overdue",
-      count: workQueue?.due_follow_ups ?? 0,
-      href: tabUrl("follow_ups"),
-      Icon: CalendarClock,
-    },
-    {
-      key: "client-review",
-      label: "Waiting on client",
-      description: "Profiles sent for review",
-      count: workQueue?.client_shortlisted ?? 0,
-      href: tabUrl("client_shortlisted"),
-      Icon: UsersRound,
-    },
-    {
-      key: "offers",
-      label: "Open offers",
-      description: "Offers still in progress",
-      count: workQueue?.offers_in_progress ?? 0,
-      href: tabUrl("offer_sent"),
-      Icon: FileCheck2,
-    },
-  ];
-  const dailyWorkTotal = dailyWork.reduce((sum, item) => sum + item.count, 0);
+  // One cell renderer for the whole grid. Every editable column resolves to a
+  // single-field save so one recruiter typing in a cell never overwrites a
+  // column another recruiter changed a moment earlier.
+  function renderCandidateCell(
+    rc: RoleCandidate,
+    column: CandidateColumn,
+    rowIndex: number,
+    colIndex: number,
+  ) {
+    const locked = role.archived;
+    const cell = (
+      props: Partial<Parameters<typeof SheetCell>[0]> & {
+        value: string;
+        save: (value: string) => Promise<void>;
+      },
+    ) => (
+      <td className="sheet-td" key={column.id}>
+        <SheetCell
+          col={colIndex}
+          kind={column.kind}
+          label={`${column.label}, row ${rowIndex + 1}`}
+          placeholder={column.placeholder}
+          readOnly={locked || !column.editable}
+          row={rowIndex}
+          {...props}
+        />
+      </td>
+    );
+    const candidateField = (field: string, value: string) =>
+      cell({
+        value,
+        save: (next) =>
+          act("candidateField", { id: rc.candidate_id, field, value: next }),
+      });
+
+    if (column.id.startsWith("custom:")) {
+      const field = column.field!;
+      const raw = rc.custom[field.key];
+      return cell({
+        options: field.options,
+        value:
+          raw == null ? "" : typeof raw === "boolean" ? String(raw) : String(raw),
+        save: (next) =>
+          act("customField", {
+            clientId: client.id,
+            id: rc.id,
+            key: field.key,
+            value:
+              next === ""
+                ? null
+                : field.kind === "number"
+                  ? Number(next)
+                  : field.kind === "boolean"
+                    ? next === "true"
+                    : next,
+          }),
+      });
+    }
+
+    switch (column.id) {
+      case "date_added":
+        return cell({
+          value: rc.stage_entered_at,
+          display: (value) => date(value),
+          save: async () => {},
+        });
+      case "source":
+        return cell({
+          value: candidateSourceLabel(rc.source, rc.source_detail),
+          save: async () => {},
+        });
+      case "linkedin": {
+        const url = linkedInUrl(rc.candidates);
+        return (
+          <td className="sheet-td candidate-linkedin-cell" key={column.id}>
+            {url ? (
+              <a className="candidate-link" href={url} rel="noreferrer" target="_blank">
+                Open profile <ExternalLink size={11} />
+              </a>
+            ) : (
+              <span className="sheet-placeholder">—</span>
+            )}
+          </td>
+        );
+      }
+      case "resume":
+        return (
+          <td className="sheet-td" key={column.id}>
+            <button
+              className="sheet-link-button"
+              onClick={() => setPanelId(rc.id)}
+              type="button"
+            >
+              {rc.candidates.resume_path ? "View resume" : "Upload"}
+            </button>
+          </td>
+        );
+      case "rating":
+        return cell({
+          value: rc.rating == null ? "" : String(rc.rating),
+          save: async (next) => {
+            const rating = next === "" ? null : Number(next);
+            if (
+              rating !== null &&
+              (!Number.isFinite(rating) ||
+                rating < 0 ||
+                rating > 5 ||
+                Math.round(rating * 10) !== rating * 10)
+            )
+              throw new Error("Enter a rating from 0.0 to 5.0.");
+            await act("rate", { clientId: client.id, id: rc.id, rating });
+            if (tab === "all_profiles" && rating !== null && rating >= role.rating_threshold)
+              setMessage(
+                `${rc.candidates.full_name} moved to Profile shortlisted after meeting the ${role.rating_threshold} / 5 threshold.`,
+              );
+            router.refresh();
+          },
+        });
+      case "notes":
+        return cell({
+          value: rc.client_notes,
+          save: (next) =>
+            act("clientNote", { clientId: client.id, id: rc.id, note: next }),
+        });
+      case "outcome":
+        return cell({
+          options: Object.values(outcomes),
+          value: rc.outcome ? outcomes[rc.outcome as keyof typeof outcomes] : "",
+          save: async (next) => {
+            const outcome = (Object.keys(outcomes) as (keyof typeof outcomes)[]).find(
+              (key) => outcomes[key] === next,
+            );
+            if (!outcome) return;
+            await act("recordOutcome", {
+              clientId: client.id,
+              ids: [rc.id],
+              outcome,
+            });
+            router.refresh();
+          },
+        });
+      case "offer_details":
+        return (
+          <td className="sheet-td offer-details-cell" key={column.id}>
+            <button
+              className="offer-details-trigger"
+              onClick={() => setPanelId(rc.id)}
+              type="button"
+            >
+              {rc.offer_amount != null ? (
+                <strong>
+                  {[rc.offer_currency, rc.offer_amount].filter(Boolean).join(" ")}
+                </strong>
+              ) : (
+                <span>Add offer details</span>
+              )}
+              {rc.offer_response_due_at && (
+                <small>Response due {date(rc.offer_response_due_at)}</small>
+              )}
+            </button>
+          </td>
+        );
+      case "reject_type":
+        return cell({
+          value: rc.rejection_type
+            ? rejectionTypes[rc.rejection_type as RejectionType]
+            : "",
+          save: async () => {},
+        });
+      case "reject_reason":
+        return cell({ value: rc.rejection_reason, save: async () => {} });
+      case "phone":
+        return candidateField("phone", rc.candidates.phone ?? "");
+      case "email":
+        return candidateField("email", rc.candidates.email ?? "");
+      case "location":
+        return candidateField("location", rc.candidates.location);
+      case "current_company":
+        return candidateField("current_company", rc.candidates.current_company);
+      case "current_designation":
+        return candidateField(
+          "current_designation",
+          rc.candidates.current_designation,
+        );
+      case "total_experience_years":
+        return candidateField(
+          "total_experience_years",
+          rc.candidates.total_experience_years == null
+            ? ""
+            : String(rc.candidates.total_experience_years),
+        );
+      case "current_ctc":
+        return candidateField("current_ctc", rc.candidates.current_ctc ?? "");
+      case "highest_qualification":
+        return candidateField(
+          "highest_qualification",
+          rc.candidates.highest_qualification ?? "",
+        );
+      default:
+        return null;
+    }
+  }
+
   const stagePageUrl = (nextPage: number) => {
     const p = new URLSearchParams(params);
     p.set("stage", tab);
@@ -621,30 +750,6 @@ export function RolePipeline({
         <span>Rating floor <strong>{role.rating_threshold} / 5</strong></span>
         <span><strong>{counts.rejected ?? 0}</strong> rejected</span>
       </div>
-      <section className="role-action-queue" aria-labelledby="role-action-queue-heading">
-        <div className="role-action-queue-heading">
-          <div>
-            <h2 id="role-action-queue-heading">Next actions</h2>
-            <p className="muted">
-              {dailyWorkTotal
-                ? `${dailyWorkTotal} candidate${dailyWorkTotal === 1 ? "" : "s"} need attention.`
-                : "No urgent recruiter work right now."}
-            </p>
-          </div>
-        </div>
-        <div className="role-action-queue-grid">
-          {dailyWork.map(({ key, label, description, count, href, Icon }) => (
-            <Link className="role-action-card" href={href} key={key}>
-              <span className="role-action-icon"><Icon size={17} aria-hidden="true" /></span>
-              <span>
-                <strong>{label}</strong>
-                <small>{description}</small>
-              </span>
-              <b>{count}</b>
-            </Link>
-          ))}
-        </div>
-      </section>
       <div className="tabs role-stage-tabs" aria-label="Candidate stages">
         {pipelineTabs.map(({ key, label }) => (
           <Link
@@ -866,7 +971,7 @@ export function RolePipeline({
                     <button type="button" onClick={resetColumns}>Reset</button>
                   </div>
                   {orderedColumns.map((column, index) => {
-                    const definition = candidateColumns.find((item) => item.id === column);
+                    const definition = tabColumns.find((item) => item.id === column);
                     if (!definition) return null;
                     return (
                       <div className="candidate-column-option" key={column}>
@@ -1204,7 +1309,11 @@ export function RolePipeline({
       ) : (
         <>
           <div className="card table-wrap">
-            <table className="candidate-table">
+            <table
+              className={`candidate-table sheet-table${canSelectCandidates ? " has-select" : ""}`}
+              data-sheet-grid=""
+              role="grid"
+            >
               <thead>
                 <tr>
                 {canSelectCandidates && (
@@ -1224,14 +1333,12 @@ export function RolePipeline({
                     />
                   </th>
                 )}
-                <th className="candidate-name-heading" scope="col">Candidate</th>
-                <th className="candidate-linkedin-heading" scope="col">LinkedIn</th>
+                <th className="candidate-open-heading" scope="col">
+                  <span className="sr-only">Open candidate</span>
+                </th>
+                <th className="sheet-th sheet-th-pinned" scope="col">Full name</th>
                 {visibleCandidateColumns.map((column) => (
-                  <th
-                    className={column.id === "rating" ? "candidate-rating-heading" : undefined}
-                    key={column.id}
-                    scope="col"
-                  >
+                  <th className="sheet-th" key={column.id} scope="col">
                     {column.label}
                   </th>
                 ))}
@@ -1239,7 +1346,7 @@ export function RolePipeline({
                 </tr>
               </thead>
               <tbody>
-              {roleCandidates.map((rc) => {
+              {roleCandidates.map((rc, rowIndex) => {
                 return (
                 <tr
                   key={rc.id}
@@ -1261,86 +1368,36 @@ export function RolePipeline({
                       />
                     </td>
                   )}
-                  <td className="candidate-identity-cell">
+                  <td className="candidate-open-cell">
                     <button
-                      type="button"
-                      className="text-button strong"
+                      aria-label={`Open ${rc.candidates.full_name}`}
+                      className="candidate-open-button"
                       onClick={() => setPanelId(rc.id)}
+                      title="Open candidate details"
+                      type="button"
                     >
-                      {rc.candidates.full_name}
+                      <Maximize2 size={13} />
                     </button>
-                    <small className="candidate-source">
-                      {candidateSourceLabel(rc.source, rc.source_detail)}
-                    </small>
                   </td>
-                  <td className="candidate-linkedin-cell">
-                    {linkedInUrl(rc.candidates) ? (
-                      <a
-                        className="candidate-link"
-                        href={linkedInUrl(rc.candidates)}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Open profile <ExternalLink size={11} />
-                      </a>
-                    ) : "—"}
+                  <td className="sheet-td sheet-td-pinned">
+                    <SheetCell
+                      col={0}
+                      label={`Full name, row ${rowIndex + 1}`}
+                      readOnly={role.archived}
+                      row={rowIndex}
+                      save={(value) =>
+                        act("candidateField", {
+                          id: rc.candidate_id,
+                          field: "full_name",
+                          value,
+                        })
+                      }
+                      value={rc.candidates.full_name}
+                    />
                   </td>
-                  {visibleCandidateColumns.map((column) => {
-                    switch (column.id) {
-                      case "date":
-                        return <td key={column.id}>{date(rc.stage_entered_at)}</td>;
-                      case "designation":
-                        return <td key={column.id}>{rc.candidates.current_designation || "—"}</td>;
-                      case "company":
-                        return <td key={column.id}>{rc.candidates.current_company || "—"}</td>;
-                      case "experience":
-                        return <td key={column.id}>{rc.candidates.total_experience_years != null ? `${rc.candidates.total_experience_years} yrs` : "—"}</td>;
-                      case "rating":
-                        return <td className="candidate-rating-cell" key={column.id}><RatingCell
-                          key={`${rc.id}:${rc.rating}`}
-                          clientId={client.id}
-                          roleCandidateId={rc.id}
-                          rating={rc.rating}
-                          name={rc.candidates.full_name}
-                          threshold={role.rating_threshold}
-                          autoAdvance={tab === "all_profiles"}
-                          onRated={(autoAdvanced) => {
-                            if (autoAdvanced) setMessage(`${rc.candidates.full_name} moved to Profile shortlisted after meeting the ${role.rating_threshold} / 5 threshold.`);
-                            router.refresh();
-                          }}
-                        /></td>;
-                      case "reject_type":
-                        return <td key={column.id}>{rc.rejection_type ? rejectionTypes[rc.rejection_type as "recruiter" | "client"] : "—"}</td>;
-                      case "reject_reason":
-                        return <td key={column.id}>{rc.rejection_reason || "—"}</td>;
-                      case "offer_details":
-                        return <td key={column.id} className="offer-details-cell"><button className="offer-details-trigger" onClick={() => setPanelId(rc.id)} type="button">
-                          {rc.offer_amount != null ? <strong>{[rc.offer_currency, rc.offer_amount].filter(Boolean).join(" ")}</strong> : <span>Add offer details</span>}
-                          {rc.offer_response_due_at && <small>Response due {date(rc.offer_response_due_at)}</small>}
-                          {rc.expected_start_at && <small>Start {date(rc.expected_start_at)}</small>}
-                        </button></td>;
-                      case "outcome":
-                        return <td key={column.id}><OutcomeCell
-                          key={`${rc.id}:${rc.outcome}`}
-                          clientId={client.id}
-                          roleCandidateId={rc.id}
-                          outcome={rc.outcome}
-                          onChanged={() => router.refresh()}
-                        /></td>;
-                      case "client_notes":
-                        return <td key={column.id} className="candidate-client-notes-cell">{rc.client_notes ? (
-                          <button className="client-note-preview text-button" onClick={() => setPanelId(rc.id)} title="Open candidate to read the full client note" type="button">{rc.client_notes}</button>
-                        ) : <span className="muted">No notes yet</span>}</td>;
-                      default:
-                        return column.field ? <td key={column.id}><CustomFieldCell
-                          key={`${column.field.id}:${rc.id}:${JSON.stringify(rc.custom[column.field.key])}`}
-                          clientId={client.id}
-                          roleCandidateId={rc.id}
-                          field={column.field}
-                          value={rc.custom[column.field.key]}
-                        /></td> : null;
-                    }
-                  })}
+                  {visibleCandidateColumns.map((column, columnIndex) =>
+                    renderCandidateCell(rc, column, rowIndex, columnIndex + 1),
+                  )}
                   {canSelectCandidates && (
                     <td className="candidate-action-cell">
                       <div className="candidate-row-actions">

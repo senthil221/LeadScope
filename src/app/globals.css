@@ -3575,32 +3575,156 @@ input[aria-invalid="true"] { border-color: var(--danger); }
   width: 15px;
   min-height: 15px;
 }
-.candidate-name-heading,
-.candidate-identity-cell { min-width: 190px; }
-.candidate-linkedin-heading,
 .candidate-linkedin-cell {
   width: 1%;
-  min-width: 150px;
+  min-width: 140px;
   white-space: nowrap;
 }
 .candidate-linkedin-cell .candidate-link { margin-top: 0; }
-.candidate-identity-cell .text-button {
-  max-width: 230px;
+
+/* ---------- Spreadsheet grid ----------
+   The candidate table is the product's main work surface: recruiters and
+   interns fill it the way they would fill a spreadsheet. Rows are dense, every
+   cell carries a grid line, and the identity columns stay pinned while the
+   detail columns scroll. */
+
+.sheet-table {
+  --pin-select: 0px;
+  --pin-open: 36px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.sheet-table.has-select { --pin-select: 42px; }
+.sheet-table td,
+.sheet-table th {
+  height: auto;
+  padding: 0;
+  border-right: 1px solid var(--line);
+}
+.sheet-table th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 7px 10px;
+  background: #f5f8ff;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.sheet-table .select-cell,
+.sheet-table .candidate-open-cell,
+.sheet-table .candidate-open-heading { border-right: 1px solid var(--line); }
+.sheet-table tbody tr:hover .sheet-cell.is-editable:not(:focus) {
+  background: #fbfcff;
+}
+
+/* Pinned identity columns. Offsets are fixed widths so the sticky stack lines
+   up whether or not the selection checkbox column is present. */
+.sheet-table .select-cell,
+.sheet-table .candidate-open-cell,
+.sheet-table .candidate-open-heading,
+.sheet-td-pinned,
+.sheet-th-pinned {
+  position: sticky;
+  z-index: 2;
+  background: var(--surface);
+}
+.sheet-table th.select-cell,
+.sheet-table .candidate-open-heading,
+.sheet-th-pinned { z-index: 4; background: #f5f8ff; }
+.sheet-table .select-cell { left: 0; }
+.sheet-table .candidate-open-cell,
+.sheet-table .candidate-open-heading {
+  left: var(--pin-select);
+  width: var(--pin-open);
+  min-width: var(--pin-open);
+  text-align: center;
+}
+.sheet-td-pinned,
+.sheet-th-pinned {
+  left: calc(var(--pin-select) + var(--pin-open));
+  min-width: 190px;
+  box-shadow: 1px 0 0 var(--line-strong);
+}
+.selected-row .sheet-td-pinned,
+.selected-row .select-cell,
+.selected-row .candidate-open-cell { background: var(--brand-soft); }
+
+.candidate-open-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--faint);
+}
+.candidate-open-button:hover { background: var(--brand-soft); color: var(--brand-ink); }
+
+.sheet-th { min-width: 130px; }
+.sheet-td { min-width: 130px; }
+
+.sheet-cell {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 10px;
+  outline: none;
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+  transition:
+    box-shadow var(--t-fast) var(--t-ease),
+    background var(--t-fast) var(--t-ease);
+}
+.sheet-cell.is-editable { cursor: cell; }
+.sheet-cell:focus-visible,
+.sheet-cell:focus {
+  box-shadow: inset 0 0 0 2px var(--brand);
+  background: var(--surface);
+}
+.sheet-cell.is-editing { padding: 0; box-shadow: inset 0 0 0 2px var(--brand); }
+.sheet-cell.is-saving { background: var(--brand-soft); }
+.sheet-cell.is-error { background: #fef2f2; box-shadow: inset 0 0 0 2px #dc2626; }
+.sheet-value {
   overflow: hidden;
-  color: var(--ink);
-  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.candidate-identity-cell .text-button:hover { color: var(--brand-ink); }
-.candidate-identity-cell .candidate-source { line-height: 1.25; }
-.candidate-rating-heading,
-.candidate-rating-cell { width: 126px; min-width: 126px; }
-.candidate-rating-cell input {
-  width: 104px;
-  min-height: 32px;
-  padding-inline: 9px;
+.sheet-placeholder { color: var(--faint); }
+.sheet-cell .sheet-input {
+  width: 100%;
+  min-height: 34px;
+  margin: 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface);
+  font: inherit;
+  outline: none;
 }
+.sheet-flag {
+  position: absolute;
+  align-self: flex-start;
+  width: 0;
+  height: 0;
+  margin-left: -6px;
+  border-top: 5px solid #dc2626;
+  border-left: 5px solid transparent;
+}
+.sheet-link-button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  color: var(--brand-ink);
+  font-size: 12px;
+}
+.sheet-link-button:hover { text-decoration: underline; }
+
 .candidate-action-heading,
 .candidate-action-cell { width: 1%; min-width: 220px; white-space: nowrap; }
 .candidate-row-actions { justify-content: flex-end; }

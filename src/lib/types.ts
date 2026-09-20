@@ -145,6 +145,8 @@ export type MasterCandidate = {
   total_experience_years: number | null;
   phone: string | null;
   email: string | null;
+  current_ctc: string;
+  highest_qualification: string;
   resume_path: string | null;
   enrichment_state: string;
   created_at: string;

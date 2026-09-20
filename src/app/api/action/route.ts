@@ -484,6 +484,50 @@ export async function POST(request: Request) {
         );
         break;
       }
+      case "candidateField": {
+        // One grid cell, saved on its own. The drawer's candidateDetails
+        // replaces every column at once, which a single-cell edit cannot do
+        // without clobbering whatever another operator changed meanwhile.
+        const p = z
+          .object({
+            id: uuid,
+            field: z.enum([
+              "full_name",
+              "headline",
+              "current_company",
+              "current_designation",
+              "location",
+              "current_ctc",
+              "highest_qualification",
+              "total_experience_years",
+              "phone",
+              "email",
+            ]),
+            value: z.string().max(400).nullable().default(null),
+          })
+          .parse(payload);
+        let value = p.value?.trim() ? p.value.trim() : null;
+        if (p.field === "email" && value) {
+          const normalized = normalizeCandidateEmail(value);
+          if (!normalized)
+            throw new AppError(
+              "Enter a valid email address, such as name@company.com.",
+            );
+          value = normalized;
+        }
+        if (p.field === "phone" && value && !isE164Phone(value))
+          throw new AppError(
+            "Choose the phone country and enter a valid national number.",
+          );
+        checked(
+          await db.rpc("save_candidate_field", {
+            p_id: p.id,
+            p_field: p.field,
+            p_value: value,
+          }),
+        );
+        break;
+      }
       case "addRoleField": {
         const p = z
           .object({
