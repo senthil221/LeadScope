@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   Archive,
   ArrowLeft,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   CircleHelp,
   ExternalLink,
@@ -89,12 +90,13 @@ type ColumnId = CandidateColumn["id"];
 function newDraft(): DraftRow {
   return { key: crypto.randomUUID(), values: {} };
 }
-const pipelineTabs: { key: Tab; label: string }[] = [
-  ...stages
-    .filter((s) => s !== "rejected")
-    .map((s) => ({ key: s as Tab, label: stageLabels[s] })),
-  { key: "rejected", label: "Rejects" },
-];
+// Three groups, because they are three different things. All profiles is
+// everyone on the role, the flow is the sequence a candidate is worked
+// through, and Rejects is where people leave it. Only the middle group is a
+// pipeline, so only the middle group is drawn as one.
+const flowStages = stages.filter(
+  (s) => s !== "all_profiles" && s !== "rejected",
+);
 
 const date = (s: string | null | undefined) =>
   s
@@ -450,6 +452,28 @@ export function RolePipeline({
       setColumnMenuOpen(false);
     }
     setNavigatingTo(key);
+  }
+  // One renderer for all three groups, so an entry, a flow step and the exit
+  // cannot drift apart in behaviour just because they are drawn differently.
+  function stageTab(key: Tab, label: string, extra = "") {
+    const loading = navigatingTo === key && tab !== key;
+    return (
+      <Link
+        key={key}
+        className={`stage-tab stage-${key}${extra ? ` ${extra}` : ""}${tab === key ? " selected" : ""}${loading ? " is-loading" : ""}`}
+        href={tabUrl(key)}
+        prefetch={false}
+        onMouseEnter={() => prefetchTab(key)}
+        onFocus={() => prefetchTab(key)}
+        onClick={() => startTabNavigation(key)}
+        aria-busy={loading}
+        aria-current={tab === key ? "page" : undefined}
+      >
+        {label}
+        {/* All profiles spans every stage, so it counts the whole role. */}
+        <span>{key === "all_profiles" ? roleTotal : counts[key] ?? 0}</span>
+      </Link>
+    );
   }
   // Blank rows wait at the bottom of the grid the way they do in a spreadsheet.
   // A row turns into a real candidate as soon as it has a name and a LinkedIn
@@ -1060,23 +1084,21 @@ export function RolePipeline({
       )}
       <section className={styles.tablePanel} aria-label="Candidate workspace">
       <div className="role-tab-bar">
-      <div className="tabs role-stage-tabs" aria-label="Candidate stages">
-        {pipelineTabs.map(({ key, label }) => (
-          <Link
-            key={key}
-            className={`stage-tab stage-${key}${tab === key ? " selected" : ""}${navigatingTo === key && tab !== key ? " is-loading" : ""}`}
-            href={tabUrl(key)}
-            prefetch={false}
-            onMouseEnter={() => prefetchTab(key)}
-            onFocus={() => prefetchTab(key)}
-            onClick={() => startTabNavigation(key)}
-            aria-busy={navigatingTo === key && tab !== key}
-            aria-current={tab === key ? "page" : undefined}
-          >
-            {label}
-            <span>{key === "all_profiles" ? roleTotal : counts[key] ?? 0}</span>
-          </Link>
-        ))}
+      <div className="role-stage-tabs" aria-label="Candidate stages">
+        {stageTab("all_profiles", "All profiles", "stage-entry")}
+        <span className="stage-rail-divider" aria-hidden="true" />
+        <div className="stage-flow" role="group" aria-label="Pipeline stages">
+          {flowStages.map((key, index) => (
+            <Fragment key={key}>
+              {index > 0 && (
+                <ChevronRight className="stage-flow-arrow" size={14} aria-hidden="true" />
+              )}
+              {stageTab(key, stageLabels[key])}
+            </Fragment>
+          ))}
+        </div>
+        <span className="stage-rail-divider" aria-hidden="true" />
+        {stageTab("rejected", "Rejects", "stage-exit")}
       </div>
       <nav className="role-secondary-nav" aria-label="Role tools">
         <RoleToolsMenu label={isFollowUpsTab ? "Views · Follow-ups" : tab === "master_db" ? "Views · Master DB" : tab === "analytics" ? "Views · Analytics" : "Views"} active={!isStage(tab)}>

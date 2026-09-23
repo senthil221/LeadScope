@@ -1543,18 +1543,66 @@ tbody tr:hover td.col-arrow a {
   margin-bottom: 20px;
   overflow-x: auto;
 }
+/* Three groups: the full list, the pipeline, and the way out. The rail no
+   longer borrows .tabs, so it carries its own layout and type. */
 .role-stage-tabs {
+  display: flex;
+  align-items: center;
   gap: 8px;
   margin: 18px 0 0;
   padding: 4px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--surface);
+  overflow-x: auto;
 }
 .role-stage-tabs a {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   padding: 8px 10px;
   border: 0;
   border-radius: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.role-stage-tabs a:hover {
+  color: var(--ink);
+}
+/* Only the middle group is a sequence, so only it is drawn as one: a single
+   tinted track with the steps chevroned together inside it. */
+.stage-flow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: #eef2f8;
+}
+.stage-flow-arrow {
+  flex: 0 0 auto;
+  color: #9fb0c6;
+}
+.stage-rail-divider {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 1px;
+  margin: 3px 0;
+  background: var(--line);
+}
+/* The two that are not stages sit outside the track and read quieter, with
+   All profiles holding the emphasis as the way in. */
+.role-stage-tabs .stage-entry {
+  font-weight: 650;
+  color: var(--ink);
+}
+.role-stage-tabs .stage-exit {
+  color: var(--faint);
+}
+.role-stage-tabs .stage-exit:hover {
+  color: #be123c;
 }
 .role-stage-tabs a.selected {
   border: 0;

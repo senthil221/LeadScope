@@ -68,9 +68,13 @@
 .workspace :global(.role-summary span) { padding: 0; border: 0; flex-basis: auto; }
 .tablePanel { min-width: 0; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); box-shadow: 0 2px 5px rgb(15 23 42 / 3%); }
 .workspace :global(.role-tab-bar) { gap: 0; margin: 0; padding: 0 14px; border-bottom: 1px solid var(--line); }
-.workspace :global(.role-stage-tabs) { flex: 1 1 auto; flex-wrap: wrap; overflow: visible; min-width: 0; padding: 0; border: 0; border-radius: 0; }
-.workspace :global(.role-stage-tabs a) { padding: 14px 10px 12px; font-weight: 500; }
+.workspace :global(.role-stage-tabs) { flex: 1 1 auto; flex-wrap: wrap; overflow: visible; min-width: 0; padding: 8px 0; border: 0; border-radius: 0; gap: 10px; }
+.workspace :global(.role-stage-tabs a) { padding: 7px 10px; font-weight: 500; }
 .workspace :global(.role-stage-tabs a.selected) { font-weight: 650; }
+/* The track keeps its own padding here; the rail's is removed so the stages
+   sit flush with the toolbar below rather than floating in a second box. */
+.workspace :global(.stage-flow) { flex-wrap: wrap; }
+.workspace :global(.stage-rail-divider) { min-height: 22px; }
 .workspace :global(.role-secondary-nav) { flex-wrap: wrap; gap: 4px; margin: 8px 0 8px auto; padding-left: 12px; border-left: 1px solid var(--line); }
 .workspace :global(.role-secondary-nav a) { padding: 6px 8px; font-size: 12px; border-radius: 5px; }
 .workspace :global(.role-tools-menu) { position: relative; margin: 0; padding: 0; border: 0; }
