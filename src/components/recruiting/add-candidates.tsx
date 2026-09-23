@@ -555,14 +555,17 @@ export function AddCandidatesDialog({
             <div>
               <strong>{stageLabels[targetStage]} template</strong>
               <p className="muted">
-                The {template.length} columns this stage holds, with one example row.
-                Fill it in, delete the example, and upload it.
+                The {template.length} columns this stage holds. The file is headers
+                only — fill your rows in underneath.
               </p>
               <ul className="import-template-columns">
                 {template.map((column) => (
                   <li key={column.header}>
-                    {column.header}
-                    {column.required && <span> required</span>}
+                    <strong>
+                      {column.header}
+                      {column.required && <span> required</span>}
+                    </strong>
+                    <em>{column.example}</em>
                   </li>
                 ))}
               </ul>

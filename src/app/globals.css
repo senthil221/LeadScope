@@ -842,17 +842,30 @@ label small {
   list-style: none;
 }
 .import-template-columns li {
-  padding: 3px 8px;
+  display: grid;
+  gap: 1px;
+  padding: 4px 8px;
   border: 1px solid var(--line);
   border-radius: 4px;
   background: var(--surface);
   font-size: 11px;
   white-space: nowrap;
 }
+.import-template-columns strong {
+  font-size: 11px;
+  font-weight: 600;
+}
+/* The example value, shown here rather than shipped inside the file, where it
+   would be imported as a real person. */
+.import-template-columns em {
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+}
 .import-template-columns span {
   margin-left: 6px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }

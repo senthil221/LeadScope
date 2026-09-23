@@ -385,9 +385,13 @@ export function RolePipeline({
   const columnWidths = { xs: 96, sm: 128, md: 160, lg: 220 };
   const nameWidth = Math.max(180, layout.width("full_name", 280));
   const utilityWidth = (canSelectCandidates ? 36 : 0) + 36 + 28;
-  // Advance, Reject and a delete icon, counting only what this tab shows.
+  // Advance, Reject and a delete icon, counting only what this tab shows, and
+  // never narrower than the word "Action" in the heading.
   const actionWidth = showRowActions
-    ? (advanceTo ? 82 : 0) + (canRejectFromTab ? 66 : 0) + (canDeleteRows ? 34 : 0) + 16
+    ? Math.max(
+        78,
+        (advanceTo ? 82 : 0) + (canRejectFromTab ? 66 : 0) + (canDeleteRows ? 34 : 0) + 16,
+      )
     : 0;
   const fixedWidth = utilityWidth + nameWidth + actionWidth;
   const dataWidth = visibleCandidateColumns.reduce((sum, column) => sum + layout.width(column.id, columnWidths[column.width]), 0);

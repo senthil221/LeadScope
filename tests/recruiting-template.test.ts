@@ -56,27 +56,49 @@ describe("import template", () => {
     }
   });
 
-  it("writes a header row and one example row that parse back to the same columns", () => {
-    const rows = parseCsv(templateCsv("recruiter_shortlisted"));
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toEqual(templateColumns("recruiter_shortlisted").map((c) => c.header));
-    expect(rows[1]).toHaveLength(rows[0].length);
+  it("writes headers and nothing else", () => {
+    for (const stage of importStages) {
+      const rows = parseCsv(templateCsv(stage));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toEqual(templateColumns(stage).map((c) => c.header));
+    }
   });
 
-  it("produces an example row that imports cleanly against its own template", () => {
-    const preview = csvImportPreview(templateCsv("recruiter_shortlisted"), [], {}, {
-      requireLinkedin: true,
-    });
-    expect(preview.invalidRows).toEqual([]);
-    expect(preview.ignoredColumns).toEqual([]);
-    expect(preview.validRows).toHaveLength(1);
-    expect(preview.validRows[0].name).toBe("Priya Raman");
-    expect(preview.validRows[0].fields).toMatchObject({
-      currentCompany: "Zoho",
-      currentCtc: "42 LPA",
-      highestQualification: "B.E. Computer Science",
-      totalExperienceYears: 11,
-    });
+  // An example row inside the file becomes a real candidate the first time
+  // somebody uploads the template without deleting it, which is exactly what
+  // happened in production. A downloaded template must import nobody.
+  it("imports nobody when uploaded untouched", () => {
+    for (const stage of importStages) {
+      const preview = csvImportPreview(templateCsv(stage), [], {}, { requireLinkedin: true });
+      expect(preview.validRows).toEqual([]);
+      expect(preview.invalidRows).toEqual([]);
+      expect(preview.totalRows).toBe(0);
+    }
+  });
+
+  it("names every column the parser recognises, so no column is silently dropped", () => {
+    for (const stage of importStages) {
+      const headers = templateColumns(stage).map((column) => column.header);
+      const filled = [
+        headers.join(","),
+        headers
+          .map((header) =>
+            header === "LinkedIn URL"
+              ? "https://www.linkedin.com/in/test-person"
+              : header === "Experience (years)"
+                ? "4"
+                : header === "Email"
+                  ? "test@example.com"
+                  : header === "Phone"
+                    ? "+919876543210"
+                    : "value",
+          )
+          .join(","),
+      ].join("\r\n");
+      const preview = csvImportPreview(filled, [], {}, { requireLinkedin: true });
+      expect(preview.ignoredColumns).toEqual([]);
+      expect(preview.validRows).toHaveLength(1);
+    }
   });
 
   it("names the file after the role and the stage", () => {

@@ -42,14 +42,14 @@ function csvValue(value: string) {
   return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
 }
 
-// Header row plus one filled-in example, because a bare header row leaves an
-// intern guessing at the format of a phone number or a CTC.
+// Headers only. An example row inside the file gets imported by anyone who
+// uploads the template without deleting it first, which puts an invented
+// person into the database. The examples are shown in the import dialog
+// instead, where they teach the format without being data.
 export function templateCsv(stage: PipelineStage): string {
-  const columns = templateColumns(stage);
-  return [
-    columns.map((column) => csvValue(column.header)).join(","),
-    columns.map((column) => csvValue(column.example)).join(","),
-  ].join("\r\n");
+  return templateColumns(stage)
+    .map((column) => csvValue(column.header))
+    .join(",");
 }
 
 export function templateFileName(roleName: string, stage: PipelineStage): string {
