@@ -173,7 +173,41 @@
   .workspace :global(.sheet-table .sheet-td-pinned) { position: static; }
   .workspace :global(.sheet-table .sheet-th-pinned) { left: auto; z-index: 3; }
 }
+/* ---------- Density ----------
+   Everything above the grid is overhead: the header, the stage rail, the
+   toolbar and the hint cost around 230px before a single candidate appears.
+   One scale for every control in the workspace — 32px tall, 12px type —
+   instead of the 36px/13px default, which reclaims roughly two rows without
+   anything getting tight. Scoped to .workspace so the rest of the app, which
+   is not read all day, keeps the roomier default. */
+.workspace :global(button), .workspace :global(.button) { min-height: 32px; font-size: 12px; }
+.workspace :global(.sheet-bar) { padding: 8px 12px; gap: 8px 12px; }
+.workspace :global(.candidate-toolbar .candidate-search-input) { min-height: 32px; font-size: 12px; }
+.workspace :global(.sheet-bar-actions button) { min-height: 32px; }
+.workspace :global(.candidate-toolbar-main > button) { padding-inline: 11px; }
+.workspace :global(.role-tab-bar) { padding: 0 12px; }
+.workspace :global(.role-stage-tabs) { padding: 6px 0; gap: 8px; }
+.workspace :global(.role-stage-tabs a) { padding: 6px 9px; }
+.workspace :global(.role-secondary-nav) { margin: 6px 0 6px auto; }
+.workspace :global(.table-edit-hint) { padding: 5px 12px; }
+.workspace :global(.sheet-table th) { height: 32px; padding: 6px 12px 6px 10px; }
+.workspace :global(.sheet-footer) { min-height: 38px; padding: 7px 12px; }
+.workspace :global(.bulk-bar) { padding: 7px 12px; }
+.workspace :global(.role-workspace-header) { margin-bottom: 14px; }
+.workspace[data-expanded="true"] :global(.role-workspace-header) { margin-bottom: 10px; }
+.workspace[data-expanded="true"] :global(.role-workspace-header h1) { font-size: 18px; }
+.workspace[data-expanded="true"] :global(.role-summary) { margin-top: 4px; }
+.workspace :global(.candidate-row-actions button) { min-height: 24px; }
+/* The grid itself already tracks --row-height, so only its resting value
+   moves; compact and coarse keep their own. */
+.workspace { --row-height: 36px; }
+.workspace[data-density="compact"] { --row-height: 30px; }
+
 @media (pointer: coarse) {
+  /* Touch needs the room back, whatever the screen is doing. */
   .workspace { --row-height: 44px; }
+  .workspace[data-density="compact"] { --row-height: 40px; }
   .workspace :global(.sheet-input) { font-size: 16px; }
+  .workspace :global(button), .workspace :global(.button) { min-height: 40px; }
+  .workspace :global(.candidate-toolbar .candidate-search-input) { min-height: 40px; }
 }

@@ -202,6 +202,9 @@ export function RolePipeline({
   // accident.
   const [expanded, setExpanded] = useState(true);
   const [deleting, setDeleting] = useState<string[] | null>(null);
+  const [resumeBusyId, setResumeBusyId] = useState<string | null>(null);
+  const resumeInput = useRef<HTMLInputElement>(null);
+  const resumeForRef = useRef<string | null>(null);
   const [showDeleted, setShowDeleted] = useState(false);
   const [bulkEditing, setBulkEditing] = useState<string[] | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -452,6 +455,50 @@ export function RolePipeline({
       setColumnMenuOpen(false);
     }
     setNavigatingTo(key);
+  }
+  // Resume straight from the grid. A hidden input is reused for every row
+  // rather than one per row: the file dialog is modal, so only one can ever
+  // be open, and the row it belongs to is remembered while it is.
+  function chooseResume(candidateId: string) {
+    resumeForRef.current = candidateId;
+    resumeInput.current?.click();
+  }
+  async function uploadResume(file: File) {
+    const candidateId = resumeForRef.current;
+    if (!candidateId) return;
+    setResumeBusyId(candidateId);
+    setError("");
+    try {
+      const form = new FormData();
+      form.set("candidateId", candidateId);
+      form.set("file", file);
+      const response = await fetch("/api/resume", { method: "POST", body: form });
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(result.error ?? "Could not upload the resume.");
+      setMessage("Resume uploaded.");
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setResumeBusyId(null);
+      resumeForRef.current = null;
+    }
+  }
+  async function openResume(candidateId: string) {
+    setResumeBusyId(candidateId);
+    setError("");
+    try {
+      const response = await fetch(`/api/resume?candidateId=${candidateId}`);
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(result.error ?? "Could not open the resume.");
+      window.open(result.url, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setResumeBusyId(null);
+    }
   }
   // One renderer for all three groups, so an entry, a flow step and the exit
   // cannot drift apart in behaviour just because they are drawn differently.
@@ -712,10 +759,24 @@ export function RolePipeline({
           <td className={`sheet-td w-${column.width}`} key={column.id}>
             <button
               className="sheet-link-button"
-              onClick={() => setPanelId(rc.id)}
+              disabled={locked || resumeBusyId === rc.candidate_id}
+              onClick={() =>
+                rc.candidates.resume_path
+                  ? void openResume(rc.candidate_id)
+                  : chooseResume(rc.candidate_id)
+              }
+              title={
+                rc.candidates.resume_path
+                  ? "Open the resume on file"
+                  : "Choose a PDF or Word document to upload"
+              }
               type="button"
             >
-              {rc.candidates.resume_path ? "View" : "Upload"}
+              {resumeBusyId === rc.candidate_id
+                ? "Working…"
+                : rc.candidates.resume_path
+                  ? "View"
+                  : "Upload"}
             </button>
           </td>
         );
@@ -1056,6 +1117,19 @@ export function RolePipeline({
           </button>
         </div>
       </header>
+      <input
+        ref={resumeInput}
+        className="visually-hidden"
+        type="file"
+        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          // Cleared before awaiting, so picking the same file twice in a row
+          // still fires a change event the second time.
+          event.target.value = "";
+          if (file) void uploadResume(file);
+        }}
+      />
       {(error || message) && (
         <div className="toast-stack">
           {error && (
