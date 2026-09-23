@@ -40,6 +40,8 @@ export type ImportSummary = {
   created: number;
   matchedExisting: number;
   alreadyInRole: number;
+  updated: number;
+  skipped: number;
   invalid: number;
 };
 
@@ -194,7 +196,7 @@ export function AddCandidatesDialog({
     setBusy(true);
     setProgress("");
     try {
-      const summary: ImportSummary = { created: 0, matchedExisting: 0, alreadyInRole: 0, invalid: 0 };
+      const summary: ImportSummary = { created: 0, matchedExisting: 0, alreadyInRole: 0, updated: 0, skipped: 0, invalid: 0 };
       const batches = Array.from({ length: Math.ceil(rows.length / importBatchSize) }, (_, index) =>
         rows.slice(index * importBatchSize, (index + 1) * importBatchSize),
       );
@@ -214,6 +216,8 @@ export function AddCandidatesDialog({
         summary.created += result.created;
         summary.matchedExisting += result.matchedExisting;
         summary.alreadyInRole += result.alreadyInRole;
+        summary.updated += result.updated;
+        summary.skipped += result.skipped;
         summary.invalid += result.invalid;
       }
       onImported(summary);
@@ -338,8 +342,9 @@ export function AddCandidatesDialog({
         </select>
       </label>
       <p className="muted">
-        Everyone in this batch lands in {stageLabels[targetStage]}. Anyone already
-        on this role keeps the stage they are in.
+        {targetStage === "all_profiles"
+          ? "New people are created here and land in All profiles. Anyone already on this role keeps the stage they are in, and their details are updated."
+          : `This updates the details of people already in ${stageLabels[targetStage]}. Nobody new is created: add new profiles through All profiles first. Updated details show everywhere that person appears.`}
       </p>
       <label>
         Source provider <span className="optional">optional</span>

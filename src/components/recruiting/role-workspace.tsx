@@ -16,7 +16,7 @@ export function RoleWorkspace({ data }: { data: PageData }) {
         roleCandidates={data.roleCandidates ?? []}
         counts={data.roleCandidateCounts ?? {}}
         masterCandidates={data.masterCandidates ?? []}
-        masterRoleCandidateIds={data.masterRoleCandidateIds ?? []}
+        masterRoleMemberships={data.masterRoleMemberships ?? []}
         total={data.total ?? 0}
         page={data.page ?? 1}
         roleFields={data.roleFields ?? []}

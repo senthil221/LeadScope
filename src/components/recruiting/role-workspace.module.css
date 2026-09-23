@@ -131,7 +131,17 @@
 .workspace :global(.column-resize-handle) { position: absolute; right: 0; top: 0; bottom: 0; width: 9px; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; cursor: col-resize; touch-action: none; }
 .workspace :global(.column-resize-handle:hover), .workspace :global(.column-resize-handle:focus-visible) { background: #bfdbfe; }
 .workspace :global(.column-resize-handle::after) { content: ""; display: block; width: 1px; height: 14px; background: #a7b6c9; margin: auto; }
-.workspace :global(.section-heading) { padding: 16px 14px 0; }
+.workspace :global(.section-heading) { padding: 16px 14px 12px; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+/* The master list is a wide table in a narrow frame, so it scrolls in place
+   like the pipeline grid rather than pushing the page sideways. */
+.workspace :global(.master-frame) { overflow: auto; }
+.workspace :global(.master-table) { table-layout: fixed; min-width: 1266px; }
+.workspace :global(.master-table th), .workspace :global(.master-table td) { padding: 8px 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace :global(.master-table td) { height: var(--row-height); font-size: 13px; }
+.workspace :global(.master-table .muted) { color: var(--faint); }
+.workspace :global(.master-table .badge) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.workspace :global(.candidate-delete-button) { min-width: 30px; padding: 3px 6px; color: #9a3412; }
+.workspace :global(.candidate-delete-button:hover:not(:disabled)) { background: #fef2f2; border-color: #fca5a5; color: #b91c1c; }
 @media (max-width: 960px) {
   .workspace :global(.role-workspace-header) { align-items: stretch; }
   .workspace :global(.role-secondary-nav) { width: 100%; border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 8px; }

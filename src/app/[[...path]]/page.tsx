@@ -327,14 +327,17 @@ export default async function Page({
           data.roleCandidateCounts = roleCounts.counts;
           data.roleDashboardCounts = [roleCounts.dashboard];
           const candidateIds = data.masterCandidates.map((candidate) => candidate.id);
-          data.masterRoleCandidateIds = candidateIds.length
+          // The membership id and stage come back too: the master list offers
+          // removal from the role, which addresses the membership rather than
+          // the shared person.
+          data.masterRoleMemberships = candidateIds.length
             ? checked(
                 await db
                   .from("role_candidates")
-                  .select("candidate_id")
+                  .select("id,candidate_id,stage")
                   .eq("role_id", data.role!.id)
                   .in("candidate_id", candidateIds),
-              ).map((membership) => membership.candidate_id)
+              )
             : [];
         } else if (stageParam === "analytics") {
           const [funnel, durations, roleCounts, sourcePerformance] = await Promise.all([

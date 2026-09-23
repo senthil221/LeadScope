@@ -143,7 +143,7 @@ export function RolePipeline({
   roleCandidates,
   counts,
   masterCandidates,
-  masterRoleCandidateIds,
+  masterRoleMemberships,
   total,
   page,
   roleFields,
@@ -157,7 +157,7 @@ export function RolePipeline({
   roleCandidates: RoleCandidate[];
   counts: Record<string, number>;
   masterCandidates: MasterCandidate[];
-  masterRoleCandidateIds: string[];
+  masterRoleMemberships: { id: string; candidate_id: string; stage: string }[];
   total: number;
   page: number;
   roleFields: RoleField[];
@@ -202,10 +202,27 @@ export function RolePipeline({
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = previous; };
-    // Escape does not leave full screen. It is the grid's cancel key, and now
-    // that full screen is the default layout rather than a mode someone opted
-    // into, cancelling an edit must not also rearrange the page.
   }, [expanded]);
+  // Escape leaves the role. It is also the grid's cancel key and the way out
+  // of every dialog, so it only navigates once nothing nearer has claimed it:
+  // a cell being edited calls preventDefault, an open dialog handles its own,
+  // and anything typed into still belongs to whoever is typing.
+  useEffect(() => {
+    function leave(event: KeyboardEvent) {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (document.querySelector("dialog[open]")) return;
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLElement &&
+        (active.isContentEditable ||
+          ["INPUT", "TEXTAREA", "SELECT"].includes(active.tagName))
+      )
+        return;
+      router.push(`/clients/${client.id}/roles?list=1`);
+    }
+    document.addEventListener("keydown", leave);
+    return () => document.removeEventListener("keydown", leave);
+  }, [client.id, router]);
   const [masterSelection, setMasterSelection] = useState({
     scope: "",
     ids: [] as string[],
@@ -273,7 +290,10 @@ export function RolePipeline({
       ? nextStage(tab as PipelineStage)
       : null;
   const canSelectCandidates = isStage(tab) || isFollowUpsTab;
-  const showRowActions = Boolean(advanceTo || canRejectFromTab);
+  // Every stage can delete a row, so the action column exists even where there
+  // is nothing to advance or reject.
+  const canDeleteRows = canSelectCandidates && !role.archived;
+  const showRowActions = Boolean(advanceTo || canRejectFromTab) || canDeleteRows;
   const activeCandidateFilterCount = [
     params.get("source"),
     params.get("source_detail"),
@@ -304,6 +324,18 @@ export function RolePipeline({
       };
     });
   }
+  // One checkbox column, two meanings, decided per row by whether that person
+  // is already on the role. The selection is split here so each button knows
+  // exactly what it acts on.
+  const masterMembershipByCandidate = new Map(
+    masterRoleMemberships.map((membership) => [membership.candidate_id, membership]),
+  );
+  const masterToAdd = masterSelected.filter((id) => !masterMembershipByCandidate.has(id));
+  const masterToRemove = masterSelected
+    .map((id) => masterMembershipByCandidate.get(id))
+    .filter((membership): membership is { id: string; candidate_id: string; stage: string } =>
+      membership !== undefined,
+    );
 
   const savedColumnPreference = useSyncExternalStore(
     (onStoreChange) => {
@@ -353,7 +385,10 @@ export function RolePipeline({
   const columnWidths = { xs: 96, sm: 128, md: 160, lg: 220 };
   const nameWidth = Math.max(180, layout.width("full_name", 280));
   const utilityWidth = (canSelectCandidates ? 36 : 0) + 36 + 28;
-  const actionWidth = showRowActions ? (canRejectFromTab && advanceTo ? 180 : 110) : 0;
+  // Advance, Reject and a delete icon, counting only what this tab shows.
+  const actionWidth = showRowActions
+    ? (advanceTo ? 82 : 0) + (canRejectFromTab ? 66 : 0) + (canDeleteRows ? 34 : 0) + 16
+    : 0;
   const fixedWidth = utilityWidth + nameWidth + actionWidth;
   const dataWidth = visibleCandidateColumns.reduce((sum, column) => sum + layout.width(column.id, columnWidths[column.width]), 0);
   const tableWidth = Math.max(tableFrameWidth, fixedWidth + dataWidth);
@@ -436,10 +471,7 @@ export function RolePipeline({
         clientId: client.id,
         roleId: role.id,
         source: "manual",
-        // A row typed into the Client shortlist belongs in the client
-        // shortlist. Without this it would be created and then vanish from
-        // the tab it was typed into.
-        stage: isStage(tab) && tab !== "rejected" ? tab : "all_profiles",
+        stage: "all_profiles",
         rows: ready.map(draftImportRow),
       });
       const addedKeys = new Set(ready.map((row) => row.key));
@@ -777,6 +809,9 @@ export function RolePipeline({
       summary.matchedExisting &&
         `${summary.matchedExisting} matched an existing candidate`,
       summary.alreadyInRole && `${summary.alreadyInRole} already in this role`,
+      summary.updated && `${summary.updated} updated`,
+      summary.skipped &&
+        `${summary.skipped} skipped, not on this role yet — add them from All profiles`,
       summary.invalid && `${summary.invalid} skipped as invalid`,
     ].filter(Boolean);
     setMessage(parts.length ? parts.join(", ") + "." : "Nothing to import.");
@@ -843,13 +878,15 @@ export function RolePipeline({
     setRejecting(true);
   }
   async function addSelectedFromMasterDb() {
-    if (busy || !masterSelected.length) return;
+    // Only the people not already on the role; the rest of the selection is
+    // there for the Remove button.
+    if (busy || !masterToAdd.length) return;
     setBusy(true);
     setError("");
     try {
       const result = await act<{ added: number; alreadyInRole: number }>(
         "addExistingCandidates",
-        { clientId: client.id, roleId: role.id, candidateIds: masterSelected },
+        { clientId: client.id, roleId: role.id, candidateIds: masterToAdd },
       );
       setMasterSelected([]);
       setMessage(
@@ -1417,16 +1454,35 @@ export function RolePipeline({
           <div className="section-heading">
             <div>
               <h2>Master database</h2>
-              <p className="muted">Reuse an existing candidate for this role.</p>
+              <p className="muted">
+                Everyone this agency has ever sourced. Add them to this role, or take
+                them off it.
+              </p>
             </div>
-            {masterSelected.length > 0 && !role.archived && (
-              <button
-                className="primary small"
-                disabled={busy}
-                onClick={() => void addSelectedFromMasterDb()}
-              >
-                Add {masterSelected.length} to role
-              </button>
+            {!role.archived && (masterToAdd.length > 0 || masterToRemove.length > 0) && (
+              <div className="row">
+                {masterToAdd.length > 0 && (
+                  <button
+                    className="primary small"
+                    disabled={busy}
+                    onClick={() => void addSelectedFromMasterDb()}
+                  >
+                    Add {masterToAdd.length} to role
+                  </button>
+                )}
+                {masterToRemove.length > 0 && (
+                  <button
+                    className="small"
+                    disabled={busy}
+                    onClick={() => setDeleting(masterToRemove.map((m) => m.id))}
+                  >
+                    <Trash2 size={14} aria-hidden="true" /> Remove {masterToRemove.length} from role
+                  </button>
+                )}
+                <button className="small" disabled={busy} onClick={() => setMasterSelected([])}>
+                  Clear
+                </button>
+              </div>
             )}
           </div>
           <form
@@ -1446,65 +1502,84 @@ export function RolePipeline({
             <button>Search</button>
             <Link href={masterDbUrl({ q: "" })}>Clear</Link>
           </form>
-          <div className="card table-wrap">
-            <table>
+          <div className="card table-wrap sheet-table-frame master-frame">
+            <table className="sheet-table master-table">
+              <colgroup>
+                <col style={{ width: 36 }} />
+                <col style={{ width: 240 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 200 }} />
+                <col style={{ width: 170 }} />
+                <col style={{ width: 150 }} />
+                <col style={{ width: 90 }} />
+                <col style={{ width: 100 }} />
+                <col style={{ width: 110 }} />
+              </colgroup>
               <thead>
                 <tr>
-                  <th className="select-cell">
+                  <th className="select-cell" scope="col">
                     <input
-                      aria-label="Select all candidates not yet in this role"
+                      aria-label="Select every candidate on this page"
                       type="checkbox"
-                      disabled={busy || role.archived}
+                      disabled={busy || role.archived || !masterCandidates.length}
                       checked={
-                        masterCandidates.some((candidate) => !masterRoleCandidateIds.includes(candidate.id)) &&
-                        masterCandidates
-                          .filter((candidate) => !masterRoleCandidateIds.includes(candidate.id))
-                          .every((candidate) => masterSelected.includes(candidate.id))
+                        masterCandidates.length > 0 &&
+                        masterSelected.length === masterCandidates.length
                       }
                       onChange={(event) =>
                         setMasterSelected(
                           event.target.checked
-                            ? masterCandidates
-                                .filter((candidate) => !masterRoleCandidateIds.includes(candidate.id))
-                                .map((candidate) => candidate.id)
+                            ? masterCandidates.map((candidate) => candidate.id)
                             : [],
                         )
                       }
                     />
                   </th>
-                  <th>Full name</th>
-                  <th className="candidate-linkedin-heading">LinkedIn</th>
-                  <th>Headline</th>
-                  <th>Company</th>
-                  <th>Location</th>
-                  <th>Experience</th>
-                  <th>Contact</th>
-                  <th>Added</th>
+                  <th scope="col">Full name</th>
+                  <th scope="col">On this role</th>
+                  <th className="candidate-linkedin-heading" scope="col">LinkedIn</th>
+                  <th scope="col">Headline</th>
+                  <th scope="col">Company</th>
+                  <th scope="col">Location</th>
+                  <th scope="col">Exp</th>
+                  <th scope="col">Contact</th>
+                  <th scope="col">Added</th>
                 </tr>
               </thead>
               <tbody>
                 {masterCandidates.map((c) => (
                   <tr key={c.id}>
+                    <td className="select-cell">
+                      <input
+                        aria-label={
+                          masterMembershipByCandidate.has(c.id)
+                            ? `Select ${c.full_name}, already on this role`
+                            : `Select ${c.full_name} to add to this role`
+                        }
+                        type="checkbox"
+                        disabled={busy || role.archived}
+                        checked={masterSelected.includes(c.id)}
+                        onChange={(event) =>
+                          setMasterSelected((current) =>
+                            event.target.checked
+                              ? [...current, c.id]
+                              : current.filter((id) => id !== c.id),
+                          )
+                        }
+                      />
+                    </td>
+                    <td className="strong" title={c.full_name}>{c.full_name}</td>
                     <td>
-                      {masterRoleCandidateIds.includes(c.id) ? (
-                        <span className="badge accepted">In this role</span>
+                      {masterMembershipByCandidate.has(c.id) ? (
+                        <span className="badge accepted">
+                          {stageLabels[masterMembershipByCandidate.get(c.id)!.stage as Stage] ??
+                            "On this role"}
+                        </span>
                       ) : (
-                        <input
-                          aria-label={`Add ${c.full_name} to this role`}
-                          type="checkbox"
-                          disabled={busy || role.archived}
-                          checked={masterSelected.includes(c.id)}
-                          onChange={(event) =>
-                            setMasterSelected((current) =>
-                              event.target.checked
-                                ? [...current, c.id]
-                                : current.filter((id) => id !== c.id),
-                            )
-                          }
-                        />
+                        <span className="muted">Not yet</span>
                       )}
                     </td>
-                    <td className="strong">{c.full_name}</td>
                     <td className="candidate-linkedin-cell">
                       {linkedInUrl(c) ? (
                         <a
@@ -1517,13 +1592,13 @@ export function RolePipeline({
                         </a>
                       ) : "Not provided"}
                     </td>
-                    <td>{c.headline || "Not provided"}</td>
-                    <td>{c.current_company || "Not provided"}</td>
-                    <td>{c.location || "Not provided"}</td>
+                    <td title={c.headline ?? ""}>{c.headline || "—"}</td>
+                    <td title={c.current_company ?? ""}>{c.current_company || "—"}</td>
+                    <td title={c.location ?? ""}>{c.location || "—"}</td>
                     <td>
                       {c.total_experience_years != null
                         ? `${c.total_experience_years} yrs`
-                        : "Not provided"}
+                        : "—"}
                     </td>
                     <td>
                       {c.phone || c.email ? (
@@ -1708,13 +1783,28 @@ export function RolePipeline({
                             Reject
                           </button>
                         )}
+                        {canDeleteRows && (
+                          <button
+                            className="small candidate-delete-button"
+                            aria-label={`Delete ${rc.candidates.full_name} from this role`}
+                            title="Delete from this role"
+                            disabled={busy || Boolean(movingCandidateId)}
+                            onClick={() => setDeleting([rc.id])}
+                          >
+                            <Trash2 size={14} aria-hidden="true" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   )}
                 </tr>
                 );
               })}
+              {/* All profiles is the only stage that admits somebody new, so
+                  the blank row to type into only belongs there. Later stages
+                  are edited in place. */}
               {!role.archived &&
+                tab === "all_profiles" &&
                 drafts.map((draft, draftIndex) => {
                   const rowIndex = roleCandidates.length + draftIndex;
                   const blocker = draftBlocker(draft);
@@ -1820,7 +1910,8 @@ export function RolePipeline({
           setBusy(true); setError("");
           try {
             await act("removeRoleCandidates", { clientId: client.id, roleId: role.id, ids: deleting, stage: isStage(tab) ? tab : null });
-            setSelected([]); setDeleting(null); setMessage("Rows deleted from this role. Restore them from Recently deleted.");
+            setSelected([]); setMasterSelected([]); setDeleting(null);
+            setMessage("Rows deleted from this role. Restore them from Recently deleted.");
             router.refresh();
           } catch (e) { setError((e as Error).message); }
           finally { setBusy(false); }

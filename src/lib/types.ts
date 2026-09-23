@@ -324,7 +324,7 @@ export type PageData = {
   roleCandidates?: RoleCandidate[];
   roleCandidateCounts?: Record<string, number>;
   masterCandidates?: MasterCandidate[];
-  masterRoleCandidateIds?: string[];
+  masterRoleMemberships?: { id: string; candidate_id: string; stage: string }[];
   roleFields?: RoleField[];
   shareLinks?: ShareLink[];
   roleStageFunnel?: StageFunnelRow[];

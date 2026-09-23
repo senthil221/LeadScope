@@ -1747,7 +1747,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         "all_profiles",
       ]),
     );
-    expect(summary).toEqual({ created: 2, matchedExisting: 0, alreadyInRole: 0, invalid: 0 });
+    expect(summary).toEqual({ created: 2, matchedExisting: 0, alreadyInRole: 0, invalid: 0, updated: 0, skipped: 0 });
     expect(
       (await sql("select count(*)::int as n from public.role_candidates where role_id=$1", [rid]))
         .rows[0].n,
@@ -1831,7 +1831,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         "all_profiles",
       ]),
     );
-    expect(summary).toEqual({ created: 0, matchedExisting: 1, alreadyInRole: 0, invalid: 0 });
+    expect(summary).toEqual({ created: 0, matchedExisting: 1, alreadyInRole: 0, invalid: 0, updated: 0, skipped: 0 });
     expect(
       (
         await sql("select candidate_id from public.role_candidates where role_id=$1", [rid])
@@ -1848,7 +1848,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
     const second = await asUser(actor, () =>
       rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("bulk-repeat")]), "manual", "all_profiles"]),
     );
-    expect(second).toEqual({ created: 0, matchedExisting: 1, alreadyInRole: 1, invalid: 0 });
+    expect(second).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 1, invalid: 0, updated: 0, skipped: 0 });
     expect(
       (await sql("select count(*)::int as n from public.role_candidates where role_id=$1", [rid]))
         .rows[0].n,
@@ -1880,7 +1880,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         "all_profiles",
       ]),
     );
-    expect(summary).toEqual({ created: 1, matchedExisting: 1, alreadyInRole: 1, invalid: 0 });
+    expect(summary).toEqual({ created: 1, matchedExisting: 0, alreadyInRole: 1, invalid: 0, updated: 0, skipped: 0 });
     expect(
       (await sql("select count(*)::int as n from public.role_candidates where role_id=$1", [rid]))
         .rows[0].n,
@@ -1904,7 +1904,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         "all_profiles",
       ]),
     );
-    expect(summary).toEqual({ created: 1, matchedExisting: 0, alreadyInRole: 0, invalid: 4 });
+    expect(summary).toEqual({ created: 1, matchedExisting: 0, alreadyInRole: 0, invalid: 4, updated: 0, skipped: 0 });
   });
   it("treats a row spanning two existing candidates as invalid rather than merging them", async () => {
     const cid = await client();
@@ -1928,7 +1928,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         "all_profiles",
       ]),
     );
-    expect(summary).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 0, invalid: 1 });
+    expect(summary).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 0, invalid: 1, updated: 0, skipped: 0 });
   });
   it("never clears reusable contact data with a blank field on a bulk re-import", async () => {
     const cid = await client();
@@ -1952,7 +1952,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
       ).rows[0].phone,
     ).toBe("+919876500000");
   });
-  it("lands rows in the stage the import names, and records it on the event", async () => {
+  it("creates nobody when importing into a later stage", async () => {
     const cid = await client();
     const rid = await role(cid);
     const summary = await asUser(actor, () =>
@@ -1964,19 +1964,101 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         "client_shortlisted",
       ]),
     );
-    expect(summary).toEqual({ created: 1, matchedExisting: 0, alreadyInRole: 0, invalid: 0 });
-    const row = (
-      await sql("select id,stage from public.role_candidates where role_id=$1", [rid])
-    ).rows[0];
-    expect(row.stage).toBe("client_shortlisted");
+    expect(summary).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 0, invalid: 0, updated: 0, skipped: 1 });
+    expect(
+      (await sql("select count(*)::int as n from public.role_candidates where role_id=$1", [rid]))
+        .rows[0].n,
+    ).toBe(0);
+    // Nor was the shared person invented somewhere off to the side.
+    expect(
+      (
+        await sql("select count(*)::int as n from public.candidate_identities where normalized_value=$1", [
+          "https://www.linkedin.com/in/stage-target",
+        ])
+      ).rows[0].n,
+    ).toBe(0);
+  });
+  it("skips someone who exists in the master database but is not on this role", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const otherRole = await role(cid);
+    await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        otherRole,
+        JSON.stringify([linkedinRow("stage-elsewhere")]),
+        "csv",
+        "all_profiles",
+      ]),
+    );
+    const summary = await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        rid,
+        JSON.stringify([
+          linkedinRow("stage-elsewhere", { fields: { location: "Chennai" } }),
+        ]),
+        "csv",
+        "recruiter_shortlisted",
+      ]),
+    );
+    expect(summary).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 0, invalid: 0, updated: 0, skipped: 1 });
+    expect(
+      (await sql("select count(*)::int as n from public.role_candidates where role_id=$1", [rid]))
+        .rows[0].n,
+    ).toBe(0);
+    // Left entirely alone, not quietly enriched from another role's import.
     expect(
       (
         await sql(
-          "select to_stage from public.role_candidate_events where role_candidate_id=$1 and kind='import'",
-          [row.id],
+          "select c.location from public.candidates c join public.candidate_identities i on i.candidate_id=c.id where i.normalized_value=$1",
+          ["https://www.linkedin.com/in/stage-elsewhere"],
         )
-      ).rows[0].to_stage,
-    ).toBe("client_shortlisted");
+      ).rows[0].location,
+    ).toBe("");
+  });
+  it("updates someone already on the role, and the detail reaches every stage", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        rid,
+        JSON.stringify([linkedinRow("stage-enrich")]),
+        "csv",
+        "all_profiles",
+      ]),
+    );
+    const rcId = (
+      await sql("select id from public.role_candidates where role_id=$1", [rid])
+    ).rows[0].id;
+    await sql("update public.role_candidates set stage='client_shortlisted' where id=$1", [rcId]);
+    const summary = await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        rid,
+        JSON.stringify([
+          linkedinRow("stage-enrich", {
+            fields: { currentCtc: "55 LPA", location: "Pune" },
+          }),
+        ]),
+        "csv",
+        "client_shortlisted",
+      ]),
+    );
+    expect(summary).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 0, invalid: 0, updated: 1, skipped: 0 });
+    const row = (
+      await sql(
+        "select c.current_ctc,c.location from public.candidates c join public.candidate_identities i on i.candidate_id=c.id where i.normalized_value=$1",
+        ["https://www.linkedin.com/in/stage-enrich"],
+      )
+    ).rows[0];
+    expect(row.current_ctc).toBe("55 LPA");
+    expect(row.location).toBe("Pune");
+    // The stage is untouched, and no duplicate membership appeared.
+    expect(
+      (await sql("select stage from public.role_candidates where role_id=$1", [rid])).rows,
+    ).toEqual([{ stage: "client_shortlisted" }]);
   });
   it("refuses a stage an import cannot fill in", async () => {
     const cid = await client();
@@ -1995,7 +2077,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
       ).rejects.toThrow("pipeline stage");
     }
   });
-  it("leaves someone already on the role in the stage they are in", async () => {
+  it("never moves someone backwards when All profiles re-imports them", async () => {
     const cid = await client();
     const rid = await role(cid);
     await asUser(actor, () =>
@@ -2004,9 +2086,10 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         rid,
         JSON.stringify([linkedinRow("stage-keep")]),
         "csv",
-        "recruiter_shortlisted",
+        "all_profiles",
       ]),
     );
+    await sql("update public.role_candidates set stage='offer_sent' where role_id=$1", [rid]);
     const summary = await asUser(actor, () =>
       rpc("import_candidates", [
         cid,
@@ -2016,10 +2099,10 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         "all_profiles",
       ]),
     );
-    expect(summary).toEqual({ created: 0, matchedExisting: 1, alreadyInRole: 1, invalid: 0 });
+    expect(summary).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 1, invalid: 0, updated: 0, skipped: 0 });
     expect(
       (await sql("select stage from public.role_candidates where role_id=$1", [rid])).rows[0].stage,
-    ).toBe("recruiter_shortlisted");
+    ).toBe("offer_sent");
   });
   it("stores the CTC and qualification an import carries", async () => {
     const cid = await client();
@@ -2034,7 +2117,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
           }),
         ]),
         "csv",
-        "recruiter_shortlisted",
+        "all_profiles",
       ]),
     );
     const row = (
