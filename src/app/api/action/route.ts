@@ -233,6 +233,24 @@ export async function POST(request: Request) {
         );
         break;
       }
+      // Both are owner-only, enforced inside the RPC rather than here: the
+      // route is reachable by any approved operator.
+      case "operators": {
+        result = checked(await db.rpc("list_operators"));
+        break;
+      }
+      case "setOperatorAccess": {
+        const p = z
+          .object({ id: uuid, approved: z.boolean() })
+          .parse(payload);
+        checked(
+          await db.rpc("set_operator_access", {
+            p_id: p.id,
+            p_approved: p.approved,
+          }),
+        );
+        break;
+      }
       case "sourcingProspects": {
         const p = z
           .object({ clientId: uuid, roleId: uuid })

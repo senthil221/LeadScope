@@ -163,7 +163,9 @@ beforeAll(async () => {
     if not exists(select from pg_roles where rolname='service_role') then create role service_role nologin bypassrls; end if;
     end $$;
     create schema if not exists auth;
-    create table if not exists auth.users(id uuid primary key, raw_user_meta_data jsonb default '{}');
+    create table if not exists auth.users(id uuid primary key, raw_user_meta_data jsonb default '{}',
+      email text, email_confirmed_at timestamptz, last_sign_in_at timestamptz,
+      created_at timestamptz not null default now());
     create or replace function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
     grant usage on schema auth to authenticated,anon,service_role;
     grant execute on function auth.uid() to authenticated,anon,service_role;`);
@@ -180,8 +182,8 @@ beforeAll(async () => {
     }
   }
   await sql(
-    "insert into auth.users(id,raw_user_meta_data) values($1,'{}'),($2,'{\"is_agency_admin\":true}')",
-    [actor, outsider],
+    "insert into auth.users(id,raw_user_meta_data,email,email_confirmed_at) values($1,'{}',$3,now()),($2,'{\"is_agency_admin\":true}',$4,now())",
+    [actor, outsider, "actor@example.com", "outsider@example.com"],
   );
   await sql(
     "update public.user_profiles set is_agency_admin=true where id=$1",
@@ -2128,6 +2130,94 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
     ).rows[0];
     expect(row.current_ctc).toBe("42 LPA");
     expect(row.highest_qualification).toBe("B.E. Computer Science");
+  });
+});
+
+describe("operator access: owner-only, and cannot lock the owner out", () => {
+  // The harness seeds nobody as an owner, because ownership is seeded from a
+  // real email the test database does not have. Each test grants it explicitly
+  // so the refusal path is the default rather than the exception.
+  async function withOwner<T>(owner: string, fn: () => Promise<T>): Promise<T> {
+    await sql("update public.user_profiles set is_owner=true where id=$1", [owner]);
+    try {
+      return await fn();
+    } finally {
+      await sql("update public.user_profiles set is_owner=false where id=$1", [owner]);
+    }
+  }
+
+  it("refuses an approved agency admin who is not the owner", async () => {
+    await expect(
+      asUser(actor, () => rpc("list_operators")),
+    ).rejects.toThrow("Only the workspace owner");
+    await expect(
+      asUser(actor, () => rpc("set_operator_access", [outsider, true])),
+    ).rejects.toThrow("Only the workspace owner");
+  });
+
+  it("refuses an account with no agency access at all", async () => {
+    await expect(
+      asUser(outsider, () => rpc("list_operators")),
+    ).rejects.toThrow("Only the workspace owner");
+  });
+
+  it("lists every account for the owner, with its access", async () => {
+    const rows = await withOwner(actor, () => asUser(actor, () => rpc("list_operators")));
+    const emails = (rows as { email: string }[]).map((row) => row.email);
+    expect(emails).toContain("actor@example.com");
+    expect(emails).toContain("outsider@example.com");
+    const self = (rows as { email: string; owner: boolean }[]).find(
+      (row) => row.email === "actor@example.com",
+    );
+    expect(self?.owner).toBe(true);
+  });
+
+  it("grants and revokes another operator", async () => {
+    await withOwner(actor, async () => {
+      await asUser(actor, () => rpc("set_operator_access", [outsider, true]));
+      expect(
+        (await sql("select is_agency_admin from public.user_profiles where id=$1", [outsider]))
+          .rows[0].is_agency_admin,
+      ).toBe(true);
+      await asUser(actor, () => rpc("set_operator_access", [outsider, false]));
+      expect(
+        (await sql("select is_agency_admin from public.user_profiles where id=$1", [outsider]))
+          .rows[0].is_agency_admin,
+      ).toBe(false);
+    });
+  });
+
+  it("refuses to change the owner's own access, so the screen cannot lock itself", async () => {
+    await withOwner(actor, async () => {
+      await expect(
+        asUser(actor, () => rpc("set_operator_access", [actor, false])),
+      ).rejects.toThrow("your own access");
+      expect(
+        (await sql("select is_agency_admin from public.user_profiles where id=$1", [actor]))
+          .rows[0].is_agency_admin,
+      ).toBe(true);
+    });
+  });
+
+  it("refuses to change any owner's access, not merely your own", async () => {
+    await sql("update public.user_profiles set is_owner=true where id=$1", [outsider]);
+    try {
+      await withOwner(actor, async () => {
+        await expect(
+          asUser(actor, () => rpc("set_operator_access", [outsider, false])),
+        ).rejects.toThrow("owner");
+      });
+    } finally {
+      await sql("update public.user_profiles set is_owner=false where id=$1", [outsider]);
+    }
+  });
+
+  it("refuses an operator id that does not exist", async () => {
+    await withOwner(actor, async () => {
+      await expect(
+        asUser(actor, () => rpc("set_operator_access", [randomUUID(), true])),
+      ).rejects.toThrow("no longer exists");
+    });
   });
 });
 

@@ -6,6 +6,7 @@ import { Workspace } from "@/components/workspace";
 import { ClientsWorkspace } from "@/components/clients-workspace";
 import { RoleWorkspace } from "@/components/recruiting/role-workspace";
 import { RolesWorkspace } from "@/components/recruiting/roles-workspace";
+import { TeamWorkspace } from "@/components/recruiting/team-workspace";
 import { prospectFilters } from "@/lib/prospects";
 import { prospectQuery } from "@/lib/server/prospects";
 import { uuid } from "@/lib/domain";
@@ -135,7 +136,7 @@ export default async function Page({
       />
     );
   }
-  const { db, user } = auth;
+  const { db, user, isOwner } = auth;
   const { path = [] } = await params;
   if (!path.length) redirect("/clients");
   const filter = await searchParams;
@@ -197,6 +198,7 @@ export default async function Page({
       agencyWorkQueue?.error || clientDirectoryCounts?.error,
     ),
     email: user.email ?? "Agency operator",
+    isOwner,
   };
   try {
     const loads: (() => Promise<void>)[] = [];
@@ -621,6 +623,15 @@ export default async function Page({
         data.total = result.count ?? 0;
       });
     }
+    // Owner only, and checked here rather than trusted from the navigation:
+    // the link is hidden for everyone else, but the URL is still typeable.
+    // list_operators checks ownership again for itself.
+    if (data.view === "team") {
+      if (!isOwner) notFound();
+      loads.push(async () => {
+        data.operators = checked(await db.rpc("list_operators"));
+      });
+    }
     if (data.view === "settings") {
       data.checks = env.checks;
       data.suppressions = checked(
@@ -654,6 +665,7 @@ export default async function Page({
         "settings",
         "roles",
         "role",
+        "team",
       ].includes(data.view)
     )
       notFound();
@@ -678,6 +690,7 @@ export default async function Page({
   }
   const routeKey = `${path.join("/")}:${filter.page ?? ""}:${filter.status ?? ""}:${filter.campaign ?? ""}:${filter.q ?? ""}:${filter.contact ?? ""}:${filter.stage ?? ""}`;
   const roleRouteKey = `${path.join("/")}:${filter.page ?? ""}:${filter.q ?? ""}:${filter.source ?? ""}:${filter.source_detail ?? ""}:${filter.rating ?? ""}:${filter.entered_from ?? ""}:${filter.entered_to ?? ""}:${filter.sort ?? ""}`;
+  if (data.view === "team") return <TeamWorkspace key={routeKey} data={data} />;
   if (data.view === "clients") return <ClientsWorkspace key={routeKey} data={data} />;
   if (data.view === "role") return <RoleWorkspace key={roleRouteKey} data={data} />;
   if (data.view === "roles") return <RolesWorkspace key={routeKey} data={data} />;

@@ -8,6 +8,7 @@ import {
   FolderOpen,
   LogOut,
   Settings,
+  ShieldCheck,
   Users,
 } from "lucide-react";
 import type { PageData } from "@/lib/types";
@@ -72,6 +73,14 @@ export function Sidebar({ data }: { data: PageData }) {
         </div>
       </nav>
       <div className="shell-footer">
+        {/* Owner only. The route refuses anyone else on its own, so this is
+            about not advertising a door that will not open. */}
+        {data.isOwner && (
+          <Link className={itemClass(view, ["team"])} href="/team">
+            <ShieldCheck size={17} aria-hidden="true" />
+            Access
+          </Link>
+        )}
         {client && (
           <Link
             className={itemClass(view, ["settings"])}

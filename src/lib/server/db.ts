@@ -51,7 +51,7 @@ export async function admin() {
   if (error || !user) throw new AppError("Sign in to continue.", 401);
   const { data: profile, error: profileError } = await db
     .from("user_profiles")
-    .select("is_agency_admin")
+    .select("is_agency_admin,is_owner")
     .eq("id", user.id)
     .single();
   if (profileError)
@@ -64,7 +64,10 @@ export async function admin() {
       "Your account has not been approved by the agency administrator.",
       403,
     );
-  return { db, user };
+  // The owner flag decides whether the access screen exists for this person.
+  // It is carried here for rendering only; the RPCs behind that screen check
+  // it again for themselves, so hiding the link is never the protection.
+  return { db, user, isOwner: Boolean(profile?.is_owner) };
 }
 export function checked<T>(result: {
   data: T;

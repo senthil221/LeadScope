@@ -325,6 +325,8 @@ export type PageData = {
   roleCandidateCounts?: Record<string, number>;
   masterCandidates?: MasterCandidate[];
   masterRoleMemberships?: { id: string; candidate_id: string; stage: string }[];
+  operators?: import("@/components/recruiting/team").Operator[];
+  isOwner?: boolean;
   roleFields?: RoleField[];
   shareLinks?: ShareLink[];
   roleStageFunnel?: StageFunnelRow[];

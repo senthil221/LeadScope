@@ -501,6 +501,32 @@ label small {
 .modal.import-modal {
   width: 720px;
 }
+.team-page {
+  max-width: 900px;
+}
+.team-table th[scope="row"] {
+  font-weight: 600;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.team-you {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.team-waiting {
+  margin: 0 0 16px;
+  font-weight: 600;
+}
+.team-table td:last-child {
+  text-align: right;
+}
 .modal-heading {
   display: flex;
   justify-content: space-between;
