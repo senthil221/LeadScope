@@ -9,8 +9,9 @@ const credentials = z.object({
 });
 export async function POST(request: Request) {
   try {
-    const origin = setup().appUrl ?? new URL(request.url).origin;
-    sameOrigin(request);
+    // Stay on whichever hostname the person is actually using; their session
+    // cookie was set there.
+    const origin = sameOrigin(request);
     if (
       !request.headers
         .get("content-type")

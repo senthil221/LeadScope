@@ -2,16 +2,22 @@ import "server-only";
 import { ZodError } from "zod";
 import { AppError } from "./db";
 import { setup } from "./config";
-export function sameOrigin(request: Request) {
+// Returns the caller's own origin once it is confirmed to be one this
+// deployment answers to. Callers redirect back to that origin rather than to
+// the canonical one: a session cookie belongs to the hostname that set it, so
+// sending someone to a different name after signing in would drop them back at
+// the sign-in page with a session they cannot see.
+export function sameOrigin(request: Request): string {
   const origin = request.headers.get("origin");
-  const expected = setup().appUrl;
-  if (!expected) throw new AppError("Set APP_URL to enable changes.", 503);
+  const allowed = setup().appOrigins;
+  if (!allowed.length) throw new AppError("Set APP_URL to enable changes.", 503);
   if (
     !origin ||
-    origin !== new URL(expected).origin ||
+    !allowed.includes(origin) ||
     request.headers.get("sec-fetch-site") === "cross-site"
   )
     throw new AppError("This action must be made from the application.", 403);
+  return origin;
 }
 export async function body(request: Request) {
   sameOrigin(request);
