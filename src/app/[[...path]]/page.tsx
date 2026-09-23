@@ -420,7 +420,14 @@ export default async function Page({
             shareLinksQuery,
           ]);
           data.roleCandidates = checked(rows) as unknown as RoleCandidate[];
-          data.total = rows.count ?? roleCounts.counts[stage] ?? 0;
+          // Without filters the query skips the exact count and the per-stage
+          // totals stand in. All profiles is not a stage any more, so its
+          // stand-in is every stage added up, matching what the list returns.
+          data.total =
+            rows.count ??
+            (stage === "all_profiles"
+              ? Object.values(roleCounts.counts).reduce((sum, n) => sum + n, 0)
+              : roleCounts.counts[stage] ?? 0);
           data.roleCandidateCounts = roleCounts.counts;
           data.roleDashboardCounts = [roleCounts.dashboard];
           data.roleFields = checked(fields);
