@@ -3705,6 +3705,38 @@ tbody tr:hover { background: #f8fbff; }
   text-align: center;
 }
 .role-stage-tabs a.selected span { background: #dbeafe !important; color: #1d4ed8 !important; }
+/* All profiles and Rejects are not stages, so they carry their own fill:
+   blue for the way in, red for the way out, distinct from the grey track
+   between them. The !important answers the blanket transparent above, which
+   is there to let the flow track show through its four steps. */
+.role-stage-tabs .stage-entry,
+.role-stage-tabs .stage-exit {
+  border-radius: 6px;
+  border-bottom-color: transparent;
+}
+.role-stage-tabs .stage-entry {
+  background: #eff6ff !important;
+  color: #1d4ed8;
+}
+.role-stage-tabs .stage-entry:hover,
+.role-stage-tabs .stage-entry.selected {
+  background: #dbeafe !important;
+  color: #1e3a8a;
+}
+.role-stage-tabs .stage-exit {
+  background: #fef2f2 !important;
+  color: #b4666a;
+}
+.role-stage-tabs .stage-exit:hover,
+.role-stage-tabs .stage-exit.selected {
+  background: #fee2e2 !important;
+  color: #b91c1c;
+}
+/* A blue count on a red pill reads as a mistake. */
+.role-stage-tabs .stage-exit.selected span {
+  background: #fecaca !important;
+  color: #991b1b !important;
+}
 .role-secondary-nav { margin: 12px 0 20px; padding: 0; }
 .role-secondary-nav > span { display: none; }
 .role-secondary-nav a { border: 1px solid transparent; color: var(--muted); font-weight: 600; }
