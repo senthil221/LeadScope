@@ -1095,12 +1095,21 @@ export function RolePipeline({
             </Link>
             <h1>{role.name}</h1>
             <span className={`badge ${role.status}`}>{role.status.replace("_", " ")}</span>
-          </div>
-          <div className="role-summary" aria-label="Role summary">
-            <span><strong>{pipelineTotal}</strong> active</span>
-            <span><strong>{counts.all_profiles ?? 0}</strong> awaiting rating</span>
-            <span>Rating threshold <strong>{role.rating_threshold} / 5</strong></span>
-            <span><strong>{counts.rejected ?? 0}</strong> rejected</span>
+            {/* The whole-role picture belongs with the whole-role list. On a
+                stage tab it describes something other than what is on screen,
+                and the tab counts already say where everyone is.
+
+                It sits on the title line rather than under it so that hiding
+                it does not change the header's height: the grid would jump
+                every time you moved between All profiles and a stage. */}
+            {tab === "all_profiles" && (
+              <div className="role-summary" aria-label="Role summary">
+                <span><strong>{pipelineTotal}</strong> active</span>
+                <span><strong>{counts.all_profiles ?? 0}</strong> awaiting rating</span>
+                <span>Rating threshold <strong>{role.rating_threshold} / 5</strong></span>
+                <span><strong>{counts.rejected ?? 0}</strong> rejected</span>
+              </div>
+            )}
           </div>
         </div>
         <div className="header-actions">

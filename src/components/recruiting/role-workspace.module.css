@@ -13,7 +13,6 @@
    of the screen. */
 .workspace[data-expanded="true"] :global(.role-workspace-header) { margin-bottom: 12px; }
 .workspace[data-expanded="true"] :global(.role-workspace-header h1) { font-size: 20px; }
-.workspace[data-expanded="true"] :global(.role-summary) { margin-top: 6px; }
 .workspace[data-expanded="true"] .tablePanel { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .workspace[data-expanded="true"] :global(.sheet-table-frame) { flex: 1 1 auto; min-height: 180px; max-height: none; }
 .workspace :global(.role-back) { display: inline-flex; align-items: center; gap: 6px; align-self: center; margin-right: 4px; padding: 5px 10px 5px 7px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: #43536b; font-size: 12px; font-weight: 600; text-decoration: none; white-space: nowrap; }
@@ -64,8 +63,13 @@
 .workspace :global(.role-workspace-header > div:first-child) { min-width: 0; }
 .workspace :global(.role-workspace-header h1) { font-size: 26px; line-height: 1.3; overflow-wrap: anywhere; }
 .workspace :global(.role-workspace-header .eyebrow) { font-size: 11px; margin-bottom: 6px; }
-.workspace :global(.role-summary) { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 10px 0 0; background: none; border: 0; box-shadow: none; font-size: 12px; }
-.workspace :global(.role-summary span) { padding: 0; border: 0; flex-basis: auto; }
+/* Reads as a continuation of the title line, separated from the status badge
+   by a rule and its own facts by dots, so it is one run of context rather
+   than four stray numbers. */
+.workspace :global(.role-summary) { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 0 4px; padding-left: 14px; border-left: 1px solid var(--line-strong); background: none; box-shadow: none; font-size: 12px; color: var(--muted); }
+.workspace :global(.role-summary span) { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; flex-basis: auto; white-space: nowrap; }
+.workspace :global(.role-summary span:not(:last-child))::after { content: "·"; margin-left: 6px; color: var(--line-strong); }
+.workspace :global(.role-summary strong) { color: var(--ink); font-weight: 650; }
 .tablePanel { min-width: 0; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); box-shadow: 0 2px 5px rgb(15 23 42 / 3%); }
 .workspace :global(.role-tab-bar) { gap: 0; margin: 0; padding: 0 14px; border-bottom: 1px solid var(--line); }
 .workspace :global(.role-stage-tabs) { flex: 1 1 auto; flex-wrap: wrap; overflow: visible; min-width: 0; padding: 8px 0; border: 0; border-radius: 0; gap: 10px; }
@@ -196,7 +200,6 @@
 .workspace :global(.role-workspace-header) { margin-bottom: 14px; }
 .workspace[data-expanded="true"] :global(.role-workspace-header) { margin-bottom: 10px; }
 .workspace[data-expanded="true"] :global(.role-workspace-header h1) { font-size: 18px; }
-.workspace[data-expanded="true"] :global(.role-summary) { margin-top: 4px; }
 .workspace :global(.candidate-row-actions button) { min-height: 24px; }
 /* The grid itself already tracks --row-height, so only its resting value
    moves; compact and coarse keep their own. */
