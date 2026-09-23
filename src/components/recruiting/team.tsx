@@ -88,10 +88,12 @@ export function TeamPage({
         </p>
       )}
 
+      {/* Deliberately not "waiting for approval": an account you revoked is
+          not waiting for anything, and saying so invites approving it again. */}
       {waiting.length > 0 && (
         <p className="team-waiting">
-          {waiting.length} {waiting.length === 1 ? "person is" : "people are"} waiting
-          for approval.
+          {waiting.length} {waiting.length === 1 ? "account has" : "accounts have"} no
+          access.
         </p>
       )}
 

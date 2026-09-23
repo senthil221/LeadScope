@@ -504,9 +504,17 @@ label small {
 .team-page {
   max-width: 900px;
 }
+/* The email is a row header for screen readers, but it is data, not a column
+   label: the global th styling would shout it in uppercase grey. */
 .team-table th[scope="row"] {
+  background: none;
+  color: var(--ink);
+  font-size: 13px;
   font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
   text-align: left;
+  white-space: normal;
   overflow-wrap: anywhere;
 }
 .team-you {
