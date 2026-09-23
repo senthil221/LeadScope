@@ -54,7 +54,11 @@ export default async function Login({
             approval.
           </p>
         )}
-        <LoginForm />
+        {/* Creating an account is not something a visitor to the sign-in page
+            should be invited to do: every account still needs approving, and
+            the offer only produced accounts to turn down. It stays reachable
+            at /login?signup=1, which is the link to send a new operator. */}
+        <LoginForm allowSignup={params.signup === "1"} />
         <p className="login-note">
           <ShieldCheck size={16} /> Access is limited to approved agency
           operators.

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowRight, FolderOpen, ListChecks, Plus, X } from "lucide-react";
+import { ArrowRight, FolderOpen, Plus, X } from "lucide-react";
 import { AppShell } from "@/components/shell/AppShell";
 import type { PageData } from "@/lib/types";
 import { act as sharedAct } from "@/lib/client/act";
@@ -11,6 +11,14 @@ import { act as sharedAct } from "@/lib/client/act";
 function act<T>(action: string, payload: unknown): Promise<T> {
   return sharedAct<T>(action, payload, "Could not save the client.");
 }
+
+const pipelineColumns = [
+  { key: "all_profiles", label: "All" },
+  { key: "profile_shortlisted", label: "Profile" },
+  { key: "recruiter_shortlisted", label: "Recruiter" },
+  { key: "client_shortlisted", label: "Client" },
+  { key: "offer_sent", label: "Offer" },
+] as const;
 
 const date = (value: string) =>
   new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -59,11 +67,6 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
       count: (item: (typeof workQueue)[number]) => item.offers_in_progress,
     },
   ] as const;
-  const workTotal = workQueue.reduce(
-    (sum, item) =>
-      sum + item.due_follow_ups + item.client_review + item.offers_in_progress,
-    0,
-  );
 
   async function createClient(form: HTMLFormElement) {
     setBusy(true);
@@ -84,72 +87,13 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
 
   return (
     <AppShell data={data}>
-      <header className="page-header">
-        <div>
-          <div className="eyebrow">Client directory</div>
-          <h1>Clients</h1>
-          <p className="muted">See each client’s active hiring work, pipeline, and urgent follow-ups in one place.</p>
-        </div>
-        <div className="header-actions">
-          <button className="primary" onClick={() => setCreating(true)}>
-            <Plus size={17} />
-            New client
-          </button>
-        </div>
-      </header>
-      {error && <p className="toast error" role="alert">{error}</p>}
-      {data.dashboardSummaryUnavailable && (
-        <div className="notice" role="status">
-          Your client list is available, but the dashboard totals could not load. Apply the latest database migrations, then refresh this page.
-        </div>
-      )}
-      {workTotal > 0 && (
-        <section id="today" className="today-work card" aria-labelledby="today-work-heading">
-          <div className="section-heading">
-            <div>
-              <div className="today-work-title">
-                <ListChecks size={18} aria-hidden="true" />
-                <h2 id="today-work-heading">Today</h2>
-                <span className="count">{workTotal}</span>
-              </div>
-              <p className="muted">Work that needs attention across active clients and roles.</p>
-            </div>
-          </div>
-          <div className="today-work-grid">
-            {workGroups.map((group) => {
-              const items = workQueue.filter((item) => group.count(item) > 0);
-              const total = items.reduce((sum, item) => sum + group.count(item), 0);
-              return (
-                <div className="today-work-group" key={group.key}>
-                  <h3>{group.label}</h3>
-                  {total ? (
-                    <>
-                      <strong className="today-work-total">{total}</strong>
-                      <div className="today-work-items">
-                        {items.map((item) => (
-                          <Link
-                            href={`/roles/${item.role_id}?stage=${group.stage}`}
-                            key={item.role_id}
-                          >
-                            <strong>{group.count(item)}</strong>
-                            <span>{item.client_name} · {item.role_name}</span>
-                          </Link>
-                        ))}
-                      </div>
-                    </>
-                  ) : (
-                    <p className="muted">All clear</p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-      <div className="section-heading">
-        <h2>
+      {/* One bar rather than a page header above a section header: the title,
+          what filters the list and what adds to it all belong to the same
+          table, and stacking them pushed the first client below the fold. */}
+      <header className="directory-bar">
+        <h1>
           Clients <span className="count">{clients.length}</span>
-        </h2>
+        </h1>
         <div className="directory-controls">
           <input
             aria-label="Search clients"
@@ -166,8 +110,18 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
             />
             Include archived
           </label>
+          <button className="primary" onClick={() => setCreating(true)}>
+            <Plus size={16} />
+            New client
+          </button>
         </div>
-      </div>
+      </header>
+      {error && <p className="toast error" role="alert">{error}</p>}
+      {data.dashboardSummaryUnavailable && (
+        <div className="notice" role="status">
+          Your client list is available, but the dashboard totals could not load. Apply the latest database migrations, then refresh this page.
+        </div>
+      )}
       {!clients.length ? (
         <div className="card empty">
           <div className="empty-icon"><FolderOpen size={28} /></div>
@@ -198,7 +152,7 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
             <thead>
               <tr>
                 <th>Client</th>
-                <th>Active roles</th>
+                <th>Roles</th>
                 <th>Pipeline</th>
                 <th>Needs attention</th>
                 <th>Created</th>
@@ -223,9 +177,12 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
                     <td className="client-directory-name">
                       <Link href={`/clients/${client.id}`}>
                         <span className="client-monogram">{client.name.slice(0, 2).toUpperCase()}</span>
+                        {/* A note only earns its line when there is one. The
+                            placeholder repeated a sentence down the whole
+                            column and told nobody anything. */}
                         <span>
                           <strong>{client.name}</strong>
-                          <small>{client.notes || "No client notes yet."}</small>
+                          {client.notes && <small>{client.notes}</small>}
                         </span>
                       </Link>
                       {client.archived && <span className="badge">Archived</span>}
@@ -233,16 +190,21 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
                     <td>
                       <Link className="client-role-count" href={`/clients/${client.id}/roles`}>
                         <strong>{counts?.active_roles ?? 0}</strong>
-                        <span>{(counts?.active_roles ?? 0) === 1 ? "role" : "roles"}</span>
                       </Link>
                     </td>
                     <td>
+                      {/* One line, in pipeline order. Stages nobody is sitting
+                          in are dimmed so the row reads as where the work is
+                          rather than as five equally loud numbers. */}
                       <div className="client-pipeline-summary" aria-label="Candidate pipeline">
-                        <span><strong>{counts?.all_profiles ?? 0}</strong> All</span>
-                        <span><strong>{counts?.profile_shortlisted ?? 0}</strong> Profile</span>
-                        <span><strong>{counts?.recruiter_shortlisted ?? 0}</strong> Recruiter</span>
-                        <span><strong>{counts?.client_shortlisted ?? 0}</strong> Client</span>
-                        <span><strong>{counts?.offer_sent ?? 0}</strong> Offer</span>
+                        {pipelineColumns.map((column) => {
+                          const value = counts?.[column.key] ?? 0;
+                          return (
+                            <span className={value ? undefined : "is-zero"} key={column.key}>
+                              <strong>{value}</strong> {column.label}
+                            </span>
+                          );
+                        })}
                       </div>
                     </td>
                     <td>

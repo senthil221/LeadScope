@@ -1,8 +1,10 @@
 "use client";
 import { useState } from "react";
 import { ArrowRight } from "lucide-react";
-export function LoginForm() {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+export function LoginForm({ allowSignup = false }: { allowSignup?: boolean }) {
+  const [mode, setMode] = useState<"signin" | "signup">(
+    allowSignup ? "signup" : "signin",
+  );
   const [pending, setPending] = useState(false);
   return (
     <>
@@ -49,15 +51,17 @@ export function LoginForm() {
           <ArrowRight size={17} />
         </button>
       </form>
-      <button
-        className="text-button wide"
-        disabled={pending}
-        onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-      >
-        {mode === "signin"
-          ? "New operator? Create an account"
-          : "Already registered? Sign in"}
-      </button>
+      {allowSignup && (
+        <button
+          className="text-button wide"
+          disabled={pending}
+          onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+        >
+          {mode === "signin"
+            ? "New operator? Create an account"
+            : "Already registered? Sign in"}
+        </button>
+      )}
     </>
   );
 }
