@@ -108,7 +108,7 @@ export function AddCandidatesDialog({
     () => csvImportPreview(csvText, [], {}, { requireLinkedin: true }),
     [csvText],
   );
-  const template = templateColumns(targetStage);
+  const template = templateColumns();
 
   function switchMode(next: Mode) {
     setMode(next);
@@ -173,13 +173,13 @@ export function AddCandidatesDialog({
 
   function downloadTemplate() {
     // A BOM so Excel opens the file as UTF-8 instead of guessing at it.
-    const blob = new Blob(["﻿", templateCsv(targetStage)], {
+    const blob = new Blob(["﻿", templateCsv()], {
       type: "text/csv;charset=utf-8",
     });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = templateFileName(roleName, targetStage);
+    link.download = templateFileName(roleName);
     link.click();
     URL.revokeObjectURL(url);
   }
@@ -554,10 +554,12 @@ export function AddCandidatesDialog({
           />
           <div className="import-template">
             <div>
-              <strong>{stageLabels[targetStage]} template</strong>
+              <strong>Import template</strong>
               <p className="muted">
-                The {template.length} columns this stage holds. The file is headers
-                only — fill your rows in underneath.
+                Every column an import can fill, at any stage — a stage limits
+                what is shown, not what a record holds. Only LinkedIn URL is
+                required; leave the rest blank and fill them in later. The file
+                is headers only, so type your rows underneath.
               </p>
               <ul className="import-template-columns">
                 {template.map((column) => (
@@ -625,7 +627,8 @@ export function AddCandidatesDialog({
             />
           </label>
           <p className="muted">
-            Column order does not matter, and anything not listed below is ignored.
+            Column order does not matter, and any column outside the template
+            above is ignored rather than refused.
           </p>
           {!!csvText.trim() && (
             <div className="csv-preview" aria-live="polite">

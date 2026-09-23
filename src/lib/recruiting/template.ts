@@ -1,43 +1,48 @@
-import { candidateColumns, type CandidateColumnId } from "./columns";
 import { csvTemplateColumns } from "./import";
-import { pipelineStages, stageLabels, type PipelineStage } from "./stages";
+import { pipelineStages, type PipelineStage } from "./stages";
 
-// An import fills the same columns the grid shows for that stage, and nothing
-// else. The template is generated from the column registry rather than written
-// out by hand, so a column added to a stage appears in its template on the
-// next build instead of quietly going missing.
-
-// Grid column -> the header a recruiter sees in the template, and the import
-// column it feeds. Columns the app owns (date added, source, resume) and
-// outcomes (rejection, offer) are absent: they are recorded by the app, not
-// typed into a sheet.
-const importable: Partial<Record<CandidateColumnId, { header: string; example: string }>> = {
-  linkedin: { header: "LinkedIn URL", example: "https://www.linkedin.com/in/priya-raman" },
-  phone: { header: "Phone", example: "+91 98765 43210" },
-  email: { header: "Email", example: "priya.raman@example.com" },
-  location: { header: "Location", example: "Bengaluru" },
-  current_company: { header: "Company", example: "Zoho" },
-  current_designation: { header: "Designation", example: "Engineering Manager" },
-  total_experience_years: { header: "Experience (years)", example: "11" },
-  current_ctc: { header: "CTC", example: "42 LPA" },
-  highest_qualification: { header: "Qualification", example: "B.E. Computer Science" },
-};
+// One template, for every stage.
+//
+// It used to be cut down to the columns the chosen stage happens to show,
+// which meant an All profiles import could carry a name and a URL and nothing
+// else. But a stage decides what is worth *looking at* there, not what a
+// candidate record can hold: every column below is written to the candidate
+// itself, so detail typed in at All profiles is waiting on the row by the time
+// it reaches recruiter review. Asking a team to come back and type it again
+// later, into a different sheet, is work for nothing.
+//
+// Columns the app owns are still absent, because they are recorded rather than
+// typed: when a row was added, which resume is attached, why somebody was
+// rejected and what was offered.
 
 export type TemplateColumn = { header: string; example: string; required: boolean };
 
-// Full Name leads every template. It is the frozen first column of the grid
-// rather than one of the stage columns, so it is not in the registry.
-export function templateColumns(stage: PipelineStage): TemplateColumn[] {
+// Keyed by the header the parser reads, so a column cannot be recognised on
+// import yet missing from the file we hand out. A test holds the two lists
+// together.
+const examples: Record<string, string> = {
+  "Full Name": "Priya Raman",
+  "LinkedIn URL": "https://www.linkedin.com/in/priya-raman",
+  "Naukri URL": "https://www.naukri.com/mnjuser/profile/priya-raman",
+  Email: "priya.raman@example.com",
+  Phone: "+91 98765 43210",
+  Company: "Zoho",
+  Designation: "Engineering Manager",
+  Location: "Bengaluru",
+  "Experience (years)": "11",
+  CTC: "42 LPA",
+  Qualification: "B.E. Computer Science",
+  Source: "LinkedIn Recruiter",
+};
+
+export function templateColumns(): TemplateColumn[] {
   // Only the profile URL is required. A blank name is read off the profile
   // slug on import, so a file of URLs alone is a valid import.
-  const columns: TemplateColumn[] = [
-    { header: "Full Name", example: "Priya Raman", required: false },
-  ];
-  for (const column of candidateColumns(stage, [])) {
-    const entry = importable[column.id as CandidateColumnId];
-    if (entry) columns.push({ ...entry, required: column.id === "linkedin" });
-  }
-  return columns;
+  return csvTemplateColumns.map((header) => ({
+    header,
+    example: examples[header] ?? "",
+    required: header === "LinkedIn URL",
+  }));
 }
 
 function csvValue(value: string) {
@@ -48,24 +53,21 @@ function csvValue(value: string) {
 // uploads the template without deleting it first, which puts an invented
 // person into the database. The examples are shown in the import dialog
 // instead, where they teach the format without being data.
-export function templateCsv(stage: PipelineStage): string {
-  return templateColumns(stage)
+export function templateCsv(): string {
+  return templateColumns()
     .map((column) => csvValue(column.header))
     .join(",");
 }
 
-export function templateFileName(roleName: string, stage: PipelineStage): string {
-  const slug = (text: string) =>
-    text
+// No stage in the name: the same file is correct at every one of them, and a
+// name that claimed otherwise would have people downloading it again.
+export function templateFileName(roleName: string): string {
+  const slug =
+    roleName
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "") || "role";
-  return `${slug(roleName)}-${slug(stageLabels[stage])}-import-template.csv`;
+  return `${slug}-import-template.csv`;
 }
 
 export const importStages: readonly PipelineStage[] = pipelineStages;
-
-// Every header the parser understands, for the "recognized columns" hint. The
-// template is the subset a given stage asks for; a file exported from another
-// stage still imports, its extra columns simply ignored.
-export const everyTemplateHeader = csvTemplateColumns;
