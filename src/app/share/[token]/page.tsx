@@ -3,10 +3,12 @@ import { integrationDb } from "@/lib/server/db";
 import { setup } from "@/lib/server/config";
 import { stageLabels, isStage } from "@/lib/recruiting/stages";
 import { SharedFieldCell } from "@/components/recruiting/shared-field-cell";
-import { BriefcaseBusiness, ExternalLink } from "lucide-react";
+import Image from "next/image";
+import { ExternalLink } from "lucide-react";
+import logo from "@/assets/brand/leadvance-recruiting.png";
 import styles from "./share-page.module.css";
 
-export const metadata = { title: "Candidate review | LeadScope" };
+export const metadata = { title: "Candidate review | Leadvance Recruiting" };
 
 // Never cached, never statically generated: every request re-checks the
 // token against the database, so a revoked or expired link stops working
@@ -85,7 +87,7 @@ function Message({ title, detail }: { title: string; detail: string }) {
   return (
     <main className={`${styles.page} ${styles.messagePage}`}>
       <div className={styles.message}>
-        <span className={styles.brand}>LeadScope / Client review</span>
+        <span className={styles.brand}>Leadvance Recruiting / Client review</span>
         <h1>{title}</h1>
         <p>{detail}</p>
       </div>
@@ -155,7 +157,10 @@ export default async function SharePage({
     <main className={styles.page}>
       <header className={styles.topbar}>
         <div className={styles.topbarInner}>
-          <span className={styles.brand}><BriefcaseBusiness size={18} aria-hidden="true" /> LeadScope <span>Client review</span></span>
+          <span className={styles.brand}>
+            <Image src={logo} alt="Leadvance Recruiting" className={styles.logo} priority unoptimized />
+            <span>Client review</span>
+          </span>
           <span className={styles.clientName}>{data.clientName}</span>
         </div>
       </header>
@@ -220,7 +225,7 @@ export default async function SharePage({
           )}
           <div className={styles.sheetFooter}><span>{data.rows.length} {data.rows.length === 1 ? "profile" : "profiles"} shared</span><span>Scroll across to view all columns</span></div>
         </section>
-        <footer className={styles.footer}><span>Prepared by {data.clientName}&rsquo;s recruiting team</span><span>Powered by <strong>LeadScope</strong></span></footer>
+        <footer className={styles.footer}><span>Prepared by {data.clientName}&rsquo;s recruiting team</span><span>Powered by <strong>Leadvance Recruiting</strong></span></footer>
       </div>
     </main>
   );

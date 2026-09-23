@@ -37,7 +37,7 @@ export function LoginForm() {
           <small>
             {mode === "signup"
               ? "Use at least 8 characters. Your agency must approve access."
-              : "Your LeadScope account password."}
+              : "Your Leadvance Recruiting account password."}
           </small>
         </label>
         <button disabled={pending} className="primary wide">

@@ -1379,7 +1379,7 @@ function RunPage({ data, run: action, busy }: { data: PageData } & Actions) {
       />
       <Notice>
         Leads save automatically. You can work on other campaigns while this
-        search runs. Keep a LeadScope workspace tab open and visible.
+        search runs. Keep this workspace tab open and visible.
       </Notice>
       <section className="card run-progress">
         <div className="section-heading">

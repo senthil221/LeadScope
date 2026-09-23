@@ -1,10 +1,10 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   Briefcase,
   ChevronDown,
-  Crosshair,
   FolderOpen,
   LogOut,
   Settings,
@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import type { PageData } from "@/lib/types";
+import logo from "@/assets/brand/leadvance-recruiting.png";
 
 function itemClass(view: string, views: string[]) {
   return `shell-link${views.includes(view) ? " active" : ""}`;
@@ -25,12 +26,16 @@ export function Sidebar({ data }: { data: PageData }) {
   return (
     <aside className="shell-sidebar">
       <div className="shell-top">
-        <Link href="/clients" className="shell-brand" aria-label="LeadScope home">
-          <span className="shell-mark" aria-hidden="true">
-            <Crosshair size={17} />
-          </span>
-          <span className="shell-name">LeadScope</span>
-          <span className="beta">Beta</span>
+        <Link href="/clients" className="shell-brand" aria-label="Leadvance Recruiting home">
+          {/* unoptimized: a fixed-size logo gains nothing from the image
+              optimizer, and the standalone runtime does not have to carry it. */}
+          <Image
+            src={logo}
+            alt="Leadvance Recruiting"
+            className="shell-logo"
+            priority
+            unoptimized
+          />
         </Link>
         <label className="shell-switcher">
           <FolderOpen size={16} aria-hidden="true" />

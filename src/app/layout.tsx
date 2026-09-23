@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: "LeadScope · Agency workspace",
+  title: "Leadvance Recruiting · Agency workspace",
   description: "Evidence-led discovery and review for your agency.",
   robots: { index: false, follow: false },
 };

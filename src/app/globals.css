@@ -989,6 +989,16 @@ label small {
   font-weight: 650;
   letter-spacing: -0.02em;
 }
+/* The wordmark is about 2.8:1, so it is sized by width and left to find its
+   own height rather than being squeezed into the old icon's square. */
+.shell-logo {
+  width: 152px;
+  height: auto;
+}
+.login-logo {
+  width: 232px;
+  height: auto;
+}
 .shell-switcher {
   display: flex;
   flex-direction: row;

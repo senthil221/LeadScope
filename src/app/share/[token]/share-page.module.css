@@ -67,3 +67,4 @@
   .tableScroll { max-height: calc(100dvh - 290px); }
   .feedback :global(.shared-note-input) { font-size: 16px; }
 }
+.logo { width: 150px; height: auto; }

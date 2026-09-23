@@ -56,7 +56,7 @@ export async function admin() {
     .single();
   if (profileError)
     throw new AppError(
-      "Database setup is incomplete or unavailable. Apply the LeadScope migration and check the connection.",
+      "Database setup is incomplete or unavailable. Apply the database migrations and check the connection.",
       503,
     );
   if (!profile?.is_agency_admin)

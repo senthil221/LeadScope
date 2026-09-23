@@ -1,4 +1,6 @@
-import { Crosshair, ShieldCheck } from "lucide-react";
+import Image from "next/image";
+import { ShieldCheck } from "lucide-react";
+import logo from "@/assets/brand/leadvance-recruiting.png";
 import { LoginForm } from "@/components/login-form";
 import { setup } from "@/lib/server/config";
 import { SetupPage } from "@/components/setup";
@@ -14,8 +16,13 @@ export default async function Login({
   return (
     <main className="login-page">
       <div className="brand">
-        <Crosshair size={30} />
-        LeadScope
+        <Image
+          src={logo}
+          alt="Leadvance Recruiting"
+          className="login-logo"
+          priority
+          unoptimized
+        />
       </div>
       <section className="card">
         <span className="eyebrow">RECRUITING CRM</span>

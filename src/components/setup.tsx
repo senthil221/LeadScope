@@ -14,7 +14,7 @@ export function SetupPage({ checks }: { checks: Record<string, boolean> }) {
         <div className="brand">
           <Crosshair size={29} />
           <span>
-            LeadScope<span className="beta">BETA</span>
+            Leadvance Recruiting<span className="beta">BETA</span>
           </span>
         </div>
         <div>
@@ -50,7 +50,7 @@ export function SetupPage({ checks }: { checks: Record<string, boolean> }) {
         </span>
         <h2>Connect your workspace</h2>
         <p className="muted">
-          LeadScope is installed. Connect a dedicated Supabase database to start
+          Leadvance Recruiting is installed. Connect a dedicated Supabase database to start
           creating clients and campaigns.
         </p>
         <div className="card setup-checks">
@@ -105,7 +105,7 @@ export function AccessPage({
     <main className="access-page">
       <div className="brand">
         <Crosshair />
-        <span>LeadScope</span>
+        <span>Leadvance Recruiting</span>
       </div>
       <section className="card">
         <ShieldCheck size={32} />
