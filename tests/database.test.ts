@@ -2362,6 +2362,47 @@ describe("rate_candidate: auto-advance out of All profiles only", () => {
   });
 });
 
+describe("reject_candidate: from Profile shortlisted onwards", () => {
+  // A profile shortlisted on its rating and then found to be wrong is rejected
+  // where it sits. All profiles is still refused: nothing has been judged yet.
+  it("rejects from Profile shortlisted, recording who called it and why", async () => {
+    const { cid, rcId } = await pipeline("reject-shortlisted", 3);
+    await asUser(actor, () => rpc("rate_candidate", [cid, rcId, 4]));
+    await asUser(actor, () =>
+      rpc("reject_candidate", [cid, [rcId], "client", "Notice period too long"]),
+    );
+    const row = (
+      await sql(
+        "select stage,rejection_type,rejection_reason,rejected_by from public.role_candidates where id=$1",
+        [rcId],
+      )
+    ).rows[0];
+    expect(row).toEqual({
+      stage: "rejected",
+      rejection_type: "client",
+      rejection_reason: "Notice period too long",
+      rejected_by: actor,
+    });
+    const event = (
+      await sql(
+        "select from_stage,to_stage from public.role_candidate_events where role_candidate_id=$1 and kind='reject'",
+        [rcId],
+      )
+    ).rows;
+    expect(event).toEqual([
+      { from_stage: "profile_shortlisted", to_stage: "rejected" },
+    ]);
+  });
+  it("still refuses a candidate who is only in All profiles", async () => {
+    const { cid, rcId } = await pipeline("reject-unrated", 3);
+    await expect(
+      asUser(actor, () =>
+        rpc("reject_candidate", [cid, [rcId], "recruiter", "Not a fit"]),
+      ),
+    ).rejects.toThrow("from Profile shortlisted onwards");
+  });
+});
+
 describe("apply_threshold: the only path that moves an already-rated candidate", () => {
   it("moves only All-profiles candidates whose rating already meets the current threshold", async () => {
     const cid = await client();

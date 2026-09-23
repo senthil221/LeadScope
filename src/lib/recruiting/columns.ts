@@ -65,6 +65,14 @@ export function stageDefaultsToCompact(tab: string) {
   return compactByDefaultStages.includes(tab);
 }
 
+// Only the LinkedIn URL is asked for when a candidate is added, so on the
+// triage tabs the name is either derived from that URL or not filled in yet.
+// A column of guesses is worse than no column: the URL is the identity there,
+// and the name is still on the candidate panel and every later stage.
+export function stageShowsName(tab: string) {
+  return !triageStages.includes(tab as Stage);
+}
+
 type Spec = Omit<CandidateColumn, "field"> & { stages: Stage[] };
 
 // Labels are what a recruiter would write at the top of a column. "Current"
@@ -199,5 +207,15 @@ export function candidateColumns(
       })),
     );
   columns.push(...(tabExtras[stage] ?? []).map(withoutStages));
+  // With the name column gone from triage, the LinkedIn URL is what identifies
+  // a row. It leads the table and takes the room the name gave up, so it reads
+  // as the identity column rather than truncating three columns in.
+  if (!stageShowsName(stage)) {
+    const index = columns.findIndex((column) => column.id === "linkedin");
+    if (index >= 0) {
+      const [linkedin] = columns.splice(index, 1);
+      columns.unshift({ ...linkedin, width: "lg" });
+    }
+  }
   return columns;
 }

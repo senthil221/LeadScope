@@ -53,18 +53,37 @@ export function RejectDialog({
   }
 
   return (
-    <dialog open className="modal">
+    <dialog open className="modal reject-modal">
       <div className="modal-heading">
         <h2>{title}</h2>
         <button aria-label="Close" onClick={onClose}>
           <X size={18} />
         </button>
       </div>
-      <p className="muted">
+      <p className="muted reject-note">
         Moves {ids.length === 1 ? "this candidate" : `these ${ids.length} candidates`}{" "}
-        to the Rejects tab. Their record stays in the Master DB.
+        to Rejects. The record stays in the Master DB.
       </p>
-      <label>
+      {/* Whose call it was is one of two answers, so it is a segmented choice
+          rather than a stack of radios: one line, always both options in view,
+          and the reason below it gets the height instead. */}
+      <fieldset className="reject-type" disabled={busy}>
+        <legend>Rejected by</legend>
+        <div className="reject-type-options">
+          {(Object.keys(rejectionTypes) as RejectionType[]).map((key) => (
+            <label key={key} className={type === key ? "selected" : undefined}>
+              <input
+                type="radio"
+                name="rejectType"
+                checked={type === key}
+                onChange={() => setType(key)}
+              />
+              {rejectionTypes[key].replace(" reject", "")}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <label className="reject-reason">
         Reason *
         <textarea
           rows={3}
@@ -76,32 +95,12 @@ export function RejectDialog({
           placeholder="Why is this candidate being rejected"
         />
       </label>
-      {touched && !reason.trim() && (
+      {((touched && !reason.trim()) || error) && (
         <p className="error" role="alert">
-          Enter a reason to continue
+          {error || "Enter a reason to continue"}
         </p>
       )}
-      <label>Reject type</label>
-      <div className="row">
-        {(Object.keys(rejectionTypes) as RejectionType[]).map((key) => (
-          <label key={key} className="check-label">
-            <input
-              type="radio"
-              name="rejectType"
-              checked={type === key}
-              disabled={busy}
-              onChange={() => setType(key)}
-            />
-            {rejectionTypes[key]}
-          </label>
-        ))}
-      </div>
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-      <div className="row">
+      <div className="row reject-actions">
         <button className="primary" disabled={busy} onClick={submit}>
           {busy ? "Rejecting…" : `Reject candidate${ids.length > 1 ? "s" : ""}`}
         </button>

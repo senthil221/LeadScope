@@ -57,6 +57,7 @@ import { SheetCell, type SheetCellNode } from "./sheet-cell";
 import {
   candidateColumns,
   stageDefaultsToCompact,
+  stageShowsName,
   type CandidateColumn,
 } from "@/lib/recruiting/columns";
 import { isSingleValue, parsePastedBlock } from "@/lib/recruiting/paste";
@@ -268,6 +269,33 @@ export function RolePipeline({
     return () => clearTimeout(timer);
   }, [error]);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const filterMenu = useRef<HTMLDetailsElement>(null);
+  const columnMenu = useRef<HTMLDivElement>(null);
+  // Both toolbar menus float over the grid, so a click anywhere else is a
+  // click on the table underneath and should put the menu away first. Escape
+  // does the same, and is taken before the handler that leaves the role.
+  useEffect(() => {
+    function dismiss(event: PointerEvent) {
+      const target = event.target as Node;
+      if (filterMenu.current && !filterMenu.current.contains(target))
+        setFilterMenuOpen(false);
+      if (columnMenu.current && !columnMenu.current.contains(target))
+        setColumnMenuOpen(false);
+    }
+    function escape(event: KeyboardEvent) {
+      if (event.key !== "Escape" || !(filterMenuOpen || columnMenuOpen)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setFilterMenuOpen(false);
+      setColumnMenuOpen(false);
+    }
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", escape, true);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("keydown", escape, true);
+    };
+  }, [columnMenuOpen, filterMenuOpen]);
   const [columnPreference, setColumnPreference] = useState<string | null>(null);
   const [navigatingTo, setNavigatingTo] = useState<Tab | null>(null);
   const path = `/roles/${role.id}`;
@@ -399,7 +427,17 @@ export function RolePipeline({
     .map((id) => tabColumns.find((column) => column.id === id))
     .filter((column): column is CandidateColumn => Boolean(column));
   const columnWidths = { xs: 96, sm: 128, md: 160, lg: 220 };
-  const nameWidth = Math.max(180, layout.width("full_name", 280));
+  const showNameColumn = stageShowsName(tab);
+  // Something has to stay put while the grid scrolls sideways. Normally that is
+  // the name; where the name is hidden, whichever column has been dragged into
+  // first place stands in for it and is pinned instead.
+  const pinnedColumnId = showNameColumn ? null : visibleCandidateColumns[0]?.id;
+  const nameWidth = showNameColumn
+    ? Math.max(180, layout.width("full_name", 280))
+    : 0;
+  // Keyboard addressing counts the editable cells, so the data columns start
+  // one place earlier once the name is not one of them.
+  const firstDataColumn = showNameColumn ? 1 : 0;
   const utilityWidth = (canSelectCandidates ? 36 : 0) + 36 + 28;
   // Advance, Reject and a delete icon, counting only what this tab shows, and
   // never narrower than the word "Action" in the heading.
@@ -663,6 +701,7 @@ export function RolePipeline({
     colIndex: number,
   ) {
     const locked = role.archived;
+    const pinnedClass = column.id === pinnedColumnId ? " sheet-td-pinned" : "";
     const cell = (
       props: Partial<Parameters<typeof SheetCell>[0]> & {
         value: string;
@@ -670,7 +709,7 @@ export function RolePipeline({
       },
     ) => (
       <td
-        className={`sheet-td w-${column.width}${column.numeric ? " is-numeric" : ""}`}
+        className={`sheet-td w-${column.width}${pinnedClass}${column.numeric ? " is-numeric" : ""}`}
         key={column.id}
       >
         <SheetCell
@@ -731,7 +770,7 @@ export function RolePipeline({
         // Where this person currently sits. All profiles spans every stage,
         // so without this the list gives no way to tell who has been moved on.
         return (
-          <td className={`sheet-td w-${column.width}`} key={column.id}>
+          <td className={`sheet-td w-${column.width}${pinnedClass}`} key={column.id}>
             <span
               className={`sheet-cell is-readonly candidate-stage-cell stage-${rc.stage}`}
             >
@@ -743,7 +782,7 @@ export function RolePipeline({
         const url = linkedInUrl(rc.candidates);
         return (
           <td
-            className={`sheet-td w-${column.width} candidate-linkedin-cell`}
+            className={`sheet-td w-${column.width}${pinnedClass} candidate-linkedin-cell`}
             key={column.id}
           >
             <div className="candidate-profile-cell">
@@ -1264,6 +1303,7 @@ export function RolePipeline({
             <button className="primary" type="submit">Search</button>
             <details
               className="candidate-filter-menu"
+              ref={filterMenu}
               open={filterMenuOpen}
               onToggle={(event) => setFilterMenuOpen(event.currentTarget.open)}
             >
@@ -1348,7 +1388,7 @@ export function RolePipeline({
                 </label>
               </div>
             </details>
-            <div className="candidate-column-menu">
+            <div className="candidate-column-menu" ref={columnMenu}>
               <button
                 type="button"
                 aria-expanded={columnMenuOpen}
@@ -1791,7 +1831,7 @@ export function RolePipeline({
                 {canSelectCandidates && <col style={{ width: 36 }} />}
                 <col style={{ width: 36 }} />
                 <col style={{ width: 28 }} />
-                <col style={{ width: nameWidth }} />
+                {showNameColumn && <col style={{ width: nameWidth }} />}
                 {visibleCandidateColumns.map((column) => (
                   <col key={column.id} style={{ width: displayedWidth(column) }} />
                 ))}
@@ -1822,13 +1862,15 @@ export function RolePipeline({
                 <th className="candidate-open-heading" scope="col">
                   <span className="sr-only">Open candidate</span>
                 </th>
-                <th className="sheet-th sheet-th-pinned" scope="col">
-                  Full name
-                  <ColumnResizeHandle label="Full name" width={nameWidth} onResize={(width) => layout.resize("full_name", Math.max(180, width))} />
-                </th>
+                {showNameColumn && (
+                  <th className="sheet-th sheet-th-pinned" scope="col">
+                    Full name
+                    <ColumnResizeHandle label="Full name" width={nameWidth} onResize={(width) => layout.resize("full_name", Math.max(180, width))} />
+                  </th>
+                )}
                 {visibleCandidateColumns.map((column) => (
                   <th
-                    className={`sheet-th w-${column.width}${column.numeric ? " is-numeric" : ""}`}
+                    className={`sheet-th w-${column.width}${column.id === pinnedColumnId ? " sheet-th-pinned" : ""}${column.numeric ? " is-numeric" : ""}`}
                     key={column.id}
                     scope="col"
                   >
@@ -1874,24 +1916,26 @@ export function RolePipeline({
                       <Maximize2 size={13} />
                     </button>
                   </td>
-                  <td className="sheet-td sheet-td-pinned">
-                    <SheetCell
-                      col={0}
-                      label={`Full name, row ${rowIndex + 1}`}
-                      readOnly={role.archived}
-                      row={rowIndex}
-                      save={(value) =>
-                        act("candidateField", {
-                          id: rc.candidate_id,
-                          field: "full_name",
-                          value,
-                        })
-                      }
-                      value={rc.candidates.full_name}
-                    />
-                  </td>
+                  {showNameColumn && (
+                    <td className="sheet-td sheet-td-pinned">
+                      <SheetCell
+                        col={0}
+                        label={`Full name, row ${rowIndex + 1}`}
+                        readOnly={role.archived}
+                        row={rowIndex}
+                        save={(value) =>
+                          act("candidateField", {
+                            id: rc.candidate_id,
+                            field: "full_name",
+                            value,
+                          })
+                        }
+                        value={rc.candidates.full_name}
+                      />
+                    </td>
+                  )}
                   {visibleCandidateColumns.map((column, columnIndex) =>
-                    renderCandidateCell(rc, column, rowIndex, columnIndex + 1),
+                    renderCandidateCell(rc, column, rowIndex, columnIndex + firstDataColumn),
                   )}
                   {showRowActions && (
                     <td className="candidate-action-cell">
@@ -1951,28 +1995,30 @@ export function RolePipeline({
                           +
                         </span>
                       </td>
-                      <td className="sheet-td sheet-td-pinned">
-                        <SheetCell
-                          col={0}
-                          label={`New candidate name, row ${rowIndex + 1}`}
-                          placeholder="Add a candidate…"
-                          row={rowIndex}
-                          save={async (value) =>
-                            setDraftValue(draft.key, "full_name", value)
-                          }
-                          value={draft.values.full_name ?? ""}
-                        />
-                      </td>
+                      {showNameColumn && (
+                        <td className="sheet-td sheet-td-pinned">
+                          <SheetCell
+                            col={0}
+                            label={`New candidate name, row ${rowIndex + 1}`}
+                            placeholder="Add a candidate…"
+                            row={rowIndex}
+                            save={async (value) =>
+                              setDraftValue(draft.key, "full_name", value)
+                            }
+                            value={draft.values.full_name ?? ""}
+                          />
+                        </td>
+                      )}
                       {visibleCandidateColumns.map((column, columnIndex) => {
                         const editable = isDraftColumnEditable(column.id);
                         return (
                           <td
-                            className={`sheet-td w-${column.width}`}
+                            className={`sheet-td w-${column.width}${column.id === pinnedColumnId ? " sheet-td-pinned" : ""}`}
                             key={column.id}
                           >
                             {editable ? (
                               <SheetCell
-                                col={columnIndex + 1}
+                                col={columnIndex + firstDataColumn}
                                 kind={column.id === "linkedin" ? "text" : column.kind}
                                 label={`New candidate ${column.label.toLowerCase()}, row ${rowIndex + 1}`}
                                 placeholder={

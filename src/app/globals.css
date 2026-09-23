@@ -501,6 +501,93 @@ label small {
 .modal.import-modal {
   width: 720px;
 }
+/* Rejecting is a two-field decision. It is sized to those two fields so it
+   reads as a confirmation rather than a form to work through. */
+.modal.reject-modal {
+  width: 404px;
+  padding: 20px 22px 18px;
+}
+.reject-modal .modal-heading {
+  margin-bottom: 6px;
+}
+.reject-modal .reject-note {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.reject-type {
+  margin: 0 0 12px;
+  padding: 0;
+  border: 0;
+}
+.reject-type legend,
+.reject-modal .reject-reason {
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.reject-type legend {
+  margin-bottom: 6px;
+}
+.reject-type-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.reject-type-options label {
+  display: flex;
+  flex-direction: row;
+  margin-bottom: 0;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+}
+/* The radio still carries the state and the keyboard behaviour; the pill is
+   what you look at, so the control itself is taken out of the layout. */
+.reject-type-options input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.reject-type-options label.selected {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-weight: 600;
+}
+.reject-type-options label:has(input:focus-visible) {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+.reject-type:disabled .reject-type-options label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.reject-modal .reject-reason {
+  margin-bottom: 0;
+}
+.reject-modal .reject-reason textarea {
+  min-height: 64px;
+  font-size: 13px;
+}
+.reject-modal .error {
+  margin: 8px 0 0;
+  font-size: 12px;
+}
+.reject-modal .reject-actions {
+  margin-top: 16px;
+}
 .team-page {
   max-width: 900px;
 }
