@@ -3737,6 +3737,28 @@ tbody tr:hover { background: #f8fbff; }
   background: #fecaca !important;
   color: #991b1b !important;
 }
+/* Inside the track, the selected step is marked by a slightly darker fill
+   rather than by its own text colour. Four stages in four colours made the
+   sequence look like four unrelated things; one highlight lets the track read
+   as a track and still shows where you are. */
+.role-stage-tabs .stage-flow a.selected {
+  background: #dbe4f1 !important;
+  color: #1e3a8a;
+  border-bottom-color: transparent;
+}
+.role-stage-tabs .stage-flow a:hover {
+  background: #e4ebf5 !important;
+}
+/* Offer sent keeps green. It is the end of the funnel rather than another
+   step along it, and that is worth saying in colour. */
+.role-stage-tabs .stage-flow .stage-offer_sent.selected {
+  background: #d6ece0 !important;
+  color: #047857;
+}
+.role-stage-tabs .stage-flow .stage-offer_sent.selected span {
+  background: #bfe3d0 !important;
+  color: #065f46 !important;
+}
 .role-secondary-nav { margin: 12px 0 20px; padding: 0; }
 .role-secondary-nav > span { display: none; }
 .role-secondary-nav a { border: 1px solid transparent; color: var(--muted); font-weight: 600; }
