@@ -1,9 +1,10 @@
 import { canonicalLinkedIn } from "../urls";
+import { nameFromProfileUrl } from "./import";
 
 // A blank row at the bottom of the grid, the way a spreadsheet always leaves
-// somewhere to type. It becomes a real candidate once it carries a name and a
-// LinkedIn profile: the profile URL is the identity the whole database
-// deduplicates on, so nothing can be created without one.
+// somewhere to type. It becomes a real candidate as soon as it carries a
+// LinkedIn profile, which is the identity the whole database deduplicates on
+// and so the one thing that cannot be filled in later.
 export type DraftRow = { key: string; values: Record<string, string> };
 
 // Grid column -> the key import_candidates reads out of `fields`.
@@ -34,17 +35,16 @@ export function draftLinkedIn(row: DraftRow) {
   return canonicalLinkedIn((row.values.linkedin ?? "").trim());
 }
 
+// The profile URL is the whole requirement. Everything else, name included,
+// is filled in afterwards by whoever works the row.
 export function isDraftReady(row: DraftRow) {
-  return Boolean((row.values.full_name ?? "").trim()) && Boolean(draftLinkedIn(row));
+  return Boolean(draftLinkedIn(row));
 }
 
 // What is missing, phrased for someone filling the row in.
 export function draftBlocker(row: DraftRow): string | null {
   if (isDraftEmpty(row)) return null;
-  const name = (row.values.full_name ?? "").trim();
   const linkedin = (row.values.linkedin ?? "").trim();
-  if (!name && !linkedin) return "Add a name and LinkedIn URL";
-  if (!name) return "Add a name";
   if (!linkedin) return "Add a LinkedIn URL";
   if (!draftLinkedIn(row)) return "That LinkedIn URL is not a /in/ profile";
   return null;
@@ -62,9 +62,12 @@ export function draftImportRow(row: DraftRow) {
     }
     fields[fieldKey] = value;
   }
+  const linkedin = draftLinkedIn(row)!;
   return {
-    name: (row.values.full_name ?? "").trim(),
-    identities: [{ kind: "linkedin" as const, value: draftLinkedIn(row)! }],
+    // A blank name becomes the profile slug, which the candidate record
+    // requires and which reads as a placeholder until someone corrects it.
+    name: (row.values.full_name ?? "").trim() || nameFromProfileUrl(linkedin),
+    identities: [{ kind: "linkedin" as const, value: linkedin }],
     fields,
     sourceDetail: "Added in sheet",
     custom: {},

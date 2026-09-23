@@ -12,12 +12,15 @@ import {
 const row = (values: Record<string, string>): DraftRow => ({ key: "k", values });
 
 describe("new rows typed into the candidate grid", () => {
-  it("stays a draft until it has both a name and a profile URL", () => {
+  // The profile URL is the only requirement: it is the identity the database
+  // deduplicates on, so it cannot be added afterwards. Everything else,
+  // including the name, is filled in by whoever works the row.
+  it("stays a draft until it has a profile URL, and needs nothing else", () => {
     expect(isDraftReady(row({}))).toBe(false);
     expect(isDraftReady(row({ full_name: "Asha" }))).toBe(false);
     expect(
       isDraftReady(row({ linkedin: "https://www.linkedin.com/in/asha" })),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       isDraftReady(
         row({ full_name: "Asha", linkedin: "https://www.linkedin.com/in/asha" }),
@@ -47,13 +50,12 @@ describe("new rows typed into the candidate grid", () => {
 
   it("says what a part-filled row still needs", () => {
     expect(draftBlocker(row({}))).toBeNull();
-    expect(draftBlocker(row({ email: "a@b.com" }))).toBe(
-      "Add a name and LinkedIn URL",
-    );
+    expect(draftBlocker(row({ email: "a@b.com" }))).toBe("Add a LinkedIn URL");
     expect(draftBlocker(row({ full_name: "Asha" }))).toBe("Add a LinkedIn URL");
+    // A URL on its own is complete; nothing is outstanding.
     expect(
       draftBlocker(row({ linkedin: "https://www.linkedin.com/in/asha" })),
-    ).toBe("Add a name");
+    ).toBeNull();
     expect(
       draftBlocker(row({ full_name: "Asha", linkedin: "notaurl" })),
     ).toBe("That LinkedIn URL is not a /in/ profile");

@@ -28,8 +28,10 @@ export type TemplateColumn = { header: string; example: string; required: boolea
 // Full Name leads every template. It is the frozen first column of the grid
 // rather than one of the stage columns, so it is not in the registry.
 export function templateColumns(stage: PipelineStage): TemplateColumn[] {
+  // Only the profile URL is required. A blank name is read off the profile
+  // slug on import, so a file of URLs alone is a valid import.
   const columns: TemplateColumn[] = [
-    { header: "Full Name", example: "Priya Raman", required: true },
+    { header: "Full Name", example: "Priya Raman", required: false },
   ];
   for (const column of candidateColumns(stage, [])) {
     const entry = importable[column.id as CandidateColumnId];

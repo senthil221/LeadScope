@@ -9,15 +9,15 @@ import { candidateColumns } from "@/lib/recruiting/columns";
 import { csvImportPreview, parseCsv } from "@/lib/recruiting/import";
 
 describe("import template", () => {
-  it("leads every stage with the two columns a row cannot be created without", () => {
+  it("marks the profile URL as the only required column", () => {
     for (const stage of importStages) {
       const columns = templateColumns(stage);
       expect(columns.map((column) => column.header).slice(0, 2)).toEqual([
         "Full Name",
         "LinkedIn URL",
       ]);
+      // A name is filled in later, or read off the profile slug on import.
       expect(columns.filter((column) => column.required).map((column) => column.header)).toEqual([
-        "Full Name",
         "LinkedIn URL",
       ]);
     }
@@ -74,6 +74,23 @@ describe("import template", () => {
       expect(preview.invalidRows).toEqual([]);
       expect(preview.totalRows).toBe(0);
     }
+  });
+
+  // The point of the change: a team pastes a column of profile URLs and fills
+  // the rest in afterwards, so a file with nothing but URLs has to import.
+  it("imports a file of profile URLs with every other column blank", () => {
+    const headers = templateColumns("all_profiles").map((column) => column.header);
+    const csv = [
+      headers.join(","),
+      ",https://www.linkedin.com/in/asha-menon",
+      ",https://www.linkedin.com/in/ravi-kumar",
+    ].join("\r\n");
+    const preview = csvImportPreview(csv, [], {}, { requireLinkedin: true });
+    expect(preview.invalidRows).toEqual([]);
+    expect(preview.validRows.map((row) => row.name)).toEqual([
+      "Asha Menon",
+      "Ravi Kumar",
+    ]);
   });
 
   it("names every column the parser recognises, so no column is silently dropped", () => {

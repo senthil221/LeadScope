@@ -13,8 +13,27 @@ import {
 } from "../src/lib/recruiting/import";
 
 describe("buildImportRow", () => {
-  it("requires a name", () => {
-    const result = buildImportRow({ name: "  ", linkedin: "https://www.linkedin.com/in/x" });
+  // A name is not asked for. The candidate record cannot hold a blank one, so
+  // a missing name is read off the profile slug as a placeholder.
+  it("reads a missing name off the profile URL rather than refusing the row", () => {
+    const result = buildImportRow({
+      name: "  ",
+      linkedin: "https://www.linkedin.com/in/priya-nair",
+    });
+    expect(isRowError(result)).toBe(false);
+    expect(!isRowError(result) && result.name).toBe("Priya Nair");
+  });
+  it("keeps a typed name in preference to the slug", () => {
+    const result = buildImportRow({
+      name: "Priya Nair",
+      linkedin: "https://www.linkedin.com/in/pn-2847",
+    });
+    expect(!isRowError(result) && result.name).toBe("Priya Nair");
+  });
+  it("still refuses a row with neither a name nor anything to derive one from", () => {
+    const result = buildImportRow({ name: "", email: "someone@example.com" });
+    // An email is a mergeable identity, but it is not a profile to read a name
+    // from, so this row genuinely has no name available.
     expect(isRowError(result) && result.reason).toBe("Missing a name.");
   });
   it("requires a mergeable identity, not just a phone number", () => {

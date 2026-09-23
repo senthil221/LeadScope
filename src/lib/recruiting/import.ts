@@ -55,7 +55,6 @@ export function buildImportRow(
   rules: ImportRules = {},
 ): ImportRow | RowError {
   const name = draft.name.trim();
-  if (!name) return { row: draft, reason: "Missing a name." };
   if (name.length > 200)
     return { row: draft, reason: "Name is too long." };
   const identities: Identity[] = [];
@@ -86,6 +85,15 @@ export function buildImportRow(
       row: draft,
       reason: "Add a valid LinkedIn, Naukri, or email identity.",
     };
+  // The profile URL is the only thing a recruiter has to supply; a name is
+  // read off the profile slug when they have not typed one, because the
+  // candidate record cannot exist without a name. It is a placeholder for
+  // whoever fills the row in later, not a claim about the person.
+  const profile = deduped.find(
+    (identity) => identity.kind === "linkedin" || identity.kind === "naukri",
+  );
+  const resolvedName = name || (profile ? nameFromProfileUrl(profile.value) : "");
+  if (!resolvedName) return { row: draft, reason: "Missing a name." };
   const fields: Record<string, string | number> = {};
   // Contact identity is also candidate data. Keeping it in fields lets the
   // import RPC populate the master record, while identities continue to own
@@ -109,7 +117,7 @@ export function buildImportRow(
   if (draft.totalExperienceYears?.trim() && Number.isFinite(years) && years >= 0 && years <= 70)
     fields.totalExperienceYears = years;
   return {
-    name,
+    name: resolvedName,
     identities: deduped,
     fields,
     ...(draft.sourceDetail?.trim()

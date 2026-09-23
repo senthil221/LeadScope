@@ -402,11 +402,11 @@ export function AddCandidatesDialog({
       {mode === "manual" && (
         <>
           <label>
-            Full name
+            Full name <span className="optional">optional</span>
             <input
               maxLength={200}
-              autoFocus
               disabled={busy}
+              placeholder="Taken from the profile URL if left blank"
               value={manual.name}
               onChange={(e) => setManual({ ...manual, name: e.target.value })}
             />
@@ -415,6 +415,7 @@ export function AddCandidatesDialog({
             LinkedIn URL
             <input
               required
+              autoFocus
               disabled={busy}
               value={manual.linkedin ?? ""}
               onChange={(e) => setManual({ ...manual, linkedin: e.target.value })}
@@ -531,7 +532,7 @@ export function AddCandidatesDialog({
           </p>
           <button
             className="primary wide"
-            disabled={busy || !manual.name.trim() || !manual.linkedin?.trim()}
+            disabled={busy || !manual.linkedin?.trim()}
             onClick={submitManual}
           >
             {busy ? "Adding…" : "Add candidate"}
