@@ -308,7 +308,7 @@ export function AddCandidatesDialog({
   }
 
   return (
-    <dialog open className="modal">
+    <dialog open className="modal import-modal">
       <div className="modal-heading">
         <h2>Add candidates</h2>
         <button aria-label="Close" onClick={onClose}>

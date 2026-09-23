@@ -495,6 +495,12 @@ label small {
   max-height: 90vh;
   overflow: auto;
 }
+/* The import carries a stage, a template, a file picker and a preview. At the
+   standard width its four mode tabs scroll sideways and the column list falls
+   into a single stack. */
+.modal.import-modal {
+  width: 720px;
+}
 .modal-heading {
   display: flex;
   justify-content: space-between;
