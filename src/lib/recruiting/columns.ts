@@ -5,6 +5,7 @@ export type CellKind = "text" | "number" | "date" | "select" | "boolean";
 
 export type CandidateColumnId =
   | "date_added"
+  | "status"
   | "linkedin"
   | "source"
   | "rating"
@@ -56,6 +57,14 @@ const everyStage: Stage[] = [
 ];
 const triageStages: Stage[] = ["all_profiles", "profile_shortlisted"];
 
+// Where the work is scanning a long list, rows are tight by default. Where it
+// is reading one person properly, they get the room. Either can be switched,
+// and the choice is then remembered for that tab alone.
+const compactByDefaultStages: string[] = [...triageStages, "rejected"];
+export function stageDefaultsToCompact(tab: string) {
+  return compactByDefaultStages.includes(tab);
+}
+
 type Spec = Omit<CandidateColumn, "field"> & { stages: Stage[] };
 
 // Labels are what a recruiter would write at the top of a column. "Current"
@@ -63,6 +72,9 @@ type Spec = Omit<CandidateColumn, "field"> & { stages: Stage[] };
 // leaves the column sized by its data instead of its title.
 const specs: Spec[] = [
   { id: "date_added", label: "Added", kind: "date", editable: false, width: "sm", stages: everyStage },
+  // Only on All profiles, which spans every stage. On a stage tab every row
+  // would say the same thing as the tab itself.
+  { id: "status", label: "Status", kind: "text", editable: false, width: "md", stages: ["all_profiles"] },
   { id: "linkedin", label: "LinkedIn", kind: "text", editable: true, width: "sm", stages: everyStage },
   { id: "source", label: "Source", kind: "text", editable: false, width: "md", stages: triageStages },
   {

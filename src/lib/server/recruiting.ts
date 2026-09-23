@@ -90,8 +90,13 @@ export function roleCandidateListQuery(
       "*,candidates!inner(*,candidate_identities(kind,normalized_value))",
       includeTotal ? { count: "exact" } : undefined,
     )
-    .eq("role_id", roleId)
-    .eq("stage", stage);
+    .eq("role_id", roleId);
+  // All profiles is the role's full list, not a stage. Rating someone moves
+  // them into Profile shortlisted, and they stay visible here afterwards, so
+  // it stays the one place to check whether a person is already on the role.
+  // Rejected rows are included for the same reason: re-adding someone you
+  // turned down is exactly the mistake this view prevents.
+  if (stage !== "all_profiles") query = query.eq("stage", stage);
   if (filters.source) query = query.eq("source", filters.source);
   if (filters.sourceDetail)
     query = query.ilike("source_detail", `%${filters.sourceDetail}%`);

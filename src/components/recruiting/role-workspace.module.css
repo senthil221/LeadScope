@@ -140,6 +140,12 @@
 .workspace :global(.master-table td) { height: var(--row-height); font-size: 13px; }
 .workspace :global(.master-table .muted) { color: var(--faint); }
 .workspace :global(.master-table .badge) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+/* Reads as a state, not an editable value, so it is quieter than a cell and
+   carries its own colour per stage. */
+.workspace :global(.candidate-stage-cell) { font-size: 12px; color: #43536b; }
+.workspace :global(.candidate-stage-cell.stage-rejected) { color: #b91c1c; }
+.workspace :global(.candidate-stage-cell.stage-offer_sent) { color: #166534; }
+.workspace :global(.candidate-stage-cell.stage-all_profiles) { color: var(--faint); }
 .workspace :global(.candidate-delete-button) { min-width: 30px; padding: 3px 6px; color: #9a3412; }
 .workspace :global(.candidate-delete-button:hover:not(:disabled)) { background: #fef2f2; border-color: #fca5a5; color: #b91c1c; }
 @media (max-width: 960px) {

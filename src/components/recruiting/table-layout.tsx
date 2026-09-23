@@ -22,10 +22,14 @@ function write(key: string, value: string) {
   window.dispatchEvent(new Event(changeEvent));
 }
 
-export function useTableLayout(scope: string) {
+export function useTableLayout(scope: string, compactByDefault = true) {
   const key = `leadscope:table-widths:v1:${scope}`;
   const saved = useSyncExternalStore(subscribe, () => read(key), () => "");
-  const density = useSyncExternalStore(subscribe, () => read("leadscope:table-density"), () => "");
+  // Density is remembered per scope rather than once for the whole app: the
+  // triage stages are scanned in bulk and want the rows tight, while the later
+  // stages are read a row at a time and want the room.
+  const densityKey = `leadscope:table-density:v2:${scope}`;
+  const density = useSyncExternalStore(subscribe, () => read(densityKey), () => "");
   let widths: Record<string, number> = {};
   try {
     const value: unknown = JSON.parse(saved);
@@ -35,14 +39,12 @@ export function useTableLayout(scope: string) {
       ));
     }
   } catch { /* Ignore old or malformed preferences. */ }
-  // Compact is the working default: these tables are read all day, and the
-  // extra row padding costs about four visible candidates a screen. Only an
-  // explicit switch to comfortable turns it off, so the server render and the
-  // first client render agree when nothing has been stored yet.
-  const compact = density !== "comfortable";
+  // Nothing stored means this scope's own default, so the server render and
+  // the first client render agree. An explicit choice always wins.
+  const compact = density === "" ? compactByDefault : density !== "comfortable";
   return {
     compact,
-    toggleDensity: () => write("leadscope:table-density", compact ? "comfortable" : "compact"),
+    toggleDensity: () => write(densityKey, compact ? "comfortable" : "compact"),
     width: (id: string, initial: number) => widths[id] ?? initial,
     resize: (id: string, width: number) => write(key, JSON.stringify({ ...widths, [id]: Math.max(72, Math.min(480, Math.round(width))) })),
     reset: () => write(key, "{}"),

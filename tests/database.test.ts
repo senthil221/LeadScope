@@ -1239,6 +1239,35 @@ describe("edit history, duplicate review and bulk editing", () => {
 });
 
 describe("recoverable role membership deletion", () => {
+  // Deletion is the owner's alone, so the actor holds ownership for this block
+  // and gives it back afterwards. The refusal for a merely approved operator is
+  // asserted on its own below.
+  beforeAll(() =>
+    sql("update public.user_profiles set is_owner=true where id=$1", [actor]).then(() => {}),
+  );
+  afterAll(() =>
+    sql("update public.user_profiles set is_owner=false where id=$1", [actor]).then(() => {}),
+  );
+
+  it("refuses an approved operator who is not the owner", async () => {
+    const { cid, rid, rcId } = await pipeline("trash-not-owner");
+    await sql("update public.user_profiles set is_owner=false where id=$1", [actor]);
+    try {
+      for (const call of [
+        () => rpc("remove_role_candidates", [cid, rid, [rcId], "all_profiles"]),
+        () => rpc("deleted_role_candidate_batches", [cid, rid]),
+        () => rpc("restore_role_candidates", [cid, rid, randomUUID()]),
+      ])
+        await expect(asUser(actor, call)).rejects.toThrow("workspace owner");
+      // Nothing was removed on the way to being refused.
+      expect(
+        (await sql("select id from public.role_candidates where id=$1", [rcId])).rowCount,
+      ).toBe(1);
+    } finally {
+      await sql("update public.user_profiles set is_owner=true where id=$1", [actor]);
+    }
+  });
+
   it("removes only the selected role membership and restores its exact fields and history", async () => {
     const { cid, rid, candidateId, rcId } = await pipeline("trash-roundtrip");
     const secondRole = await role(cid, 3, "Another role");

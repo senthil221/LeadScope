@@ -53,7 +53,11 @@ import { RoleFieldsDialog } from "./role-fields-dialog";
 import { ShareDialog } from "./share-dialog";
 import { RoleAnalytics } from "./role-analytics";
 import { SheetCell, type SheetCellNode } from "./sheet-cell";
-import { candidateColumns, type CandidateColumn } from "@/lib/recruiting/columns";
+import {
+  candidateColumns,
+  stageDefaultsToCompact,
+  type CandidateColumn,
+} from "@/lib/recruiting/columns";
 import { isSingleValue, parsePastedBlock } from "@/lib/recruiting/paste";
 import {
   draftBlocker,
@@ -151,6 +155,7 @@ export function RolePipeline({
   stageFunnel,
   stageDurations,
   sourcePerformance,
+  isOwner,
 }: {
   client: Client;
   role: Role;
@@ -165,6 +170,8 @@ export function RolePipeline({
   stageFunnel: StageFunnelRow[];
   stageDurations: StageDurationRow[];
   sourcePerformance: SourcePerformanceRow[];
+  /** Deletion is offered only to the workspace owner. */
+  isOwner: boolean;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -259,7 +266,7 @@ export function RolePipeline({
   const [columnPreference, setColumnPreference] = useState<string | null>(null);
   const [navigatingTo, setNavigatingTo] = useState<Tab | null>(null);
   const path = `/roles/${role.id}`;
-  const layout = useTableLayout(`${role.id}:${tab}`);
+  const layout = useTableLayout(`${role.id}:${tab}`, stageDefaultsToCompact(tab));
   const tableFrame = useRef<HTMLDivElement>(null);
   const [tableFrameWidth, setTableFrameWidth] = useState(0);
   useEffect(() => {
@@ -278,6 +285,7 @@ export function RolePipeline({
   const isPipelineTab = isStage(tab) && tab !== "rejected";
   const isFollowUpsTab = tab === "follow_ups";
   const canRejectFromTab = [
+    "profile_shortlisted",
     "recruiter_shortlisted",
     "client_shortlisted",
     "offer_sent",
@@ -290,9 +298,9 @@ export function RolePipeline({
       ? nextStage(tab as PipelineStage)
       : null;
   const canSelectCandidates = isStage(tab) || isFollowUpsTab;
-  // Every stage can delete a row, so the action column exists even where there
-  // is nothing to advance or reject.
-  const canDeleteRows = canSelectCandidates && !role.archived;
+  // Deletion is the owner's alone. The RPCs refuse anyone else, so this only
+  // decides whether the control is offered rather than whether it works.
+  const canDeleteRows = canSelectCandidates && !role.archived && isOwner;
   const showRowActions = Boolean(advanceTo || canRejectFromTab) || canDeleteRows;
   const activeCandidateFilterCount = [
     params.get("source"),
@@ -307,6 +315,9 @@ export function RolePipeline({
   const pipelineTotal = Object.entries(counts)
     .filter(([stage]) => stage !== "rejected")
     .reduce((sum, [, n]) => sum + n, 0);
+  // All profiles lists the role's whole history, rejections included, so its
+  // tab count is every stage rather than the one named after it.
+  const roleTotal = pipelineTotal + (counts.rejected ?? 0);
   // A selection belongs to the visible Master DB page. A stale selection is
   // ignored as soon as the recruiter changes search, page, or tab.
   const masterSelectionScope = `${tab}:${page}:${query}`;
@@ -645,6 +656,18 @@ export function RolePipeline({
           value: candidateSourceLabel(rc.source, rc.source_detail),
           save: async () => {},
         });
+      case "status":
+        // Where this person currently sits. All profiles spans every stage,
+        // so without this the list gives no way to tell who has been moved on.
+        return (
+          <td className={`sheet-td w-${column.width}`} key={column.id}>
+            <span
+              className={`sheet-cell is-readonly candidate-stage-cell stage-${rc.stage}`}
+            >
+              {isStage(rc.stage) ? stageLabels[rc.stage] : rc.stage}
+            </span>
+          </td>
+        );
       case "linkedin": {
         const url = linkedInUrl(rc.candidates);
         return (
@@ -1051,7 +1074,7 @@ export function RolePipeline({
             aria-current={tab === key ? "page" : undefined}
           >
             {label}
-            <span>{counts[key] ?? 0}</span>
+            <span>{key === "all_profiles" ? roleTotal : counts[key] ?? 0}</span>
           </Link>
         ))}
       </div>
@@ -1070,7 +1093,7 @@ export function RolePipeline({
         <RoleToolsMenu label="Actions">
         <button type="button" onClick={() => setShowHistory(true)}>Edit history</button>
         <button type="button" onClick={() => setShowDuplicates(true)}>Duplicate review</button>
-        <button type="button" onClick={() => setShowDeleted(true)}><Trash2 size={14} /> Recently deleted</button>
+        {isOwner && <button type="button" onClick={() => setShowDeleted(true)}><Trash2 size={14} /> Recently deleted</button>}
         <button type="button" aria-pressed={expanded} onClick={() => setExpanded((value) => !value)}>
           {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{expanded ? "Show page navigation" : "Full screen"}
         </button>
@@ -1081,7 +1104,7 @@ export function RolePipeline({
         <div className="bulk-bar">
           <strong>{selected.length} selected</strong>
           <button type="button" disabled={busy || role.archived} onClick={() => setBulkEditing([...selected])}>Bulk edit</button>
-          <button type="button" disabled={busy || role.archived} onClick={() => setDeleting([...selected])}><Trash2 size={15} /> Delete from role</button>
+          {canDeleteRows && <button type="button" disabled={busy || role.archived} onClick={() => setDeleting([...selected])}><Trash2 size={15} /> Delete from role</button>}
           <button type="button" onClick={() => setSelected([])}>Clear selection</button>
           {showRowActions && <>
           <input
@@ -1474,7 +1497,7 @@ export function RolePipeline({
                     Add {masterToAdd.length} to role
                   </button>
                 )}
-                {masterToRemove.length > 0 && (
+                {isOwner && masterToRemove.length > 0 && (
                   <button
                     className="small"
                     disabled={busy}

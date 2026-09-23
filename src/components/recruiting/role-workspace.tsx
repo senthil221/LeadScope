@@ -24,6 +24,7 @@ export function RoleWorkspace({ data }: { data: PageData }) {
         stageFunnel={data.roleStageFunnel ?? []}
         stageDurations={data.roleStageDurations ?? []}
         sourcePerformance={data.roleSourcePerformance ?? []}
+        isOwner={data.isOwner ?? false}
       />
     </AppShell>
   );
