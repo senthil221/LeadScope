@@ -476,13 +476,24 @@ export function RolePipeline({
     layout.reset();
   }
 
+  // Every tab's rows are fetched before they are asked for, which is what
+  // makes moving between stages immediate. It also means a stage you have not
+  // opened yet can be holding the role as it was before you rated or rejected
+  // somebody. router.refresh() only clears the page you are standing on, so
+  // each change bumps this instead: it rides along in the other tabs' links,
+  // and a link nobody has fetched cannot answer from a cache.
+  const [dataVersion, setDataVersion] = useState(0);
+  function refresh() {
+    setDataVersion((version) => version + 1);
+    router.refresh();
+  }
   const tabUrl = (key: Tab) => {
     const p = new URLSearchParams(params);
     p.set("stage", key);
     p.delete("page");
+    if (dataVersion) p.set("v", String(dataVersion));
     return `${path}?${p}`;
   };
-  const prefetchTab = (key: Tab) => router.prefetch(tabUrl(key));
   function startTabNavigation(key: Tab) {
     if (key !== tab) {
       // The role workspace remains mounted between stages. Clear UI state that
@@ -515,7 +526,7 @@ export function RolePipeline({
       if (!response.ok)
         throw new Error(result.error ?? "Could not upload the resume.");
       setMessage("Resume uploaded.");
-      router.refresh();
+      refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -547,9 +558,12 @@ export function RolePipeline({
         key={key}
         className={`stage-tab stage-${key}${extra ? ` ${extra}` : ""}${tab === key ? " selected" : ""}${loading ? " is-loading" : ""}`}
         href={tabUrl(key)}
-        prefetch={false}
-        onMouseEnter={() => prefetchTab(key)}
-        onFocus={() => prefetchTab(key)}
+        // These six are the navigation of this screen and all of them are on
+        // it at once, so each one's rows are fetched up front rather than on a
+        // hover a keyboard or a touch never sends. Without `true` a stage is
+        // prefetched only as far as its loading skeleton, which is the part
+        // nobody is waiting for.
+        prefetch
         onClick={() => startTabNavigation(key)}
         aria-busy={loading}
         aria-current={tab === key ? "page" : undefined}
@@ -613,7 +627,7 @@ export function RolePipeline({
         summary.invalid ? `${summary.invalid} could not be read` : "",
       ].filter(Boolean);
       setMessage(parts.join(" · ") || "Nothing to add.");
-      router.refresh();
+      refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -688,7 +702,7 @@ export function RolePipeline({
         .filter(Boolean)
         .join(" "),
     );
-    router.refresh();
+    refresh();
   }
 
   // One cell renderer for the whole grid. Every editable column resolves to a
@@ -787,7 +801,7 @@ export function RolePipeline({
           >
             <div className="candidate-profile-cell">
               <SheetCell row={rowIndex} col={colIndex} label={`LinkedIn, row ${rowIndex + 1}`} value={url ?? ""} placeholder="Add LinkedIn URL" readOnly={locked}
-                save={async (value) => { await act("candidateLinkedIn", { id: rc.candidate_id, value }); router.refresh(); }} />
+                save={async (value) => { await act("candidateLinkedIn", { id: rc.candidate_id, value }); refresh(); }} />
               {url && <a className="candidate-link" href={url} rel="noreferrer" target="_blank" aria-label={`Open ${rc.candidates.full_name} on LinkedIn`}><ExternalLink size={14} /></a>}
             </div>
           </td>
@@ -837,7 +851,7 @@ export function RolePipeline({
               setMessage(
                 `${rc.candidates.full_name} moved to Profile shortlisted after meeting the ${role.rating_threshold} / 5 threshold.`,
               );
-            router.refresh();
+            refresh();
           },
         });
       case "notes":
@@ -860,7 +874,7 @@ export function RolePipeline({
               ids: [rc.id],
               outcome,
             });
-            router.refresh();
+            refresh();
           },
         });
       case "offer_details":
@@ -966,7 +980,7 @@ export function RolePipeline({
       summary.invalid && `${summary.invalid} skipped as invalid`,
     ].filter(Boolean);
     setMessage(parts.length ? parts.join(", ") + "." : "Nothing to import.");
-    router.refresh();
+    refresh();
   }
   async function toggleArchive() {
     if (busy) return;
@@ -974,7 +988,7 @@ export function RolePipeline({
     setError("");
     try {
       await act("archiveRole", { id: role.id, archived: !role.archived });
-      router.refresh();
+      refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -997,7 +1011,7 @@ export function RolePipeline({
       setMessage(
         `Moved ${selected.length} candidate${selected.length > 1 ? "s" : ""} to ${stageLabels[advanceTo]}.`,
       );
-      router.refresh();
+      refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1017,7 +1031,7 @@ export function RolePipeline({
       });
       setSelected((current) => current.filter((id) => id !== roleCandidate.id));
       setMessage(`Moved ${roleCandidate.candidates.full_name} to ${stageLabels[advanceTo]}.`);
-      router.refresh();
+      refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1045,7 +1059,7 @@ export function RolePipeline({
           ? `${result.added} candidate${result.added === 1 ? "" : "s"} added to All profiles.`
           : "Those candidates are already in this role.",
       );
-      router.refresh();
+      refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1067,7 +1081,7 @@ export function RolePipeline({
           ? `${result.moved} candidate${result.moved > 1 ? "s" : ""} moved to Profile shortlisted.`
           : "No candidates in All profiles currently meet the threshold.",
       );
-      router.refresh();
+      refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1086,7 +1100,7 @@ export function RolePipeline({
         internalNotes: roleCandidate.internal_notes,
       });
       setMessage(followUpAt ? "Follow-up date saved." : "Follow-up cleared.");
-      router.refresh();
+      refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -2076,10 +2090,10 @@ export function RolePipeline({
         </>
       )}
       </section>
-      {bulkEditing && <BulkEditDialog clientId={client.id} roleId={role.id} roleName={role.name} ids={bulkEditing} stage={isStage(tab) ? tab : null} fields={roleFields} onClose={() => setBulkEditing(null)} onSaved={(count) => { setBulkEditing(null); setSelected([]); setMessage(`Updated ${count} rows. Changes are recorded in Edit history.`); router.refresh(); }} />}
+      {bulkEditing && <BulkEditDialog clientId={client.id} roleId={role.id} roleName={role.name} ids={bulkEditing} stage={isStage(tab) ? tab : null} fields={roleFields} onClose={() => setBulkEditing(null)} onSaved={(count) => { setBulkEditing(null); setSelected([]); setMessage(`Updated ${count} rows. Changes are recorded in Edit history.`); refresh(); }} />}
       {showHistory && <EditHistoryDialog clientId={client.id} roleId={role.id} onClose={() => setShowHistory(false)} />}
       {showDuplicates && <DuplicateReview clientId={client.id} roleId={role.id} onClose={() => setShowDuplicates(false)} />}
-      {showDeleted && <DeletedCandidates clientId={client.id} roleId={role.id} archived={role.archived} onClose={() => setShowDeleted(false)} onRestored={() => router.refresh()} />}
+      {showDeleted && <DeletedCandidates clientId={client.id} roleId={role.id} archived={role.archived} onClose={() => setShowDeleted(false)} onRestored={() => refresh()} />}
       {deleting && <TableDialog titleId="delete-rows-title" busy={busy} onClose={() => setDeleting(null)}>
         <div className="modal-heading"><h2 id="delete-rows-title">Delete {deleting.length} selected row{deleting.length === 1 ? "" : "s"} from this role?</h2></div>
         <p>These rows will leave <strong>{role.name}</strong>. Shared candidate profiles and other roles are kept. You can restore this batch with its notes and history from Recently deleted.</p>
@@ -2090,7 +2104,7 @@ export function RolePipeline({
             await act("removeRoleCandidates", { clientId: client.id, roleId: role.id, ids: deleting, stage: isStage(tab) ? tab : null });
             setSelected([]); setMasterSelected([]); setDeleting(null);
             setMessage("Rows deleted from this role. Restore them from Recently deleted.");
-            router.refresh();
+            refresh();
           } catch (e) { setError((e as Error).message); }
           finally { setBusy(false); }
         }}>{busy ? "Deleting…" : "Delete from role"}</button><button disabled={busy} onClick={() => setDeleting(null)}>Cancel</button></div>
@@ -2102,7 +2116,7 @@ export function RolePipeline({
           onClose={() => setEditing(false)}
           onSaved={() => {
             setEditing(false);
-            router.refresh();
+            refresh();
           }}
         />
       )}
@@ -2138,7 +2152,7 @@ export function RolePipeline({
               `Rejected ${rejectingIds.length} candidate${rejectingIds.length > 1 ? "s" : ""}.`,
             );
             setRejectingIds([]);
-            router.refresh();
+            refresh();
           }}
         />
       )}
@@ -2166,7 +2180,7 @@ export function RolePipeline({
               totalInView={roleCandidates.length}
               onNavigate={setPanelId}
               onClose={() => setPanelId(null)}
-              onChanged={() => router.refresh()}
+              onChanged={() => refresh()}
             />
           );
         })()
@@ -2177,7 +2191,7 @@ export function RolePipeline({
           roleId={role.id}
           fields={roleFields}
           onClose={() => setManagingFields(false)}
-          onChanged={() => router.refresh()}
+          onChanged={() => refresh()}
         />
       )}
       {sharing && tab === "recruiter_shortlisted" && (
@@ -2187,7 +2201,7 @@ export function RolePipeline({
           links={shareLinks}
           fields={roleFields}
           onClose={() => setSharing(null)}
-          onChanged={() => router.refresh()}
+          onChanged={() => refresh()}
         />
       )}
       {applying && (
