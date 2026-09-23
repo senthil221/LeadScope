@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ============================================================
-   LeadScope design system — Part 1: tokens, shell, base components
+   LeadScope design system. Part 1: tokens, shell, base components
    ============================================================ */
 
 @theme {
@@ -33,14 +33,14 @@
   --radius-md: 8px;
   --radius-lg: 10px;
 
-  /* Elevation — subtle only. */
+  /* Elevation. subtle only. */
   --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 14px rgb(15 23 42 / 0.03);
   --shadow-md: 0 18px 46px rgb(15 23 42 / 0.14);
 
   /* Focus */
   --focus-ring: 0 0 0 3px rgb(37 99 235 / 0.16);
 
-  /* Motion — subtle, transform/color/opacity only. */
+  /* Motion. subtle, transform/color/opacity only. */
   --t-fast: 120ms;
   --t-base: 160ms;
   --t-ease: ease;
@@ -812,24 +812,49 @@ label small {
   background: var(--brand-soft);
   color: var(--brand-ink);
 }
-.csv-column-mapping {
-  margin: 0 0 16px;
-}
-.csv-column-mapping > small {
-  margin-left: 10px;
-  color: var(--muted);
-}
-.csv-column-mapping-fields {
-  display: grid;
-  gap: 10px;
-  margin-top: 10px;
+/* The template panel: what the stage holds, and the file that holds it. */
+.import-template {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
   padding: 12px;
-  border: 1px solid var(--line);
+  margin-bottom: 12px;
+  border: 1px solid var(--brand-line);
   border-radius: 8px;
-  background: var(--bg);
+  background: var(--brand-soft);
 }
-.csv-column-mapping-fields .muted {
-  margin: 0;
+.import-template > div {
+  min-width: 0;
+}
+.import-template .muted {
+  margin: 2px 0 0;
+}
+.import-template button {
+  flex: 0 0 auto;
+}
+.import-template-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.import-template-columns li {
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.import-template-columns span {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 .loading-page {
   min-height: 100vh;
@@ -4250,11 +4275,39 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .login-page h1 { font-size: 26px; letter-spacing: -.03em; }
 
 @media (max-width: 900px) {
-  .shell-sidebar { width: 216px; }
   .today-work-group:not(:last-child) { border-right: 0; border-bottom: 1px solid var(--line); }
   .today-work-grid { grid-template-columns: 1fr; }
   .candidate-toolbar-main { grid-template-columns: minmax(180px, 1fr) auto auto auto; }
   .candidate-clear-filters { grid-column: 1 / -1; justify-self: start; }
+}
+
+/* Keep the desktop polish from overriding the compact navigation shell. */
+@media (max-width: 960px) {
+  .shell-sidebar {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 12px;
+    padding: 10px 12px;
+  }
+  .shell-top {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(132px, 1fr);
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+  }
+  .shell-brand { padding: 4px 2px; }
+  .shell-switcher { width: 100%; max-width: 320px; justify-self: end; }
+  .shell-nav { min-width: 0; padding: 0; }
+  .shell-label { display: none; }
+  .shell-footer { margin: 0; padding: 0; }
+  .shell-footer > .shell-link { width: 30px; min-height: 30px; padding: 0; font-size: 0; }
+  .shell-footer > .shell-link svg { margin: auto; }
+  .shell-user { margin: 0; }
+  .page-body { padding: 20px 14px 32px; }
 }
 
 @media (max-width: 680px) {

@@ -19,6 +19,8 @@ export type DraftRow = {
   location?: string;
   headline?: string;
   totalExperienceYears?: string;
+  currentCtc?: string;
+  highestQualification?: string;
   sourceDetail?: string;
 };
 export type ImportRow = {
@@ -98,6 +100,11 @@ export function buildImportRow(
     fields.currentDesignation = draft.currentDesignation.trim().slice(0, 200);
   if (draft.location?.trim()) fields.location = draft.location.trim().slice(0, 200);
   if (draft.headline?.trim()) fields.headline = draft.headline.trim().slice(0, 300);
+  // Lengths match the candidates table, so an over-long cell is trimmed here
+  // rather than counted as an invalid row by the import function.
+  if (draft.currentCtc?.trim()) fields.currentCtc = draft.currentCtc.trim().slice(0, 80);
+  if (draft.highestQualification?.trim())
+    fields.highestQualification = draft.highestQualification.trim().slice(0, 200);
   const years = Number(draft.totalExperienceYears);
   if (draft.totalExperienceYears?.trim() && Number.isFinite(years) && years >= 0 && years <= 70)
     fields.totalExperienceYears = years;
@@ -214,6 +221,12 @@ const csvColumnAliases: Record<string, keyof DraftRow> = {
   experience: "totalExperienceYears",
   "experience (years)": "totalExperienceYears",
   "total experience": "totalExperienceYears",
+  ctc: "currentCtc",
+  "current ctc": "currentCtc",
+  salary: "currentCtc",
+  qualification: "highestQualification",
+  "highest qualification": "highestQualification",
+  education: "highestQualification",
   source: "sourceDetail",
   provider: "sourceDetail",
   vendor: "sourceDetail",
@@ -229,6 +242,8 @@ export const csvTemplateColumns = [
   "Designation",
   "Location",
   "Experience (years)",
+  "CTC",
+  "Qualification",
   "Source",
 ];
 

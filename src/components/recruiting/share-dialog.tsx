@@ -36,7 +36,7 @@ const date = (value: string | null) =>
         day: "numeric",
         year: "numeric",
       })
-    : "—";
+    : "Not provided";
 
 function defaultExpiry() {
   const expiry = new Date();
@@ -143,7 +143,7 @@ export function ShareDialog({
         <div className="notice">
           <CircleHelp size={18} />
           <div>
-            <strong>Copy this link now — it will not be shown again.</strong>
+            <strong>Copy this link now. It will not be shown again.</strong>
             <p className="muted">
               Your client can view Recruiter Shortlisted candidates and their custom columns.
               They can edit Notes only.

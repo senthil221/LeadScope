@@ -63,7 +63,7 @@ type Spec = Omit<CandidateColumn, "field"> & { stages: Stage[] };
 // leaves the column sized by its data instead of its title.
 const specs: Spec[] = [
   { id: "date_added", label: "Added", kind: "date", editable: false, width: "sm", stages: everyStage },
-  { id: "linkedin", label: "LinkedIn", kind: "text", editable: false, width: "sm", stages: everyStage },
+  { id: "linkedin", label: "LinkedIn", kind: "text", editable: true, width: "sm", stages: everyStage },
   { id: "source", label: "Source", kind: "text", editable: false, width: "md", stages: triageStages },
   {
     id: "rating",

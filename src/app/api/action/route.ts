@@ -154,6 +154,17 @@ export async function POST(request: Request) {
               "sourcing_import",
               "other",
             ]),
+            // Rejected is not importable: that stage needs a rejection type
+            // and reason, which a spreadsheet row cannot carry.
+            stage: z
+              .enum([
+                "all_profiles",
+                "profile_shortlisted",
+                "recruiter_shortlisted",
+                "client_shortlisted",
+                "offer_sent",
+              ])
+              .default("all_profiles"),
             rows: z
               .array(
                 z.object({
@@ -217,6 +228,7 @@ export async function POST(request: Request) {
             p_role: p.roleId,
             p_rows: rows,
             p_source: p.source,
+            p_stage: p.stage,
           }),
         );
         break;
@@ -482,6 +494,48 @@ export async function POST(request: Request) {
             p_linkedin: p.linkedin,
           }),
         );
+        break;
+      }
+      case "candidateLinkedIn": {
+        const p = z.object({ id: uuid, value: z.string().max(500) }).parse(payload);
+        const url = canonicalLinkedIn(p.value);
+        if (!url) throw new AppError("Enter a valid LinkedIn /in/ profile URL.");
+        checked(await db.rpc("set_candidate_linkedin", { p_id: p.id, p_linkedin: url }));
+        break;
+      }
+      case "removeRoleCandidates": {
+        const p = z.object({ clientId: uuid, roleId: uuid, ids: z.array(uuid).min(1).max(50), stage: z.string().max(50).nullable() }).parse(payload);
+        result = { batchId: checked(await db.rpc("remove_role_candidates", { p_client: p.clientId, p_role: p.roleId, p_ids: p.ids, p_stage: p.stage })) };
+        break;
+      }
+      case "restoreRoleCandidates": {
+        const p = z.object({ clientId: uuid, roleId: uuid, batchId: uuid }).parse(payload);
+        result = { count: checked(await db.rpc("restore_role_candidates", { p_client: p.clientId, p_role: p.roleId, p_batch: p.batchId })) };
+        break;
+      }
+      case "deletedRoleCandidates": {
+        const p = z.object({ clientId: uuid, roleId: uuid }).parse(payload);
+        result = checked(await db.rpc("deleted_role_candidate_batches", { p_client: p.clientId, p_role: p.roleId }));
+        break;
+      }
+      case "candidateEditHistory": {
+        const p = z.object({ clientId: uuid, roleId: uuid, candidateId: uuid.nullable().default(null), before: z.string().regex(/^\d+$/).max(19).nullable().default(null) }).parse(payload);
+        result = checked(await db.rpc("candidate_edit_history_page", { p_client: p.clientId, p_role: p.roleId, p_candidate: p.candidateId, p_before: p.before }));
+        break;
+      }
+      case "bulkEditCandidates": {
+        const p = z.object({ clientId: uuid, roleId: uuid, ids: z.array(uuid).min(1).max(50), stage: z.string().max(50).nullable(), field: z.string().min(1).max(100), value: z.union([z.string().max(4000),z.number().finite(),z.boolean()]).nullable(), mode: z.enum(["replace","fill_empty","clear"]), expected: z.string().regex(/^[a-f0-9]{32}$/).nullable().default(null) }).parse(payload);
+        result = checked(await db.rpc("bulk_edit_role_candidates", { p_client: p.clientId, p_role: p.roleId, p_ids: p.ids, p_stage: p.stage, p_field: p.field, p_value: p.value, p_mode: p.mode, p_expected: p.expected }));
+        break;
+      }
+      case "duplicateReview": {
+        const p = z.object({ clientId: uuid, roleId: uuid, status: z.enum(["pending","confirmed","separate"]), after: z.string().max(73).nullable().default(null) }).parse(payload);
+        result = checked(await db.rpc("duplicate_review_page", { p_client: p.clientId, p_role: p.roleId, p_status: p.status, p_after: p.after }));
+        break;
+      }
+      case "reviewDuplicate": {
+        const p = z.object({ clientId: uuid, roleId: uuid, firstId: uuid, secondId: uuid, fingerprint: z.string().regex(/^[a-f0-9]{32}$/), revision: z.number().int().min(0), status: z.enum(["pending","confirmed","separate"]), note: z.string().max(2000) }).parse(payload);
+        checked(await db.rpc("review_candidate_duplicate", { p_client: p.clientId, p_role: p.roleId, p_first: p.firstId, p_second: p.secondId, p_fingerprint: p.fingerprint, p_revision: p.revision, p_status: p.status, p_note: p.note }));
         break;
       }
       case "candidateField": {

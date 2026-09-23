@@ -67,7 +67,7 @@ function ProspectRow({ row, number }: { row: Prospect; number: number }) {
         </a>
       </td>
       <td>
-        <div className="sheet-text">{row.snippet || "—"}</div>
+        <div className="sheet-text">{row.snippet || "Not provided"}</div>
       </td>
       <td>
         <select
@@ -108,7 +108,7 @@ function ProspectRow({ row, number }: { row: Prospect; number: number }) {
       </td>
       <td>
         <div className="sheet-text">
-          <code>{row.source_query || "—"}</code>
+          <code>{row.source_query || "Not provided"}</code>
           <small>{row.campaign_name}</small>
         </div>
       </td>

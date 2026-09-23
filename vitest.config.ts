@@ -15,7 +15,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: "unit",
-          include: ["tests/*.test.ts"],
+          include: ["tests/*.test.{ts,tsx}"],
           exclude: ["tests/database.test.ts"],
         },
       },

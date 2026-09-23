@@ -665,6 +665,14 @@ export default async function Page({
       );
     throw error;
   }
+  // This agency works one open role at a time, so a client with a single open
+  // role opens straight into the candidate grid instead of a list of one.
+  // ?list=1 asks for the list itself, and is what the role's back button
+  // links to, so going back does not immediately come back here.
+  if (data.view === "roles" && filter.list !== "1") {
+    const open = (data.roles ?? []).filter((role) => !role.archived);
+    if (open.length === 1) redirect(`/roles/${open[0].id}`);
+  }
   const routeKey = `${path.join("/")}:${filter.page ?? ""}:${filter.status ?? ""}:${filter.campaign ?? ""}:${filter.q ?? ""}:${filter.contact ?? ""}:${filter.stage ?? ""}`;
   const roleRouteKey = `${path.join("/")}:${filter.page ?? ""}:${filter.q ?? ""}:${filter.source ?? ""}:${filter.source_detail ?? ""}:${filter.rating ?? ""}:${filter.entered_from ?? ""}:${filter.entered_to ?? ""}:${filter.sort ?? ""}`;
   if (data.view === "clients") return <ClientsWorkspace key={routeKey} data={data} />;

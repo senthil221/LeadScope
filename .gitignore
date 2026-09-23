@@ -9,3 +9,4 @@ supabase/.branches/
 test-results/
 playwright-report/
 .local-db/
+.claude/scheduled_tasks.lock

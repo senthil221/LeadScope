@@ -11,7 +11,7 @@ import {
 } from "@/lib/recruiting/stages";
 
 function formatDays(days: number | null): string {
-  if (days == null) return "—";
+  if (days == null) return "Not provided";
   if (days < 1) return `${Math.round(days * 24)} hrs`;
   return `${days.toFixed(1)} days`;
 }
@@ -65,7 +65,7 @@ export function RoleAnalytics({
                 <td className="strong">{stageLabels[stage]}</td>
                 <td>{everReached}</td>
                 <td>{row?.currently_here ?? 0}</td>
-                <td>{conversion == null ? "—" : formatPct(conversion)}</td>
+                <td>{conversion == null ? "Not provided" : formatPct(conversion)}</td>
               </tr>
             );
           })}
@@ -76,7 +76,7 @@ export function RoleAnalytics({
             <td>
               {allProfiles > 0
                 ? formatPct((rejected?.ever_reached ?? 0) / allProfiles)
-                : "—"}
+                : "Not provided"}
             </td>
           </tr>
         </tbody>
@@ -117,7 +117,7 @@ export function RoleAnalytics({
       )}
       <h3>Median time in stage</h3>
       <p className="muted">
-        Only completed stays count — a candidate still sitting in a stage
+        Only completed stays count. A candidate still sitting in a stage
         today has not finished that stay yet.
       </p>
       <table>

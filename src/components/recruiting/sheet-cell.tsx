@@ -87,7 +87,7 @@ export function SheetCell({
   const [current, setCurrent] = useState(value);
   const [draft, setDraft] = useState(value);
   const [editing, setEditing] = useState(false);
-  const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLSelectElement>(null);
@@ -98,6 +98,12 @@ export function SheetCell({
   const pendingRef = useRef("");
   const selectOnEditRef = useRef(true);
   const savedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (status !== "saved") return;
+    const timer = setTimeout(() => setStatus("idle"), 1800);
+    return () => clearTimeout(timer);
+  }, [status]);
 
   // A refresh after a save elsewhere (a stage move, an import) should win over
   // whatever this cell last rendered. Adjusting during render rather than in an
@@ -130,22 +136,8 @@ export function SheetCell({
       node.select();
   }, [editing]);
 
-  // Committing moves focus to the next cell while this one is still mounted,
-  // so close the editor once focus has actually left rather than relying on
-  // every exit path to tear it down itself.
-  useEffect(() => {
-    if (!editing) return;
-    const node = rootRef.current;
-    if (!node) return;
-    const onFocusOut = (event: FocusEvent) => {
-      const next = event.relatedTarget as Node | null;
-      if (next && node.contains(next)) return;
-      editingRef.current = false;
-      setEditing(false);
-    };
-    node.addEventListener("focusout", onFocusOut);
-    return () => node.removeEventListener("focusout", onFocusOut);
-  }, [editing]);
+  // Let the editor's React onBlur commit the value. A native focusout handler
+  // runs before React's delegated blur and would cancel that pending save.
 
   // Re-attached on every render so the handler a paste calls always closes over
   // the current value rather than the one from the render that mounted it.
@@ -161,7 +153,7 @@ export function SheetCell({
   });
 
   function beginEdit(initial?: string) {
-    if (readOnly) return;
+    if (readOnly || status === "saving" || editingRef.current) return;
     editingRef.current = true;
     selectOnEditRef.current = initial === undefined;
     pendingRef.current = initial ?? current;
@@ -210,7 +202,7 @@ export function SheetCell({
     restoreFocus();
     try {
       await save(next);
-      setStatus("idle");
+      setStatus("saved");
       onSaved?.(next);
     } catch (e) {
       savedRef.current = null;
@@ -235,7 +227,7 @@ export function SheetCell({
     const node = rootRef.current;
     if (!node) return;
     // The editor lives inside this div, so its keydowns bubble here too. The
-    // input has already handled them — re-reading Enter after it committed
+    // input has already handled them. re-reading Enter after it committed
     // would immediately reopen the editor on a cell that just saved.
     if (event.target !== event.currentTarget) return;
     // Keys that land here after an edit started belong to the input that is
@@ -360,6 +352,7 @@ export function SheetCell({
     readOnly ? "is-readonly" : "is-editable",
     editing ? "is-editing" : "",
     status === "saving" ? "is-saving" : "",
+    status === "saved" ? "is-saved" : "",
     status === "error" ? "is-error" : "",
     current ? "" : "is-empty",
   ]
@@ -378,7 +371,8 @@ export function SheetCell({
         ref={rootRef}
         role="gridcell"
         tabIndex={0}
-        title={error || undefined}
+        title={error || current || undefined}
+        aria-busy={status === "saving"}
       >
         <input
           aria-hidden="true"
@@ -388,6 +382,7 @@ export function SheetCell({
           tabIndex={-1}
           type="checkbox"
         />
+        {status !== "idle" && <span className="sheet-feedback" role={status === "error" ? "alert" : "status"}>{status === "saving" ? "Saving…" : status === "saved" ? "Saved" : "Failed"}</span>}
       </div>
     );
   }
@@ -399,26 +394,24 @@ export function SheetCell({
       data-col={col}
       data-row={row}
       data-sheet-cell=""
+      onClick={() => beginEdit()}
       onDoubleClick={() => beginEdit()}
-      onFocus={(event) => {
-        // Focus landing on the cell itself while an edit is open means the
-        // input never took it. Close the edit rather than leave a cell whose
-        // editor cannot be reached or dismissed.
-        if (event.target !== rootRef.current || !editingRef.current) return;
-        editingRef.current = false;
-        setEditing(false);
-        setDraft(current);
-      }}
       onKeyDown={onCellKeyDown}
       ref={rootRef}
       role="gridcell"
       tabIndex={editing ? -1 : 0}
-      title={error || undefined}
+      title={error || current || undefined}
+      aria-busy={status === "saving"}
     >
       {editing ? (
         kind === "select" ? (
           <select
             className="sheet-input"
+            aria-label={label}
+            onChange={(event) => {
+              pendingRef.current = event.currentTarget.value;
+              setDraft(pendingRef.current);
+            }}
             onBlur={(event) => {
               if (editingRef.current) void commit(event.currentTarget.value, null);
             }}
@@ -426,7 +419,7 @@ export function SheetCell({
             ref={inputRef as React.RefObject<HTMLSelectElement>}
             value={draft}
           >
-            <option value="">—</option>
+            <option value="">Select an option</option>
             {options.map((option) => (
               <option key={option} value={option}>
                 {option}
@@ -436,6 +429,7 @@ export function SheetCell({
         ) : (
           <input
             className="sheet-input"
+            aria-label={label}
             inputMode={kind === "number" ? "decimal" : undefined}
             onBlur={(event) => {
               if (editingRef.current) void commit(event.currentTarget.value, null);
@@ -459,6 +453,7 @@ export function SheetCell({
         </span>
       )}
       {status === "error" && <span aria-hidden="true" className="sheet-flag" />}
+      {status !== "idle" && <span className="sheet-feedback" role={status === "error" ? "alert" : "status"}>{status === "saving" ? "Saving…" : status === "saved" ? "Saved" : "Failed"}</span>}
     </div>
   );
 }

@@ -18,6 +18,7 @@ import {
   type Stage,
 } from "@/lib/recruiting/stages";
 import { RejectDialog } from "./reject-dialog";
+import { EditHistory } from "./edit-history";
 import { normalizeIdentity } from "@/lib/recruiting/identity";
 import {
   getPhoneCountry,
@@ -159,7 +160,7 @@ function activityCopy(event: CandidateActivity) {
 // is that panel. It edits reusable candidate details (folding in the manual
 // phone/email entry originally scoped as its own enrichment phase),
 // role-specific screening answers, internal notes, and a resume, then offers
-// the same Suitable/Not-suitable outcome the flow diagram describes —
+// the same Suitable/Not-suitable outcome the flow diagram describes ,
 // reusing the existing moveStage and reject actions rather than duplicating
 // their logic here.
 export function CandidatePanel({
@@ -729,8 +730,9 @@ export function CandidatePanel({
             })}
           </ol>
         ) : (
-          <p className="muted">No activity has been recorded yet.</p>
+          <p className="muted">No pipeline events have been recorded yet.</p>
         )}
+        <details className="candidate-field-history"><summary>Field edit history</summary>{activeSection === "activity" && <EditHistory clientId={clientId} roleId={rc.role_id} candidateId={c.id} />}</details>
       </section>
 
       <section

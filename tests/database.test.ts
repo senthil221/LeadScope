@@ -135,13 +135,14 @@ beforeAll(async () => {
         "Refusing to run on a database that already contains LeadScope tables. Use an empty dedicated test database.",
       );
   } else {
+    const port = Number(process.env.TEST_DATABASE_PORT ?? 55439);
     const root = resolve(".local-db");
     await mkdir(root, { recursive: true });
     const path = resolve(root, `test-${randomUUID()}`);
     if (!path.startsWith(root + sep)) throw new Error("Unsafe database path");
     embedded = new EmbeddedPostgres({
       databaseDir: path,
-      port: 55439,
+      port,
       user: "postgres",
       password: "local-test-only",
       persistent: false,
@@ -152,7 +153,7 @@ beforeAll(async () => {
     await embedded.initialise();
     await embedded.start();
     connectionString =
-      "postgresql://postgres:local-test-only@127.0.0.1:55439/postgres";
+      `postgresql://postgres:local-test-only@127.0.0.1:${port}/postgres`;
     db = new PgClient({ connectionString });
     await db.connect();
   }
@@ -169,8 +170,15 @@ beforeAll(async () => {
   const files = (await readdir(resolve("supabase/migrations")))
     .filter((f) => f.endsWith(".sql"))
     .sort();
-  for (const file of files)
-    await sql(await readFile(resolve("supabase/migrations", file), "utf8"));
+  for (const file of files) {
+    const source = await readFile(resolve("supabase/migrations", file), "utf8");
+    try { await sql(source); }
+    catch (error) {
+      const issue = error as { message: string; position?: string; internalPosition?: string; internalQuery?: string };
+      const position = Number(issue.position ?? 0);
+      throw new Error(`${file}: ${issue.message}; position ${position}; context ${source.slice(Math.max(0, position - 180), position + 180)}; internal ${issue.internalPosition ?? ""} ${issue.internalQuery ?? ""}`, { cause: error });
+    }
+  }
   await sql(
     "insert into auth.users(id,raw_user_meta_data) values($1,'{}'),($2,'{\"is_agency_admin\":true}')",
     [actor, outsider],
@@ -1109,6 +1117,178 @@ async function pipeline(slug: string, threshold = 3) {
   return { cid, rid, candidateId, rcId };
 }
 
+describe("edit history, duplicate review and bulk editing", () => {
+  async function twoRows(slug: string) {
+    const first = await pipeline(slug);
+    const second = await person(`${slug}-second`);
+    await asUser(actor, () => rpc("add_candidates_to_role", [first.cid, first.rid, [second], "manual"]));
+    const ids = (await sql("select id from public.role_candidates where role_id=$1 order by id", [first.rid])).rows.map((row) => row.id);
+    return { ...first, second, ids };
+  }
+  async function bulk(fixture: Awaited<ReturnType<typeof twoRows>>, field: string, value: unknown, mode = "replace", token: string | null = null) {
+    return asUser(actor, () => rpc("bulk_edit_role_candidates", [fixture.cid, fixture.rid, fixture.ids, "all_profiles", field, value === null ? null : JSON.stringify(value), mode, token]));
+  }
+  it("previews without writing, fills only blanks, applies atomically and records before/after with a batch", async () => {
+    const f = await twoRows("bulk-fill");
+    await asUser(actor, () => rpc("save_candidate_field", [f.second, "current_company", "Existing company"]));
+    const preview = await bulk(f, "current_company", "New company", "fill_empty");
+    expect(preview).toMatchObject({ changed: 1, skipped: 1, shared: true, batchId: null });
+    expect((await sql("select current_company from public.candidates where id=$1", [f.candidateId])).rows[0].current_company).toBe("");
+    const applied = await bulk(f, "current_company", "New company", "fill_empty", preview.token);
+    expect(applied.batchId).toBeTruthy();
+    const history = await asUser(actor, () => rpc("candidate_edit_history_page", [f.cid, f.rid, f.candidateId, null]));
+    expect(history.rows.find((row: { field: string }) => row.field === "current_company")).toMatchObject({ before: "", after: "New company", batchId: applied.batchId, scope: "Shared profile" });
+    const audit = (await sql("select actor_id from private.candidate_edit_history where batch_id=$1", [applied.batchId])).rows;
+    expect(audit).toEqual([{ actor_id: actor }]);
+    const clear = await bulk(f, "current_company", null, "clear");
+    expect(clear.changed).toBe(2);
+    await bulk(f, "current_company", null, "clear", clear.token);
+    expect((await sql("select current_company from public.candidates where id=any($1::uuid[])", [[f.candidateId,f.second]])).rows.every((row) => row.current_company === "")).toBe(true);
+  });
+  it("rejects stale previews and wrong-scope selections without partial writes", async () => {
+    const f = await twoRows("bulk-stale");
+    const preview = await bulk(f, "location", "Chennai");
+    await asUser(actor, () => rpc("save_candidate_field", [f.second, "headline", "Concurrent edit"]));
+    await expect(bulk(f, "location", "Chennai", "replace", preview.token)).rejects.toThrow("Data changed");
+    const outside = await pipeline("bulk-outside");
+    await expect(bulk({ ...f, ids: [f.rcId,outside.rcId] }, "location", "Chennai")).rejects.toThrow("scope");
+    expect((await sql("select location from public.candidates where id=any($1::uuid[])", [[f.candidateId,f.second]])).rows.every((row) => row.location === "")).toBe(true);
+    await expect(bulk(f, "email", "same@example.com")).rejects.toThrow("not available");
+    await expect(bulk({ ...f, ids: [f.rcId,f.rcId] }, "location", "Chennai")).rejects.toThrow("unique");
+    const ratingPreview = await bulk(f, "rating", 4.5);
+    await sql("update public.roles set rating_threshold=5 where id=$1", [f.rid]);
+    await expect(bulk(f, "rating", 4.5, "replace", ratingPreview.token)).rejects.toThrow("Data changed");
+    await sql("update public.roles set archived=true where id=$1", [f.rid]);
+    await expect(bulk(f, "location", "Chennai")).rejects.toThrow("Active role");
+  });
+  it("rolls back earlier writes and audit entries if a later row fails", async () => {
+    const f = await twoRows("bulk-rollback");
+    const lastPerson = (await sql("select candidate_id from public.role_candidates where role_id=$1 order by id desc limit 1", [f.rid])).rows[0].candidate_id;
+    // This UUID comes from our fixture. Fail on the second row after the first
+    // write and its audit trigger have run inside the same transaction.
+    await sql(`create function public.test_bulk_failure() returns trigger language plpgsql as $$ begin if new.id::text=tg_argv[0] and new.location='Reject bulk test' then raise exception 'Simulated write failure'; end if; return new; end $$;
+      create trigger test_bulk_failure before update on public.candidates for each row execute function public.test_bulk_failure('${lastPerson}');`);
+    const preview = await bulk(f, "location", "Reject bulk test");
+    await expect(bulk(f, "location", "Reject bulk test", "replace", preview.token)).rejects.toThrow("Simulated write failure");
+    expect((await sql("select location from public.candidates where id=any($1::uuid[])", [[f.candidateId,f.second]])).rows.every((row) => row.location === "")).toBe(true);
+    expect((await sql("select id from private.candidate_edit_history where candidate_id=any($1::uuid[]) and field='location'", [[f.candidateId,f.second]])).rowCount).toBe(0);
+    await sql("drop trigger test_bulk_failure on public.candidates; drop function public.test_bulk_failure()");
+  });
+  it("validates custom options, records each changed custom field and preserves rating stage rules", async () => {
+    const f = await twoRows("bulk-custom");
+    const fieldId = await asUser(actor, () => rpc("add_role_field", [f.cid,f.rid,"Priority","select",JSON.stringify(["High","Low"])]));
+    const key = (await sql("select key from public.role_fields where id=$1", [fieldId])).rows[0].key;
+    await expect(bulk(f, `custom:${key}`, "Invalid")).rejects.toThrow("existing column option");
+    const preview = await bulk(f, `custom:${key}`, "High");
+    await bulk(f, `custom:${key}`, "High", "replace", preview.token);
+    const history = await asUser(actor, () => rpc("candidate_edit_history_page", [f.cid,f.rid,null,null]));
+    expect(history.rows.filter((row: { field: string }) => row.field === `custom:${key}`)).toHaveLength(2);
+    const rating = await bulk(f, "rating", 4.5);
+    await bulk(f, "rating", 4.5, "replace", rating.token);
+    expect((await sql("select stage from public.role_candidates where role_id=$1", [f.rid])).rows.every((row) => row.stage === "profile_shortlisted")).toBe(true);
+  });
+  it("finds full-database matches, records review decisions, and reopens changed matches", async () => {
+    const f = await pipeline("duplicate-first");
+    const second = await person("duplicate-second");
+    const email = "duplicate-review@example.com";
+    await asUser(actor, () => rpc("save_candidate_field", [f.candidateId,"email",email]));
+    await asUser(actor, () => rpc("save_candidate_field", [second,"email",email.toUpperCase()]));
+    let matches = await asUser(actor, () => rpc("duplicate_review_page", [f.cid,f.rid,"pending",null]));
+    expect(matches.rows).toHaveLength(1);
+    const pair = matches.rows[0];
+    expect(pair.reasons).toContain("Same email");
+    expect([pair.first.id,pair.second.id]).toContain(second);
+    const decision = [f.cid,f.rid,pair.first.id,pair.second.id,pair.fingerprint,pair.revision,"separate","Shared mailbox"];
+    await asUser(actor, () => rpc("review_candidate_duplicate", decision));
+    await expect(asUser(actor, () => rpc("review_candidate_duplicate", decision))).rejects.toThrow("Another operator");
+    matches = await asUser(actor, () => rpc("duplicate_review_page", [f.cid,f.rid,"pending",null]));
+    expect(matches.rows).toEqual([]);
+    expect((await asUser(actor, () => rpc("duplicate_review_page", [f.cid,f.rid,"separate",null]))).rows[0].note).toBe("Shared mailbox");
+    await asUser(actor, () => rpc("save_candidate_field", [second,"full_name","Updated duplicate name"]));
+    expect((await asUser(actor, () => rpc("duplicate_review_page", [f.cid,f.rid,"pending",null]))).rows).toHaveLength(1);
+    expect((await sql("select id from public.candidates where id=any($1::uuid[])", [[f.candidateId,second]])).rowCount).toBe(2);
+    expect((await asUser(actor, () => rpc("candidate_edit_history_page", [f.cid,f.rid,null,null]))).rows.some((row: { field: string }) => row.field === "duplicate_review")).toBe(true);
+  });
+  it("ignores blank contacts and same names alone, and paginates history without overlap", async () => {
+    const f = await twoRows("history-paging");
+    await sql("update public.candidates set full_name='Same name' where id=any($1::uuid[])", [[f.candidateId,f.second]]);
+    expect((await asUser(actor, () => rpc("duplicate_review_page", [f.cid,f.rid,"pending",null]))).rows).toHaveLength(0);
+    await sql("update public.candidates set current_company='Same Company',phone='+14155552671' where id=any($1::uuid[])", [[f.candidateId,f.second]]);
+    const matches = await asUser(actor, () => rpc("duplicate_review_page", [f.cid,f.rid,"pending",null]));
+    expect(matches.rows[0].reasons).toEqual(["Same phone","Same name and company"]);
+    for (let n=0;n<53;n++) await asUser(actor, () => rpc("save_candidate_field", [f.candidateId,"location",`Location ${n}`]));
+    const first = await asUser(actor, () => rpc("candidate_edit_history_page", [f.cid,f.rid,f.candidateId,null]));
+    const next = await asUser(actor, () => rpc("candidate_edit_history_page", [f.cid,f.rid,f.candidateId,first.nextCursor]));
+    expect(first.rows).toHaveLength(50);
+    expect(next.rows.length).toBeGreaterThan(0);
+    expect(new Set([...first.rows,...next.rows].map((row: { id: string }) => row.id)).size).toBe(first.rows.length+next.rows.length);
+  });
+  it("denies unapproved and anonymous callers and protects private audit tables", async () => {
+    const f = await twoRows("tools-access");
+    for (const [name,args] of [["candidate_edit_history_page",[f.cid,f.rid,null,null]],["duplicate_review_page",[f.cid,f.rid,"pending",null]],["bulk_edit_role_candidates",[f.cid,f.rid,f.ids,"all_profiles","location",JSON.stringify("X"),"replace",null]]] as const) {
+      await expect(asUser(outsider, () => rpc(name,[...args]))).rejects.toThrow("Agency access");
+    }
+    await expect(asUser(actor, () => sql("select * from private.candidate_edit_history"))).rejects.toThrow();
+    await expect(asUser(actor, () => sql("select * from private.candidate_duplicate_reviews"))).rejects.toThrow();
+    await sql("begin; set local role anon");
+    await expect(rpc("candidate_edit_history_page",[f.cid,f.rid,null,null])).rejects.toThrow();
+    await sql("rollback");
+  });
+});
+
+describe("recoverable role membership deletion", () => {
+  it("removes only the selected role membership and restores its exact fields and history", async () => {
+    const { cid, rid, candidateId, rcId } = await pipeline("trash-roundtrip");
+    const secondRole = await role(cid, 3, "Another role");
+    await asUser(actor, () => rpc("add_candidates_to_role", [cid, secondRole, [candidateId], "manual"]));
+    await sql("update public.role_candidates set internal_notes='Keep these notes' where id=$1", [rcId]);
+    const original = (await sql("select to_jsonb(rc) as record from public.role_candidates rc where id=$1", [rcId])).rows[0].record;
+    const history = (await sql("select to_jsonb(e) as record from public.role_candidate_events e where role_candidate_id=$1 order by id", [rcId])).rows;
+    expect(history.length).toBeGreaterThan(0);
+    const batch = await asUser(actor, () => rpc("remove_role_candidates", [cid, rid, [rcId], "all_profiles"]));
+    expect((await sql("select id from public.role_candidates where id=$1", [rcId])).rowCount).toBe(0);
+    expect((await sql("select id from public.role_candidate_events where role_candidate_id=$1", [rcId])).rowCount).toBe(0);
+    expect((await sql("select id from public.candidates where id=$1", [candidateId])).rowCount).toBe(1);
+    expect((await sql("select id from public.candidate_identities where candidate_id=$1", [candidateId])).rowCount).toBeGreaterThan(0);
+    expect((await sql("select id from public.role_candidates where role_id=$1 and candidate_id=$2", [secondRole, candidateId])).rowCount).toBe(1);
+    expect(await asUser(actor, () => rpc("deleted_role_candidate_batches", [cid, rid]))).toEqual([expect.objectContaining({ id: batch, count: 1 })]);
+    expect(await asUser(actor, () => rpc("restore_role_candidates", [cid, rid, batch]))).toBe(1);
+    expect((await sql("select to_jsonb(rc) as record from public.role_candidates rc where id=$1", [rcId])).rows[0].record).toEqual(original);
+    expect((await sql("select to_jsonb(e) as record from public.role_candidate_events e where role_candidate_id=$1 order by id", [rcId])).rows).toEqual(history);
+    expect(await asUser(actor, () => rpc("restore_role_candidates", [cid, rid, batch]))).toBe(0);
+    expect(await asUser(actor, () => rpc("deleted_role_candidate_batches", [cid, rid]))).toEqual([]);
+  });
+  it("atomically rejects wrong-role IDs, stale stages, duplicates and unapproved users", async () => {
+    const a = await pipeline("trash-scope-a"), b = await pipeline("trash-scope-b");
+    for (const ids of [[a.rcId, b.rcId], [a.rcId, a.rcId], []]) {
+      await expect(asUser(actor, () => rpc("remove_role_candidates", [a.cid, a.rid, ids, "all_profiles"]))).rejects.toThrow();
+    }
+    await expect(asUser(actor, () => rpc("remove_role_candidates", [a.cid, a.rid, [a.rcId], "offer_sent"]))).rejects.toThrow("changed");
+    await expect(asUser(outsider, () => rpc("remove_role_candidates", [a.cid, a.rid, [a.rcId], "all_profiles"]))).rejects.toThrow();
+    await expect(asUser(outsider, () => rpc("deleted_role_candidate_batches", [a.cid, a.rid]))).rejects.toThrow();
+    expect((await sql("select id from public.role_candidates where id=any($1::uuid[])", [[a.rcId, b.rcId]])).rowCount).toBe(2);
+    const batch = await asUser(actor, () => rpc("remove_role_candidates", [a.cid, a.rid, [a.rcId], "all_profiles"]));
+    await expect(asUser(actor, () => rpc("restore_role_candidates", [b.cid, b.rid, batch]))).rejects.toThrow("not found");
+    await expect(asUser(outsider, () => rpc("restore_role_candidates", [a.cid, a.rid, batch]))).rejects.toThrow();
+    await expect(asUser(actor, () => sql("select * from private.role_candidate_trash"))).rejects.toThrow();
+    await sql("begin");
+    await sql("set local role anon");
+    await expect(rpc("deleted_role_candidate_batches", [a.cid, a.rid])).rejects.toThrow();
+    await sql("rollback");
+  });
+  it("protects archived roles and refuses to overwrite a re-added membership", async () => {
+    const { cid, rid, candidateId, rcId } = await pipeline("trash-conflict");
+    await sql("update public.roles set archived=true where id=$1", [rid]);
+    await expect(asUser(actor, () => rpc("remove_role_candidates", [cid, rid, [rcId], "all_profiles"]))).rejects.toThrow("Active role not found");
+    await sql("update public.roles set archived=false where id=$1", [rid]);
+    const batch = await asUser(actor, () => rpc("remove_role_candidates", [cid, rid, [rcId], "all_profiles"]));
+    await asUser(actor, () => rpc("add_candidates_to_role", [cid, rid, [candidateId], "manual"]));
+    await expect(asUser(actor, () => rpc("restore_role_candidates", [cid, rid, batch]))).rejects.toThrow("already been added");
+    expect((await sql("select id from public.role_candidates where role_id=$1", [rid])).rowCount).toBe(1);
+    expect(await asUser(actor, () => rpc("deleted_role_candidate_batches", [cid, rid]))).toHaveLength(1);
+  });
+});
+
 describe("recruiting foundation: roles, master candidates and pipeline history", () => {
   it("grants authenticated read-only access to every recruiting table", async () => {
     for (const table of recruitingTables) {
@@ -1521,11 +1701,11 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
     const rid = await role(cid);
     await expect(
       asUser(actor, () =>
-        rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("bad-source")]), "invented"]),
+        rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("bad-source")]), "invented", "all_profiles"]),
       ),
     ).rejects.toThrow("Unsupported candidate source");
     await expect(
-      asUser(actor, () => rpc("import_candidates", [cid, rid, JSON.stringify([]), "manual"])),
+      asUser(actor, () => rpc("import_candidates", [cid, rid, JSON.stringify([]), "manual", "all_profiles"])),
     ).rejects.toThrow("between 1 and 200");
     await expect(
       asUser(actor, () =>
@@ -1534,6 +1714,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
           rid,
           JSON.stringify(Array.from({ length: 201 }, (_, i) => linkedinRow(`over-${i}`))),
           "manual",
+          "all_profiles",
         ]),
       ),
     ).rejects.toThrow("between 1 and 200");
@@ -1544,13 +1725,13 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
     const rid = await role(cid);
     await expect(
       asUser(actor, () =>
-        rpc("import_candidates", [other, rid, JSON.stringify([linkedinRow("cross-client")]), "manual"]),
+        rpc("import_candidates", [other, rid, JSON.stringify([linkedinRow("cross-client")]), "manual", "all_profiles"]),
       ),
     ).rejects.toThrow("Restore this role");
     await asUser(actor, () => rpc("archive_role", [rid, true]));
     await expect(
       asUser(actor, () =>
-        rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("archived")]), "manual"]),
+        rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("archived")]), "manual", "all_profiles"]),
       ),
     ).rejects.toThrow("Restore this role");
   });
@@ -1563,6 +1744,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         rid,
         JSON.stringify([linkedinRow("bulk-a"), linkedinRow("bulk-b")]),
         "url_paste",
+        "all_profiles",
       ]),
     );
     expect(summary).toEqual({ created: 2, matchedExisting: 0, alreadyInRole: 0, invalid: 0 });
@@ -1588,6 +1770,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         rid,
         JSON.stringify([linkedinRow("upwork-source", { sourceDetail: "Upwork - August shortlist" })]),
         "csv",
+        "all_profiles",
       ]),
     );
     expect(
@@ -1617,6 +1800,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         rid,
         JSON.stringify([linkedinRow("custom-import", { custom: { [key]: 30 } })]),
         "csv",
+        "all_profiles",
       ]),
     );
     expect(
@@ -1629,6 +1813,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         rid,
         JSON.stringify([linkedinRow("custom-import-invalid", { custom: { stale_column: "x" } })]),
         "csv",
+        "all_profiles",
       ]),
     );
     expect(summary.invalid).toBe(1);
@@ -1643,6 +1828,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         rid,
         JSON.stringify([linkedinRow("bulk-existing")]),
         "csv",
+        "all_profiles",
       ]),
     );
     expect(summary).toEqual({ created: 0, matchedExisting: 1, alreadyInRole: 0, invalid: 0 });
@@ -1656,11 +1842,11 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
     const cid = await client();
     const rid = await role(cid);
     const first = await asUser(actor, () =>
-      rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("bulk-repeat")]), "manual"]),
+      rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("bulk-repeat")]), "manual", "all_profiles"]),
     );
     expect(first.created).toBe(1);
     const second = await asUser(actor, () =>
-      rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("bulk-repeat")]), "manual"]),
+      rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("bulk-repeat")]), "manual", "all_profiles"]),
     );
     expect(second).toEqual({ created: 0, matchedExisting: 1, alreadyInRole: 1, invalid: 0 });
     expect(
@@ -1691,6 +1877,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         rid,
         JSON.stringify([linkedinRow("same-batch"), linkedinRow("same-batch")]),
         "csv",
+        "all_profiles",
       ]),
     );
     expect(summary).toEqual({ created: 1, matchedExisting: 1, alreadyInRole: 1, invalid: 0 });
@@ -1714,6 +1901,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
           { name: "Bad kind", identities: [{ kind: "fax", value: "123" }] },
         ]),
         "csv",
+        "all_profiles",
       ]),
     );
     expect(summary).toEqual({ created: 1, matchedExisting: 0, alreadyInRole: 0, invalid: 4 });
@@ -1737,6 +1925,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
           },
         ]),
         "manual",
+        "all_profiles",
       ]),
     );
     expect(summary).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 0, invalid: 1 });
@@ -1751,6 +1940,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         rid,
         JSON.stringify([linkedinRow("bulk-enriched", { fields: { phone: "" } })]),
         "manual",
+        "all_profiles",
       ]),
     );
     expect(
@@ -1761,6 +1951,100 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         )
       ).rows[0].phone,
     ).toBe("+919876500000");
+  });
+  it("lands rows in the stage the import names, and records it on the event", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const summary = await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        rid,
+        JSON.stringify([linkedinRow("stage-target")]),
+        "csv",
+        "client_shortlisted",
+      ]),
+    );
+    expect(summary).toEqual({ created: 1, matchedExisting: 0, alreadyInRole: 0, invalid: 0 });
+    const row = (
+      await sql("select id,stage from public.role_candidates where role_id=$1", [rid])
+    ).rows[0];
+    expect(row.stage).toBe("client_shortlisted");
+    expect(
+      (
+        await sql(
+          "select to_stage from public.role_candidate_events where role_candidate_id=$1 and kind='import'",
+          [row.id],
+        )
+      ).rows[0].to_stage,
+    ).toBe("client_shortlisted");
+  });
+  it("refuses a stage an import cannot fill in", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    for (const stage of ["rejected", "invented", null]) {
+      await expect(
+        asUser(actor, () =>
+          rpc("import_candidates", [
+            cid,
+            rid,
+            JSON.stringify([linkedinRow("stage-bad")]),
+            "csv",
+            stage,
+          ]),
+        ),
+      ).rejects.toThrow("pipeline stage");
+    }
+  });
+  it("leaves someone already on the role in the stage they are in", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        rid,
+        JSON.stringify([linkedinRow("stage-keep")]),
+        "csv",
+        "recruiter_shortlisted",
+      ]),
+    );
+    const summary = await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        rid,
+        JSON.stringify([linkedinRow("stage-keep")]),
+        "csv",
+        "all_profiles",
+      ]),
+    );
+    expect(summary).toEqual({ created: 0, matchedExisting: 1, alreadyInRole: 1, invalid: 0 });
+    expect(
+      (await sql("select stage from public.role_candidates where role_id=$1", [rid])).rows[0].stage,
+    ).toBe("recruiter_shortlisted");
+  });
+  it("stores the CTC and qualification an import carries", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        rid,
+        JSON.stringify([
+          linkedinRow("stage-detail", {
+            fields: { currentCtc: "42 LPA", highestQualification: "B.E. Computer Science" },
+          }),
+        ]),
+        "csv",
+        "recruiter_shortlisted",
+      ]),
+    );
+    const row = (
+      await sql(
+        "select c.current_ctc,c.highest_qualification from public.candidates c join public.candidate_identities i on i.candidate_id=c.id where i.normalized_value=$1",
+        ["https://www.linkedin.com/in/stage-detail"],
+      )
+    ).rows[0];
+    expect(row.current_ctc).toBe("42 LPA");
+    expect(row.highest_qualification).toBe("B.E. Computer Science");
   });
 });
 

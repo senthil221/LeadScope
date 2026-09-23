@@ -77,7 +77,7 @@ const date = (s: string | null | undefined) =>
         hour: "2-digit",
         minute: "2-digit",
       })
-    : "—";
+    : "Not provided";
 function Badge({ status }: { status: string }) {
   return (
     <span className={`badge ${status}`}>{statusNames[status] ?? status}</span>

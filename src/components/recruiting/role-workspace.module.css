@@ -1,0 +1,159 @@
+.workspace {
+  --line: #dce3ed;
+  --line-strong: #c5d0df;
+  --muted: #596a80;
+  --faint: #738297;
+  --row-height: 40px;
+  min-width: 0;
+}
+.workspace[data-density="compact"] { --row-height: 32px; }
+.workspace[data-expanded="true"] { position: fixed; inset: 0; z-index: 40; padding: 16px; background: #f5f7fb; overflow: auto; display: flex; flex-direction: column; }
+/* Full screen keeps the header: it carries the way back out, the role name and
+   the Add candidates button. It only gets tighter, so the grid still wins most
+   of the screen. */
+.workspace[data-expanded="true"] :global(.role-workspace-header) { margin-bottom: 12px; }
+.workspace[data-expanded="true"] :global(.role-workspace-header h1) { font-size: 20px; }
+.workspace[data-expanded="true"] :global(.role-summary) { margin-top: 6px; }
+.workspace[data-expanded="true"] .tablePanel { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.workspace[data-expanded="true"] :global(.sheet-table-frame) { flex: 1 1 auto; min-height: 180px; max-height: none; }
+.workspace :global(.role-back) { display: inline-flex; align-items: center; gap: 6px; align-self: center; margin-right: 4px; padding: 5px 10px 5px 7px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: #43536b; font-size: 12px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.workspace :global(.role-back:hover) { background: #eff6ff; border-color: #b8cef0; color: #1d4ed8; }
+.workspace :global(.role-back span) { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.workspace :global(.role-secondary-nav button) { min-height: 30px; font-size: 12px; padding: 5px 8px; }
+.workspace :global(.candidate-profile-cell) { display: flex; align-items: center; min-width: 0; }
+.workspace :global(.candidate-profile-cell .sheet-cell) { flex: 1; min-width: 0; }
+.workspace :global(.candidate-profile-cell > a) { flex: 0 0 28px; justify-content: center; }
+.workspace :global(.sheet-table .candidate-profile-cell) { margin-inline: -10px; }
+.workspace :global(.deleted-batches) { display: grid; gap: 10px; }
+.workspace :global(.deleted-batch) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 6px; }
+.workspace :global(.table-dialog::backdrop) { background: rgb(15 23 42 / 45%); }
+.workspace :global(.table-dialog) { box-shadow: var(--shadow-md); }
+.workspace :global(.table-dialog[data-wide="true"]) { width: 850px; }
+.workspace :global(.table-tools-fields) { display: grid; gap: 14px; border: 0; padding: 0; margin: 18px 0; }
+.workspace :global(.table-tools-fields label), .workspace :global(.duplicate-pair > label) { display: grid; gap: 6px; }
+.workspace :global(.table-tools-notice) { padding: 10px 12px; background: #eff6ff; border: 1px solid #c5daf9; border-radius: 6px; font-size: 12px; line-height: 1.6; }
+.workspace :global(.table-tools-preview) { max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
+.workspace :global(.table-tools-preview table) { width: 100%; table-layout: fixed; }
+.workspace :global(.table-tools-preview td), .workspace :global(.table-tools-preview th) { white-space: normal; overflow-wrap: anywhere; vertical-align: top; padding: 10px; }
+.workspace :global(.table-tools-actions) { flex-wrap: wrap; margin-top: 16px; }
+.workspace :global(.edit-history-list) { list-style: none; padding: 0; display: grid; gap: 14px; }
+.workspace :global(.edit-history-list > li) { padding: 14px; border: 1px solid var(--line); border-radius: 8px; }
+.workspace :global(.edit-history-heading) { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 18px; }
+.workspace :global(.edit-history-heading time) { color: var(--muted); font-size: 11px; }
+.workspace :global(.edit-history-values), .workspace :global(.duplicate-comparison) { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.workspace :global(.edit-history-values > div) { min-width: 0; border-radius: 5px; background: #f5f7fb; padding: 10px; }
+.workspace :global(.edit-history-values small) { color: var(--muted); }
+.workspace :global(.edit-history-values p) { white-space: pre-wrap; overflow-wrap: anywhere; margin: 5px 0 0; }
+.workspace :global(.duplicate-pairs) { display: grid; gap: 20px; margin-top: 18px; }
+.workspace :global(.duplicate-pair) { border: 1px solid var(--line-strong); border-radius: 8px; padding: 16px; }
+.workspace :global(.duplicate-match-reasons) { font-size: 12px; font-weight: 600; color: #1d4ed8; margin-bottom: 12px; }
+.workspace :global(.duplicate-profile) { min-width: 0; padding: 12px; background: #f5f7fb; border: 1px solid var(--line); border-radius: 6px; overflow-wrap: anywhere; }
+.workspace :global(.duplicate-profile h3) { font-size: 15px; }
+.workspace :global(.duplicate-profile dl) { font-size: 12px; }
+.workspace :global(.duplicate-profile dt) { color: var(--muted); margin-top: 8px; }
+.workspace :global(.duplicate-profile dd) { margin-left: 0; }
+.workspace :global(.duplicate-pair > label) { margin-top: 12px; }
+.workspace :global(.candidate-field-history) { margin-top: 20px; }
+.workspace :global(.candidate-field-history > summary) { cursor: pointer; font-weight: 600; }
+@media (max-width: 640px) {
+  .workspace :global(.table-dialog[data-wide="true"]) { padding: 18px; }
+  .workspace :global(.edit-history-values), .workspace :global(.duplicate-comparison) { grid-template-columns: 1fr; }
+}
+.workspace :global(.table-edit-hint) { padding: 8px 14px; font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--line); background: #f8fafc; }
+.workspace :global(.role-workspace-header) { align-items: center; gap: 20px; padding-bottom: 0; margin-bottom: 20px; border: 0; }
+.workspace :global(.role-workspace-header > div:first-child) { min-width: 0; }
+.workspace :global(.role-workspace-header h1) { font-size: 26px; line-height: 1.3; overflow-wrap: anywhere; }
+.workspace :global(.role-workspace-header .eyebrow) { font-size: 11px; margin-bottom: 6px; }
+.workspace :global(.role-summary) { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 10px 0 0; background: none; border: 0; box-shadow: none; font-size: 12px; }
+.workspace :global(.role-summary span) { padding: 0; border: 0; flex-basis: auto; }
+.tablePanel { min-width: 0; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); box-shadow: 0 2px 5px rgb(15 23 42 / 3%); }
+.workspace :global(.role-tab-bar) { gap: 0; margin: 0; padding: 0 14px; border-bottom: 1px solid var(--line); }
+.workspace :global(.role-stage-tabs) { flex: 1 1 auto; flex-wrap: wrap; overflow: visible; min-width: 0; padding: 0; border: 0; border-radius: 0; }
+.workspace :global(.role-stage-tabs a) { padding: 14px 10px 12px; font-weight: 500; }
+.workspace :global(.role-stage-tabs a.selected) { font-weight: 650; }
+.workspace :global(.role-secondary-nav) { flex-wrap: wrap; gap: 4px; margin: 8px 0 8px auto; padding-left: 12px; border-left: 1px solid var(--line); }
+.workspace :global(.role-secondary-nav a) { padding: 6px 8px; font-size: 12px; border-radius: 5px; }
+.workspace :global(.role-tools-menu) { position: relative; margin: 0; padding: 0; border: 0; }
+.workspace :global(.role-tools-menu > summary) { display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: #43536b; font-size: 12px; font-weight: 600; cursor: pointer; list-style: none; white-space: nowrap; }
+.workspace :global(.role-tools-menu > summary::-webkit-details-marker) { display: none; }
+.workspace :global(.role-tools-menu > summary:hover), .workspace :global(.role-tools-menu[open] > summary), .workspace :global(.role-tools-menu > summary.selected) { background: #eff6ff; border-color: #b8cef0; color: #1d4ed8; }
+.workspace :global(.role-tools-menu > summary:focus-visible) { outline: 2px solid #2563eb; outline-offset: 2px; }
+.workspace :global(.role-tools-menu[open] > summary svg) { transform: rotate(180deg); }
+.workspace :global(.role-tools-popover) { position: absolute; top: calc(100% + 6px); right: 0; z-index: 25; width: 210px; padding: 6px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); box-shadow: 0 8px 24px rgb(15 23 42 / 12%); display: grid; gap: 2px; }
+.workspace :global(.role-tools-popover > a), .workspace :global(.role-tools-popover > button) { display: flex; align-items: center; justify-content: flex-start; gap: 8px; width: 100%; min-height: 36px; padding: 8px 10px; border: 0; border-radius: 4px; background: transparent; color: #43536b; font-size: 12px; font-weight: 500; text-align: left; box-shadow: none; }
+.workspace :global(.role-tools-popover > a:hover), .workspace :global(.role-tools-popover > button:hover), .workspace :global(.role-tools-popover > a:focus-visible), .workspace :global(.role-tools-popover > button:focus-visible) { background: #eff6ff; color: #1d4ed8; }
+.workspace :global(.role-tools-popover > a.selected) { background: #eff6ff; color: #1d4ed8; font-weight: 650; }
+.workspace :global(.role-tools-popover > button:last-child) { margin-top: 4px; border-top: 1px solid var(--line); border-radius: 0 0 4px 4px; }
+.workspace :global(.sheet-bar) { position: relative; padding: 12px 14px; gap: 10px 16px; margin: 0; border-bottom: 1px solid var(--line); align-items: center; }
+.workspace :global(.sheet-bar > form) { flex: 1 1 450px; min-width: 0; }
+.workspace :global(.candidate-toolbar) { position: static; padding: 0; margin: 0; border: 0; border-radius: 0; box-shadow: none; background: none; }
+.workspace :global(.candidate-toolbar-main) { display: flex; flex-wrap: wrap; gap: 8px; }
+.workspace :global(.candidate-toolbar .candidate-search-input) { flex: 1 1 180px; width: 180px; min-width: 0; max-width: 360px; min-height: 36px; background: #f8fafc; border-color: var(--line-strong); }
+.workspace :global(.candidate-toolbar-main > button), .workspace :global(.candidate-toolbar-main > details), .workspace :global(.candidate-toolbar-main > div) { flex: 0 0 auto; }
+.workspace :global(.sheet-bar-actions) { gap: 8px; }
+.workspace :global(.sheet-bar-actions button) { min-height: 36px; }
+.workspace :global(.role-table-count) { margin-right: 4px; font-variant-numeric: tabular-nums; }
+.workspace :global(.candidate-filter-menu), .workspace :global(.candidate-column-menu) { position: static; }
+.workspace :global(.candidate-filter-menu) { padding: 0; border: 0; margin: 0; }
+.workspace :global(.candidate-filter-grid), .workspace :global(.candidate-column-popover) { top: calc(100% - 4px); right: auto; left: 14px; max-width: calc(100% - 28px); max-height: min(500px, 65vh); overflow: auto; z-index: 15; border-color: var(--line-strong); }
+.workspace :global(.candidate-column-popover) { width: 320px; min-width: 0; }
+.workspace :global(.candidate-column-popover label) { flex-direction: row; flex-wrap: nowrap; justify-content: flex-start; }
+.workspace :global(.candidate-column-popover input[type="checkbox"]) { width: 16px; min-width: 16px; height: 16px; min-height: 16px; flex: 0 0 16px; margin: 0; padding: 0; }
+.workspace :global(.bulk-bar) { margin: 0; border: 0; border-bottom: 1px solid var(--brand-line); border-radius: 0; padding: 10px 14px; }
+.workspace :global(.sheet-table-frame) { margin: 0; border: 0; border-radius: 0; box-shadow: none; max-height: max(260px, calc(100dvh - 320px)); scrollbar-gutter: auto; }
+.workspace :global(.sheet-table) { table-layout: fixed; min-width: 100%; --pin-select: 0px; --pin-serial: 36px; --pin-open: 28px; }
+.workspace :global(.sheet-table.has-select) { --pin-select: 36px; }
+.workspace :global(.sheet-table th), .workspace :global(.sheet-table td) { width: auto; min-width: 0; padding: 0; border-color: var(--line); overflow: hidden; text-overflow: ellipsis; }
+.workspace :global(.sheet-table th) { position: sticky; top: 0; height: 38px; padding: 8px 14px 8px 10px; background: #f1f5fa; color: #43536b; border-bottom-color: var(--line-strong); font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.workspace :global(.sheet-table td) { height: var(--row-height); font-size: 13px; }
+.workspace :global(.sheet-table .sheet-serial), .workspace :global(.sheet-table .sheet-serial-heading) { padding: 0 8px; color: var(--muted); font-size: 11px; }
+.workspace :global(.sheet-table .select-cell) { padding: 0; text-align: center; }
+.workspace :global(.sheet-table .candidate-open-heading), .workspace :global(.sheet-table .candidate-open-cell) { padding: 0; }
+.workspace :global(.sheet-table .sheet-td-pinned), .workspace :global(.sheet-table .sheet-th-pinned) { box-shadow: 1px 0 0 var(--line-strong); }
+.workspace :global(.sheet-cell) { position: relative; min-height: var(--row-height); height: var(--row-height); padding: 0 10px; }
+.workspace :global(.sheet-cell.is-editing) { padding: 0; }
+.workspace :global(.sheet-cell .sheet-input) { min-height: var(--row-height); height: var(--row-height); padding-inline: 10px; }
+.workspace :global(.sheet-table .candidate-linkedin-cell) { padding: 0 10px; }
+.workspace :global(.candidate-open-button) { opacity: 1; color: var(--muted); }
+.workspace :global(.sheet-table .candidate-action-cell) { padding: 0 8px; }
+.workspace :global(.candidate-row-actions) { justify-content: flex-start; }
+.workspace :global(.candidate-row-actions button) { min-height: 26px; padding: 3px 8px; font-size: 12px; }
+.workspace :global(.sheet-table .selected-row td) { background: #eaf2ff; }
+.workspace :global(.sheet-table tbody tr:hover td) { background: #f1f6ff; }
+.workspace :global(.sheet-cell.is-saving) { background: #eff6ff; }
+.workspace :global(.sheet-cell.is-saved) { box-shadow: inset 0 -2px #15803d; }
+.workspace :global(.sheet-cell.is-error) { background: #fff1f2; }
+.workspace :global(.sheet-feedback) { flex-shrink: 0; margin-left: auto; padding-left: 6px; font-size: 11px; color: #52637a; }
+.workspace :global(.is-error .sheet-feedback) { color: #b91c1c; }
+.workspace :global(.sheet-footer) { min-height: 46px; padding: 10px 14px; margin: 0; border-top: 1px solid var(--line-strong); border-radius: 0 0 10px 10px; display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; background: #f8fafc; }
+.workspace :global(.sheet-footer .row) { margin-left: auto; }
+.workspace :global(.sheet-footer-help) { color: var(--muted); }
+.workspace :global(.column-resize-handle) { position: absolute; right: 0; top: 0; bottom: 0; width: 9px; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; cursor: col-resize; touch-action: none; }
+.workspace :global(.column-resize-handle:hover), .workspace :global(.column-resize-handle:focus-visible) { background: #bfdbfe; }
+.workspace :global(.column-resize-handle::after) { content: ""; display: block; width: 1px; height: 14px; background: #a7b6c9; margin: auto; }
+.workspace :global(.section-heading) { padding: 16px 14px 0; }
+@media (max-width: 960px) {
+  .workspace :global(.role-workspace-header) { align-items: stretch; }
+  .workspace :global(.role-secondary-nav) { width: 100%; border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 8px; }
+  .workspace :global(.role-tools-popover) { right: auto; left: 0; }
+  .workspace :global(.sheet-bar-actions) { margin-left: 0; }
+}
+@media (max-width: 640px) {
+  .workspace :global(.role-workspace-header) { flex-direction: column; align-items: stretch; gap: 12px; }
+  .workspace :global(.role-workspace-header h1) { font-size: 23px; }
+  .workspace :global(.header-actions) { justify-content: flex-start; }
+  .workspace :global(.role-tab-bar) { padding-inline: 8px; }
+  .workspace :global(.role-stage-tabs a) { padding: 10px 8px; }
+  .workspace :global(.sheet-bar) { padding: 10px; }
+  .workspace :global(.sheet-bar > form) { flex-basis: 100%; }
+  .workspace :global(.candidate-toolbar .candidate-search-input) { min-width: 0; max-width: none; flex-basis: calc(100% - 84px); }
+  .workspace :global(.candidate-filter-grid) { grid-template-columns: 1fr; }
+  .workspace :global(.sheet-footer-help) { display: none; }
+  /* Pin just the narrow utility columns on phones so the data remains reachable. */
+  .workspace :global(.sheet-table .sheet-td-pinned) { position: static; }
+  .workspace :global(.sheet-table .sheet-th-pinned) { left: auto; z-index: 3; }
+}
+@media (pointer: coarse) {
+  .workspace { --row-height: 44px; }
+  .workspace :global(.sheet-input) { font-size: 16px; }
+}

@@ -1,19 +1,22 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { Download, X } from "lucide-react";
 import readXlsxFile from "read-excel-file/browser";
 import {
   buildImportRow,
   isRowError,
   nameFromProfileUrl,
   csvImportPreview,
-  csvHeaders,
   spreadsheetRowsToCsv,
-  automaticCustomColumnMappings,
-  csvTemplateColumns,
   type DraftRow,
   type ImportRow,
 } from "@/lib/recruiting/import";
+import {
+  templateColumns,
+  templateCsv,
+  templateFileName,
+  importStages,
+} from "@/lib/recruiting/template";
 import { normalizeIdentity } from "@/lib/recruiting/identity";
 import {
   defaultPhoneCountry,
@@ -22,8 +25,11 @@ import {
   normalizeCandidatePhone,
   phoneCountries,
 } from "@/lib/recruiting/contact";
-import type { CandidateSource } from "@/lib/recruiting/stages";
-import type { RoleField } from "@/lib/types";
+import {
+  stageLabels,
+  type CandidateSource,
+  type PipelineStage,
+} from "@/lib/recruiting/stages";
 import { act as sharedAct } from "@/lib/client/act";
 
 function act<T>(action: string, payload: unknown): Promise<T> {
@@ -60,13 +66,16 @@ const importBatchSize = 200;
 export function AddCandidatesDialog({
   clientId,
   roleId,
-  roleFields,
+  roleName,
+  stage,
   onClose,
   onImported,
 }: {
   clientId: string;
   roleId: string;
-  roleFields: RoleField[];
+  roleName: string;
+  /** The tab the recruiter opened this from; where the rows land by default. */
+  stage: PipelineStage;
   onClose: () => void;
   onImported: (summary: ImportSummary) => void;
 }) {
@@ -87,32 +96,17 @@ export function AddCandidatesDialog({
   const [sourcingProspects, setSourcingProspects] = useState<
     { id: string; canonical_url: string; title: string }[] | null
   >(null);
-  const [showColumnMapping, setShowColumnMapping] = useState(false);
-  const [customColumnOverrides, setCustomColumnOverrides] = useState<
-    Record<string, number | undefined>
-  >({});
+  const [targetStage, setTargetStage] = useState<PipelineStage>(stage);
   const csvFileInput = useRef<HTMLInputElement>(null);
-  const headers = useMemo(() => csvHeaders(csvText), [csvText]);
-  const automaticMappings = useMemo(
-    () => automaticCustomColumnMappings(headers, roleFields),
-    [headers, roleFields],
-  );
-  const customMappings = useMemo(
-    () =>
-      Object.fromEntries(
-        roleFields.map((field) => [
-          field.key,
-          Object.hasOwn(customColumnOverrides, field.key)
-            ? customColumnOverrides[field.key]
-            : automaticMappings[field.key],
-        ]),
-      ),
-    [automaticMappings, customColumnOverrides, roleFields],
-  );
+  // An import fills the fixed columns of a stage and nothing else: no custom
+  // role columns, no new columns invented from the file's own headings. Extra
+  // columns in the file are reported as ignored rather than rejected, so an
+  // export from somewhere else still imports its recognized part.
   const csvPreview = useMemo(
-    () => csvImportPreview(csvText, roleFields, customMappings, { requireLinkedin: true }),
-    [csvText, customMappings, roleFields],
+    () => csvImportPreview(csvText, [], {}, { requireLinkedin: true }),
+    [csvText],
   );
+  const template = templateColumns(targetStage);
 
   function switchMode(next: Mode) {
     setMode(next);
@@ -154,7 +148,7 @@ export function AddCandidatesDialog({
         return;
       }
       setCsvFileName(file.name);
-      setCustomColumnOverrides({});
+
       if (isExcel) {
         const sheets = (await readXlsxFile(file)).map((sheet) => ({
           name: sheet.sheet,
@@ -173,6 +167,19 @@ export function AddCandidatesDialog({
     } catch {
       setError("Could not read that file. Check that it is a valid CSV or Excel workbook and try again.");
     }
+  }
+
+  function downloadTemplate() {
+    // A BOM so Excel opens the file as UTF-8 instead of guessing at it.
+    const blob = new Blob(["﻿", templateCsv(targetStage)], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = templateFileName(roleName, targetStage);
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   async function submit(rows: ImportRow[], source: CandidateSource) {
@@ -197,6 +204,7 @@ export function AddCandidatesDialog({
           clientId,
           roleId,
           source,
+          stage: targetStage,
           rows: batch.map((row) => ({
             ...row,
             // A source supplied in the file is more specific than the batch setting.
@@ -317,6 +325,22 @@ export function AddCandidatesDialog({
           </button>
         ))}
       </div>
+      <label>
+        Add to stage
+        <select
+          disabled={busy}
+          value={targetStage}
+          onChange={(event) => setTargetStage(event.target.value as PipelineStage)}
+        >
+          {importStages.map((option) => (
+            <option key={option} value={option}>{stageLabels[option]}</option>
+          ))}
+        </select>
+      </label>
+      <p className="muted">
+        Everyone in this batch lands in {stageLabels[targetStage]}. Anyone already
+        on this role keeps the stage they are in.
+      </p>
       <label>
         Source provider <span className="optional">optional</span>
         <select disabled={busy} value={provider} onChange={(event) => setProvider(event.target.value)}>
@@ -522,6 +546,27 @@ export function AddCandidatesDialog({
               event.target.value = "";
             }}
           />
+          <div className="import-template">
+            <div>
+              <strong>{stageLabels[targetStage]} template</strong>
+              <p className="muted">
+                The {template.length} columns this stage holds, with one example row.
+                Fill it in, delete the example, and upload it.
+              </p>
+              <ul className="import-template-columns">
+                {template.map((column) => (
+                  <li key={column.header}>
+                    {column.header}
+                    {column.required && <span> required</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <button type="button" disabled={busy} onClick={downloadTemplate}>
+              <Download size={15} aria-hidden="true" />
+              Download template
+            </button>
+          </div>
           <div className="csv-file-action">
             <div>
               <strong>{csvFileName || "Choose a CSV or Excel file"}</strong>
@@ -545,7 +590,7 @@ export function AddCandidatesDialog({
                   const next = excelSheets.find((sheet) => sheet.name === event.target.value);
                   if (!next) return;
                   setSelectedSheet(next.name);
-                  setCustomColumnOverrides({});
+
                   setCsvText(next.text);
                 }}
               >
@@ -564,65 +609,15 @@ export function AddCandidatesDialog({
                 setCsvFileName("");
                 setExcelSheets([]);
                 setSelectedSheet("");
-                setCustomColumnOverrides({});
+
                 setCsvText(e.target.value);
               }}
-              placeholder={csvTemplateColumns.join(",")}
+              placeholder={template.map((column) => column.header).join(",")}
             />
           </label>
           <p className="muted">
-            LinkedIn URL is required. Recognized columns: Full Name (or First Name), {csvTemplateColumns.slice(1).join(", ")}. Extra columns
-            are ignored unless you map them to a role column below. Column order
-            does not matter.
+            Column order does not matter, and anything not listed below is ignored.
           </p>
-          {roleFields.length > 0 && headers.length > 0 && (
-            <div className="csv-column-mapping">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => setShowColumnMapping((current) => !current)}
-              >
-                {showColumnMapping ? "Hide role column mapping" : "Map role columns"}
-              </button>
-              {!showColumnMapping &&
-                Object.values(customMappings).filter((value) => value != null).length > 0 && (
-                  <small>
-                    {Object.values(customMappings).filter((value) => value != null).length} matched automatically
-                  </small>
-                )}
-              {showColumnMapping && (
-                <div className="csv-column-mapping-fields">
-                  <p className="muted">
-                    Matching headers are selected automatically. Change a mapping only when needed.
-                  </p>
-                  {roleFields.map((field) => (
-                    <label key={field.id}>
-                      {field.label}
-                      <select
-                        disabled={busy}
-                        value={customMappings[field.key] ?? ""}
-                        onChange={(event) =>
-                          setCustomColumnOverrides((current) => ({
-                            ...current,
-                            [field.key]: event.target.value
-                              ? Number(event.target.value)
-                              : undefined,
-                          }))
-                        }
-                      >
-                        <option value="">Don&rsquo;t import</option>
-                        {headers.map((header, index) => (
-                          <option key={`${header}-${index}`} value={index}>
-                            {header || `Column ${index + 1}`}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
           {!!csvText.trim() && (
             <div className="csv-preview" aria-live="polite">
               <div className="csv-preview-summary">

@@ -4,13 +4,17 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   Archive,
+  ArrowLeft,
   ChevronDown,
   ChevronUp,
   CircleHelp,
   ExternalLink,
   Link as LinkIcon,
   Maximize2,
+  Minimize2,
   Plus,
+  Rows3,
+  Trash2,
   SlidersHorizontal,
   X,
 } from "lucide-react";
@@ -60,6 +64,14 @@ import {
   type DraftRow,
 } from "@/lib/recruiting/drafts";
 import { act as sharedAct } from "@/lib/client/act";
+import { ColumnResizeHandle, useTableLayout } from "./table-layout";
+import styles from "./role-workspace.module.css";
+import { DeletedCandidates } from "./deleted-candidates";
+import { TableDialog } from "./table-dialog";
+import { BulkEditDialog } from "./bulk-edit-dialog";
+import { EditHistoryDialog } from "./edit-history";
+import { DuplicateReview } from "./duplicate-review";
+import { RoleToolsMenu } from "./role-tools-menu";
 
 function act<T = { id: string }>(action: string, payload: unknown = {}): Promise<T> {
   return sharedAct<T>(action, payload);
@@ -87,7 +99,7 @@ const date = (s: string | null | undefined) =>
         day: "numeric",
         year: "numeric",
       })
-    : "—";
+    : "Not provided";
 
 function candidateEmptyMessage(tab: Tab, query = "") {
   if (query) return "No candidates match this search.";
@@ -111,7 +123,7 @@ function followUpStatus(value: string) {
 }
 
 function followUpDate(value: string | null) {
-  if (!value) return "—";
+  if (!value) return "Not provided";
   return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
@@ -169,7 +181,31 @@ export function RolePipeline({
   const [importing, setImporting] = useState(false);
   const [applying, setApplying] = useState(false);
   const [applyBusy, setApplyBusy] = useState(false);
-  const [selected, setSelected] = useState<string[]>([]);
+  const selectionScope = `${role.id}:${params.toString()}`;
+  const [selection, setSelection] = useState({ scope: selectionScope, ids: [] as string[] });
+  const selected = selection.scope === selectionScope ? selection.ids : [];
+  function setSelected(next: string[] | ((ids: string[]) => string[])) {
+    setSelection((previous) => ({ scope: selectionScope, ids: typeof next === "function" ? next(previous.scope === selectionScope ? previous.ids : []) : next }));
+  }
+  // The grid is the job, so it gets the screen by default. Collapsing back to
+  // the page layout stays available for anyone who wants the surrounding
+  // navigation, and Escape is the way out for anyone who arrives here by
+  // accident.
+  const [expanded, setExpanded] = useState(true);
+  const [deleting, setDeleting] = useState<string[] | null>(null);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [bulkEditing, setBulkEditing] = useState<string[] | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showDuplicates, setShowDuplicates] = useState(false);
+  useEffect(() => {
+    if (!expanded) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+    // Escape does not leave full screen. It is the grid's cancel key, and now
+    // that full screen is the default layout rather than a mode someone opted
+    // into, cancelling an edit must not also rearrange the page.
+  }, [expanded]);
   const [masterSelection, setMasterSelection] = useState({
     scope: "",
     ids: [] as string[],
@@ -206,6 +242,16 @@ export function RolePipeline({
   const [columnPreference, setColumnPreference] = useState<string | null>(null);
   const [navigatingTo, setNavigatingTo] = useState<Tab | null>(null);
   const path = `/roles/${role.id}`;
+  const layout = useTableLayout(`${role.id}:${tab}`);
+  const tableFrame = useRef<HTMLDivElement>(null);
+  const [tableFrameWidth, setTableFrameWidth] = useState(0);
+  useEffect(() => {
+    const frame = tableFrame.current;
+    if (!frame) return;
+    const observer = new ResizeObserver(([entry]) => setTableFrameWidth(entry.contentRect.width));
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, [tab]);
   // v2: the stage-aware column set replaced the old fixed ids. A preference
   // saved under the old key names columns that no longer exist, which would
   // otherwise filter the table down to whichever id happened to survive.
@@ -226,7 +272,8 @@ export function RolePipeline({
     isPipelineTab && tab !== "all_profiles"
       ? nextStage(tab as PipelineStage)
       : null;
-  const canSelectCandidates = Boolean(advanceTo || canRejectFromTab);
+  const canSelectCandidates = isStage(tab) || isFollowUpsTab;
+  const showRowActions = Boolean(advanceTo || canRejectFromTab);
   const activeCandidateFilterCount = [
     params.get("source"),
     params.get("source_detail"),
@@ -303,6 +350,14 @@ export function RolePipeline({
     .filter((id: ColumnId) => visibleColumns.includes(id))
     .map((id) => tabColumns.find((column) => column.id === id))
     .filter((column): column is CandidateColumn => Boolean(column));
+  const columnWidths = { xs: 96, sm: 128, md: 160, lg: 220 };
+  const nameWidth = Math.max(180, layout.width("full_name", 280));
+  const utilityWidth = (canSelectCandidates ? 36 : 0) + 36 + 28;
+  const actionWidth = showRowActions ? (canRejectFromTab && advanceTo ? 180 : 110) : 0;
+  const fixedWidth = utilityWidth + nameWidth + actionWidth;
+  const dataWidth = visibleCandidateColumns.reduce((sum, column) => sum + layout.width(column.id, columnWidths[column.width]), 0);
+  const tableWidth = Math.max(tableFrameWidth, fixedWidth + dataWidth);
+  const displayedWidth = (column: CandidateColumn) => layout.width(column.id, columnWidths[column.width]) * (tableWidth - fixedWidth) / dataWidth;
 
   function toggleColumn(column: ColumnId) {
     const next = visibleColumns.includes(column)
@@ -325,6 +380,7 @@ export function RolePipeline({
   function resetColumns() {
     localStorage.removeItem(columnStorageKey);
     setColumnPreference("");
+    layout.reset();
   }
 
   const tabUrl = (key: Tab) => {
@@ -363,7 +419,7 @@ export function RolePipeline({
     // Always leave one untouched row to type into.
     draftsRef.current = next.some(isDraftEmpty) ? next : [...next, newDraft()];
     setDrafts(draftsRef.current);
-    // Coalesce, so filling a row cell by cell — or pasting twenty — becomes a
+    // Coalesce, so filling a row cell by cell. or pasting twenty. becomes a
     // single import rather than one per keystroke.
     if (flushTimer.current) clearTimeout(flushTimer.current);
     flushTimer.current = setTimeout(() => void flushDrafts(), 400);
@@ -380,6 +436,10 @@ export function RolePipeline({
         clientId: client.id,
         roleId: role.id,
         source: "manual",
+        // A row typed into the Client shortlist belongs in the client
+        // shortlist. Without this it would be created and then vanish from
+        // the tab it was typed into.
+        stage: isStage(tab) && tab !== "rejected" ? tab : "all_profiles",
         rows: ready.map(draftImportRow),
       });
       const addedKeys = new Set(ready.map((row) => row.key));
@@ -466,7 +526,7 @@ export function RolePipeline({
     setMessage(
       [
         `Pasted ${writes.length} cells across ${pastedRows} row${pastedRows === 1 ? "" : "s"}.`,
-        skipped ? `${skipped} row${skipped === 1 ? "" : "s"} had no matching row in this tab — add those candidates first.` : "",
+        skipped ? `${skipped} row${skipped === 1 ? "" : "s"} had no matching row in this tab. Add those candidates first.` : "",
         failures.length ? `${failures.length} cells could not be saved.` : "",
       ]
         .filter(Boolean)
@@ -556,13 +616,11 @@ export function RolePipeline({
             className={`sheet-td w-${column.width} candidate-linkedin-cell`}
             key={column.id}
           >
-            {url ? (
-              <a className="candidate-link" href={url} rel="noreferrer" target="_blank">
-                Open profile <ExternalLink size={11} />
-              </a>
-            ) : (
-              <span className="sheet-placeholder">—</span>
-            )}
+            <div className="candidate-profile-cell">
+              <SheetCell row={rowIndex} col={colIndex} label={`LinkedIn, row ${rowIndex + 1}`} value={url ?? ""} placeholder="Add LinkedIn URL" readOnly={locked}
+                save={async (value) => { await act("candidateLinkedIn", { id: rc.candidate_id, value }); router.refresh(); }} />
+              {url && <a className="candidate-link" href={url} rel="noreferrer" target="_blank" aria-label={`Open ${rc.candidates.full_name} on LinkedIn`}><ExternalLink size={14} /></a>}
+            </div>
           </td>
         );
       }
@@ -875,18 +933,24 @@ export function RolePipeline({
     }
   }
   return (
-    <>
+    <div className={styles.workspace} data-density={layout.compact ? "compact" : "comfortable"} data-expanded={expanded}>
       <header className="page-header role-workspace-header">
         <div>
-          <div className="eyebrow"><Link href={`/clients/${client.id}/roles`}>{client.name}</Link></div>
           <div className="role-title-row">
+            {/* A client with one open role opens straight into it, so this is
+                the only way back out. list=1 asks for the roles list itself
+                rather than being forwarded back in here. */}
+            <Link className="role-back" href={`/clients/${client.id}/roles?list=1`}>
+              <ArrowLeft size={15} aria-hidden="true" />
+              <span>{client.name}</span>
+            </Link>
             <h1>{role.name}</h1>
             <span className={`badge ${role.status}`}>{role.status.replace("_", " ")}</span>
           </div>
           <div className="role-summary" aria-label="Role summary">
             <span><strong>{pipelineTotal}</strong> active</span>
             <span><strong>{counts.all_profiles ?? 0}</strong> awaiting rating</span>
-            <span>Floor <strong>{role.rating_threshold} / 5</strong></span>
+            <span>Rating threshold <strong>{role.rating_threshold} / 5</strong></span>
             <span><strong>{counts.rejected ?? 0}</strong> rejected</span>
           </div>
         </div>
@@ -930,6 +994,7 @@ export function RolePipeline({
           </div>
         </div>
       )}
+      <section className={styles.tablePanel} aria-label="Candidate workspace">
       <div className="role-tab-bar">
       <div className="tabs role-stage-tabs" aria-label="Candidate stages">
         {pipelineTabs.map(({ key, label }) => (
@@ -942,6 +1007,7 @@ export function RolePipeline({
             onFocus={() => prefetchTab(key)}
             onClick={() => startTabNavigation(key)}
             aria-busy={navigatingTo === key && tab !== key}
+            aria-current={tab === key ? "page" : undefined}
           >
             {label}
             <span>{counts[key] ?? 0}</span>
@@ -949,20 +1015,34 @@ export function RolePipeline({
         ))}
       </div>
       <nav className="role-secondary-nav" aria-label="Role tools">
-        <Link className={isFollowUpsTab ? "selected" : ""} href={tabUrl("follow_ups")}>
+        <RoleToolsMenu label={isFollowUpsTab ? "Views · Follow-ups" : tab === "master_db" ? "Views · Master DB" : tab === "analytics" ? "Views · Analytics" : "Views"} active={!isStage(tab)}>
+        <Link className={isFollowUpsTab ? "selected" : ""} aria-current={isFollowUpsTab ? "page" : undefined} href={tabUrl("follow_ups")}>
           Follow-ups
         </Link>
-        <Link className={tab === "master_db" ? "selected" : ""} href={tabUrl("master_db")}>
+        <Link className={tab === "master_db" ? "selected" : ""} aria-current={tab === "master_db" ? "page" : undefined} href={tabUrl("master_db")}>
           Master DB
         </Link>
-        <Link className={tab === "analytics" ? "selected" : ""} href={tabUrl("analytics")}>
+        <Link className={tab === "analytics" ? "selected" : ""} aria-current={tab === "analytics" ? "page" : undefined} href={tabUrl("analytics")}>
           Analytics
         </Link>
+        </RoleToolsMenu>
+        <RoleToolsMenu label="Actions">
+        <button type="button" onClick={() => setShowHistory(true)}>Edit history</button>
+        <button type="button" onClick={() => setShowDuplicates(true)}>Duplicate review</button>
+        <button type="button" onClick={() => setShowDeleted(true)}><Trash2 size={14} /> Recently deleted</button>
+        <button type="button" aria-pressed={expanded} onClick={() => setExpanded((value) => !value)}>
+          {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{expanded ? "Show page navigation" : "Full screen"}
+        </button>
+        </RoleToolsMenu>
       </nav>
       </div>
       {canSelectCandidates && selected.length > 0 && (
         <div className="bulk-bar">
           <strong>{selected.length} selected</strong>
+          <button type="button" disabled={busy || role.archived} onClick={() => setBulkEditing([...selected])}>Bulk edit</button>
+          <button type="button" disabled={busy || role.archived} onClick={() => setDeleting([...selected])}><Trash2 size={15} /> Delete from role</button>
+          <button type="button" onClick={() => setSelected([])}>Clear selection</button>
+          {showRowActions && <>
           <input
             aria-label="Optional note"
             value={note}
@@ -980,6 +1060,7 @@ export function RolePipeline({
               Reject
             </button>
           )}
+          </>}
         </div>
       )}
       {isStage(tab) && (
@@ -1148,6 +1229,10 @@ export function RolePipeline({
             {(query || activeCandidateFilterCount > 0 || params.get("sort")) && (
               <Link className="candidate-clear-filters" href={stageFilterUrl({ q: "", source: "", source_detail: "", rating: "", entered_from: "", entered_to: "", sort: "" })}>Clear</Link>
             )}
+            <button type="button" aria-label="Compact rows" aria-pressed={layout.compact} onClick={layout.toggleDensity}>
+              <Rows3 size={15} aria-hidden="true" />
+              {layout.compact ? "Compact" : "Comfortable"}
+            </button>
           </div>
         </form>
         <div className="sheet-bar-actions">
@@ -1210,6 +1295,7 @@ export function RolePipeline({
             <table className="candidate-table">
               <thead>
                 <tr>
+                  <th><input type="checkbox" aria-label="Select all visible candidates" checked={roleCandidates.length > 0 && selected.length === roleCandidates.length} onChange={(e) => setSelected(e.target.checked ? roleCandidates.map((rc) => rc.id) : [])} /></th>
                   <th>Follow-up</th>
                   <th>Candidate</th>
                   <th className="candidate-linkedin-heading">LinkedIn</th>
@@ -1221,7 +1307,8 @@ export function RolePipeline({
               </thead>
               <tbody>
                 {roleCandidates.map((rc) => (
-                  <tr key={rc.id}>
+                  <tr key={rc.id} className={selected.includes(rc.id) ? "selected-row" : ""}>
+                    <td><input type="checkbox" aria-label={`Select ${rc.candidates.full_name}`} checked={selected.includes(rc.id)} onChange={(e) => setSelected((old) => e.target.checked ? [...old, rc.id] : old.filter((id) => id !== rc.id))} /></td>
                     <td>
                       <strong>{followUpDate(rc.follow_up_at)}</strong>
                       {rc.follow_up_at && (
@@ -1254,13 +1341,13 @@ export function RolePipeline({
                         >
                           Open profile <ExternalLink size={11} />
                         </a>
-                      ) : "—"}
+                      ) : "Not provided"}
                     </td>
                     <td>
                       {isStage(rc.stage) ? stageLabels[rc.stage] : rc.stage}
                     </td>
-                    <td>{rc.candidates.current_company || "—"}</td>
-                    <td>{rc.candidates.phone || rc.candidates.email || "—"}</td>
+                    <td>{rc.candidates.current_company || "Not provided"}</td>
+                    <td>{rc.candidates.phone || rc.candidates.email || "Not provided"}</td>
                     <td>
                       <form
                         className="follow-up-schedule"
@@ -1428,15 +1515,15 @@ export function RolePipeline({
                         >
                           Open profile <ExternalLink size={11} />
                         </a>
-                      ) : "—"}
+                      ) : "Not provided"}
                     </td>
-                    <td>{c.headline || "—"}</td>
-                    <td>{c.current_company || "—"}</td>
-                    <td>{c.location || "—"}</td>
+                    <td>{c.headline || "Not provided"}</td>
+                    <td>{c.current_company || "Not provided"}</td>
+                    <td>{c.location || "Not provided"}</td>
                     <td>
                       {c.total_experience_years != null
                         ? `${c.total_experience_years} yrs`
-                        : "—"}
+                        : "Not provided"}
                     </td>
                     <td>
                       {c.phone || c.email ? (
@@ -1484,13 +1571,25 @@ export function RolePipeline({
         </>
       ) : (
         <>
-          <div className="card table-wrap sheet-table-frame">
+          <div className="table-edit-hint">Click a cell to edit · Enter, Tab or click away to save · Esc to cancel. Added date and source are system managed.</div>
+          <div className="card table-wrap sheet-table-frame" ref={tableFrame}>
             <table
               className={`candidate-table sheet-table${canSelectCandidates ? " has-select" : ""}`}
               data-sheet-grid=""
+              style={{ width: tableWidth, minWidth: fixedWidth + dataWidth }}
               onPaste={(event) => void pasteIntoGrid(event)}
               role="grid"
             >
+              <colgroup>
+                {canSelectCandidates && <col style={{ width: 36 }} />}
+                <col style={{ width: 36 }} />
+                <col style={{ width: 28 }} />
+                <col style={{ width: nameWidth }} />
+                {visibleCandidateColumns.map((column) => (
+                  <col key={column.id} style={{ width: displayedWidth(column) }} />
+                ))}
+                {showRowActions && <col style={{ width: actionWidth }} />}
+              </colgroup>
               <thead>
                 <tr>
                 {canSelectCandidates && (
@@ -1516,7 +1615,10 @@ export function RolePipeline({
                 <th className="candidate-open-heading" scope="col">
                   <span className="sr-only">Open candidate</span>
                 </th>
-                <th className="sheet-th sheet-th-pinned" scope="col">Full name</th>
+                <th className="sheet-th sheet-th-pinned" scope="col">
+                  Full name
+                  <ColumnResizeHandle label="Full name" width={nameWidth} onResize={(width) => layout.resize("full_name", Math.max(180, width))} />
+                </th>
                 {visibleCandidateColumns.map((column) => (
                   <th
                     className={`sheet-th w-${column.width}${column.numeric ? " is-numeric" : ""}`}
@@ -1524,9 +1626,10 @@ export function RolePipeline({
                     scope="col"
                   >
                     {column.label}
+                    <ColumnResizeHandle label={column.label} width={layout.width(column.id, columnWidths[column.width])} onResize={(width) => layout.resize(column.id, width)} />
                   </th>
                 ))}
-                {canSelectCandidates && <th className="candidate-action-heading" scope="col">Action</th>}
+                {showRowActions && <th className="candidate-action-heading" scope="col">Action</th>}
                 </tr>
               </thead>
               <tbody>
@@ -1583,7 +1686,7 @@ export function RolePipeline({
                   {visibleCandidateColumns.map((column, columnIndex) =>
                     renderCandidateCell(rc, column, rowIndex, columnIndex + 1),
                   )}
-                  {canSelectCandidates && (
+                  {showRowActions && (
                     <td className="candidate-action-cell">
                       <div className="candidate-row-actions">
                         {advanceTo && (
@@ -1667,7 +1770,7 @@ export function RolePipeline({
                           </td>
                         );
                       })}
-                      {canSelectCandidates && (
+                      {showRowActions && (
                         <td className="candidate-action-cell">
                           {blocker && <span className="sheet-draft-hint">{blocker}</span>}
                         </td>
@@ -1704,6 +1807,25 @@ export function RolePipeline({
           </div>
         </>
       )}
+      </section>
+      {bulkEditing && <BulkEditDialog clientId={client.id} roleId={role.id} roleName={role.name} ids={bulkEditing} stage={isStage(tab) ? tab : null} fields={roleFields} onClose={() => setBulkEditing(null)} onSaved={(count) => { setBulkEditing(null); setSelected([]); setMessage(`Updated ${count} rows. Changes are recorded in Edit history.`); router.refresh(); }} />}
+      {showHistory && <EditHistoryDialog clientId={client.id} roleId={role.id} onClose={() => setShowHistory(false)} />}
+      {showDuplicates && <DuplicateReview clientId={client.id} roleId={role.id} onClose={() => setShowDuplicates(false)} />}
+      {showDeleted && <DeletedCandidates clientId={client.id} roleId={role.id} archived={role.archived} onClose={() => setShowDeleted(false)} onRestored={() => router.refresh()} />}
+      {deleting && <TableDialog titleId="delete-rows-title" busy={busy} onClose={() => setDeleting(null)}>
+        <div className="modal-heading"><h2 id="delete-rows-title">Delete {deleting.length} selected row{deleting.length === 1 ? "" : "s"} from this role?</h2></div>
+        <p>These rows will leave <strong>{role.name}</strong>. Shared candidate profiles and other roles are kept. You can restore this batch with its notes and history from Recently deleted.</p>
+        {error && <p className="error" role="alert">{error}</p>}
+        <div className="row"><button disabled={busy} onClick={async () => {
+          setBusy(true); setError("");
+          try {
+            await act("removeRoleCandidates", { clientId: client.id, roleId: role.id, ids: deleting, stage: isStage(tab) ? tab : null });
+            setSelected([]); setDeleting(null); setMessage("Rows deleted from this role. Restore them from Recently deleted.");
+            router.refresh();
+          } catch (e) { setError((e as Error).message); }
+          finally { setBusy(false); }
+        }}>{busy ? "Deleting…" : "Delete from role"}</button><button disabled={busy} onClick={() => setDeleting(null)}>Cancel</button></div>
+      </TableDialog>}
       {editing && (
         <RoleFormDialog
           clientId={client.id}
@@ -1719,7 +1841,8 @@ export function RolePipeline({
         <AddCandidatesDialog
           clientId={client.id}
           roleId={role.id}
-          roleFields={roleFields}
+          roleName={role.name}
+          stage={isStage(tab) && tab !== "rejected" ? tab : "all_profiles"}
           onClose={() => setImporting(false)}
           onImported={summarize}
         />
@@ -1832,6 +1955,6 @@ export function RolePipeline({
           </div>
         </dialog>
       )}
-    </>
+    </div>
   );
 }

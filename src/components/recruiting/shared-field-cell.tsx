@@ -29,6 +29,7 @@ export function SharedFieldCell({
   kind,
   options,
   multiline = false,
+  label = "Notes",
 }: {
   token: string;
   roleCandidateId: string;
@@ -37,6 +38,7 @@ export function SharedFieldCell({
   kind: Kind;
   options?: string[];
   multiline?: boolean;
+  label?: string;
 }) {
   const [current, setCurrent] = useState<Value>(value);
   const [saved, setSaved] = useState<Value>(value);
@@ -72,7 +74,7 @@ export function SharedFieldCell({
     return (
       <div className="shared-note">
         <textarea
-          aria-label="Notes"
+          aria-label={label}
           className="shared-note-input"
           disabled={saving}
           onBlur={() => {
@@ -113,7 +115,7 @@ export function SharedFieldCell({
             void commit(next);
           }}
         >
-          <option value="">—</option>
+          <option value="">Select an option</option>
           <option value="yes">Yes</option>
           <option value="no">No</option>
         </select>
@@ -136,7 +138,7 @@ export function SharedFieldCell({
             void commit(next);
           }}
         >
-          <option value="">—</option>
+          <option value="">Select an option</option>
           {(options ?? []).map((o) => (
             <option key={o} value={o}>
               {o}
