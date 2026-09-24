@@ -43,6 +43,7 @@ export type ImportSummary = {
   updated: number;
   skipped: number;
   invalid: number;
+  rated: number;
 };
 
 type Mode = "paste" | "manual" | "csv" | "sourcing";
@@ -196,7 +197,7 @@ export function AddCandidatesDialog({
     setBusy(true);
     setProgress("");
     try {
-      const summary: ImportSummary = { created: 0, matchedExisting: 0, alreadyInRole: 0, updated: 0, skipped: 0, invalid: 0 };
+      const summary: ImportSummary = { created: 0, matchedExisting: 0, alreadyInRole: 0, updated: 0, skipped: 0, invalid: 0, rated: 0 };
       const batches = Array.from({ length: Math.ceil(rows.length / importBatchSize) }, (_, index) =>
         rows.slice(index * importBatchSize, (index + 1) * importBatchSize),
       );
@@ -219,6 +220,7 @@ export function AddCandidatesDialog({
         summary.updated += result.updated;
         summary.skipped += result.skipped;
         summary.invalid += result.invalid;
+        summary.rated += result.rated ?? 0;
       }
       onImported(summary);
     } catch (e) {

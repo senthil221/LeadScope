@@ -26,7 +26,7 @@ describe("import template", () => {
     expect(columns.map((column) => column.header)).toEqual([
       "Full Name",
       "LinkedIn URL",
-      "Naukri URL",
+      "Rating",
       "Email",
       "Phone",
       "Company",
@@ -42,10 +42,25 @@ describe("import template", () => {
 
   // A column the parser learns but the template never names would be a column
   // nobody knows they can send.
-  it("names exactly the columns the parser recognises", () => {
+  it("writes exactly the columns the template list names", () => {
     expect(templateColumns().map((column) => column.header)).toEqual([
       ...csvTemplateColumns,
     ]);
+  });
+
+  // Dropped from the template because nobody here sources from Naukri, but the
+  // parser still knows the header, so an older file does not start failing.
+  it("still imports a Naukri URL although it no longer offers the column", () => {
+    expect(templateColumns().map((column) => column.header)).not.toContain(
+      "Naukri URL",
+    );
+    const csv = [
+      "Full Name,Naukri URL",
+      "Asha Menon,https://www.naukri.com/mnjuser/profile/asha-menon",
+    ].join("\r\n");
+    const preview = csvImportPreview(csv, [], {}, {});
+    expect(preview.ignoredColumns).toEqual([]);
+    expect(preview.validRows).toHaveLength(1);
   });
 
   it("writes headers and nothing else", () => {
@@ -87,8 +102,8 @@ describe("import template", () => {
     const value = (header: string) =>
       header === "LinkedIn URL"
         ? "https://www.linkedin.com/in/test-person"
-        : header === "Naukri URL"
-          ? "https://www.naukri.com/mnjuser/profile/test-person"
+        : header === "Rating"
+          ? "4.6"
           : header === "Experience (years)"
             ? "4"
             : header === "Email"
@@ -100,6 +115,49 @@ describe("import template", () => {
     const preview = csvImportPreview(csv, [], {}, { requireLinkedin: true });
     expect(preview.ignoredColumns).toEqual([]);
     expect(preview.validRows).toHaveLength(1);
+  });
+
+  // A rating is what moves somebody, so it has to survive the file, and a
+  // rating that cannot be read has to say so rather than importing as blank.
+  describe("the Rating column", () => {
+    const withRating = (rating: string) =>
+      csvImportPreview(
+        ["Full Name,LinkedIn URL,Rating", `Asha,https://www.linkedin.com/in/asha,${rating}`].join("\r\n"),
+        [],
+        {},
+        { requireLinkedin: true },
+      );
+
+    it("carries a rating through to the imported row", () => {
+      expect(withRating("4.6").validRows[0].fields.rating).toBe(4.6);
+      expect(withRating("0").validRows[0].fields.rating).toBe(0);
+      expect(withRating("5").validRows[0].fields.rating).toBe(5);
+    });
+
+    it("leaves the field off when the cell is blank", () => {
+      expect(withRating("").validRows[0].fields).not.toHaveProperty("rating");
+    });
+
+    it("fails the row rather than dropping an unusable rating", () => {
+      for (const bad of ["6", "-1", "4.55", "excellent"]) {
+        const preview = withRating(bad);
+        expect(preview.validRows).toEqual([]);
+        expect(preview.invalidRows[0].reason).toContain("0.0 to 5.0");
+      }
+    });
+
+    it("reads the headers a recruiter is likely to type", () => {
+      for (const header of ["Rating", "rating", "Score", "Rating (0-5)"]) {
+        const preview = csvImportPreview(
+          [`Full Name,LinkedIn URL,${header}`, "Asha,https://www.linkedin.com/in/asha,4.6"].join("\r\n"),
+          [],
+          {},
+          { requireLinkedin: true },
+        );
+        expect(preview.ignoredColumns).toEqual([]);
+        expect(preview.validRows[0]?.fields.rating).toBe(4.6);
+      }
+    });
   });
 
   it("names the file after the role, and after no stage", () => {

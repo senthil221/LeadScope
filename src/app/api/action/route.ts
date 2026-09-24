@@ -205,6 +205,21 @@ export async function POST(request: Request) {
             throw new AppError(
               `Candidate row ${index + 1} needs a phone country code and valid number.`,
             );
+          // A rating can move a candidate into Profile shortlisted, so it is
+          // checked here on the same scale the grid and the database use
+          // rather than trusted from the sheet.
+          const rawRating = fields.rating;
+          if (
+            rawRating != null &&
+            (typeof rawRating !== "number" ||
+              !Number.isFinite(rawRating) ||
+              rawRating < 0 ||
+              rawRating > 5 ||
+              Math.round(rawRating * 10) !== rawRating * 10)
+          )
+            throw new AppError(
+              `Candidate row ${index + 1} needs a rating from 0.0 to 5.0, to one decimal place.`,
+            );
           const identities = row.identities.map((entry) => {
             if (entry.kind === "phone" && !isE164Phone(entry.value))
               throw new AppError(

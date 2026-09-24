@@ -21,6 +21,7 @@ export type DraftRow = {
   totalExperienceYears?: string;
   currentCtc?: string;
   highestQualification?: string;
+  rating?: string;
   sourceDetail?: string;
 };
 export type ImportRow = {
@@ -116,6 +117,24 @@ export function buildImportRow(
   const years = Number(draft.totalExperienceYears);
   if (draft.totalExperienceYears?.trim() && Number.isFinite(years) && years >= 0 && years <= 70)
     fields.totalExperienceYears = years;
+  // A rating is the one imported value that can move somebody, so an
+  // unreadable one stops the row rather than being quietly dropped: a file of
+  // ratings that silently imported none of them is worse than being told.
+  // The scale matches the grid — 0.0 to 5.0, one decimal place.
+  if (draft.rating?.trim()) {
+    const rating = Number(draft.rating.trim());
+    if (
+      !Number.isFinite(rating) ||
+      rating < 0 ||
+      rating > 5 ||
+      Math.round(rating * 10) !== rating * 10
+    )
+      return {
+        row: draft,
+        reason: "Enter a rating from 0.0 to 5.0, to one decimal place.",
+      };
+    fields.rating = rating;
+  }
   return {
     name: resolvedName,
     identities: deduped,
@@ -235,15 +254,21 @@ const csvColumnAliases: Record<string, keyof DraftRow> = {
   qualification: "highestQualification",
   "highest qualification": "highestQualification",
   education: "highestQualification",
+  rating: "rating",
+  "rating (0 5)": "rating",
+  score: "rating",
   source: "sourceDetail",
   provider: "sourceDetail",
   vendor: "sourceDetail",
   "source / provider": "sourceDetail",
 };
+// The columns the downloadable template carries, in the order it writes them.
+// Not every header the parser accepts: a Naukri URL still imports, and so do
+// the other spellings in the alias map, they are simply not what we hand out.
 export const csvTemplateColumns = [
   "Full Name",
   "LinkedIn URL",
-  "Naukri URL",
+  "Rating",
   "Email",
   "Phone",
   "Company",

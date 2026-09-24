@@ -17,13 +17,14 @@ import { pipelineStages, type PipelineStage } from "./stages";
 
 export type TemplateColumn = { header: string; example: string; required: boolean };
 
-// Keyed by the header the parser reads, so a column cannot be recognised on
-// import yet missing from the file we hand out. A test holds the two lists
-// together.
+// Keyed by the header the template writes, so a column cannot be added to the
+// file without an example beside it in the dialog. A test holds the two
+// together. A Naukri URL still imports — it is a recognised alias — it is just
+// not one of the columns we hand out.
 const examples: Record<string, string> = {
   "Full Name": "Priya Raman",
   "LinkedIn URL": "https://www.linkedin.com/in/priya-raman",
-  "Naukri URL": "https://www.naukri.com/mnjuser/profile/priya-raman",
+  Rating: "4.6",
   Email: "priya.raman@example.com",
   Phone: "+91 98765 43210",
   Company: "Zoho",

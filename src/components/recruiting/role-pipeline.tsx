@@ -144,6 +144,14 @@ function linkedInUrl(candidate: RoleCandidate["candidates"]) {
   )?.normalized_value;
 }
 
+// Every stored profile URL is canonicalised to https://www.linkedin.com/in/…,
+// so the first twenty-four characters of the column are the same on every row
+// and carry nothing. They are hidden while reading and come back the moment
+// the cell is opened, because what is saved is still the whole URL.
+function shortProfileUrl(url: string) {
+  return url.replace(/^https?:\/\/(www\.)?/i, "");
+}
+
 export function RolePipeline({
   client,
   role,
@@ -800,7 +808,7 @@ export function RolePipeline({
             key={column.id}
           >
             <div className="candidate-profile-cell">
-              <SheetCell row={rowIndex} col={colIndex} label={`LinkedIn, row ${rowIndex + 1}`} value={url ?? ""} placeholder="Add LinkedIn URL" readOnly={locked}
+              <SheetCell row={rowIndex} col={colIndex} label={`LinkedIn, row ${rowIndex + 1}`} value={url ?? ""} display={shortProfileUrl} placeholder="Add LinkedIn URL" readOnly={locked}
                 save={async (value) => { await act("candidateLinkedIn", { id: rc.candidate_id, value }); refresh(); }} />
               {url && <a className="candidate-link" href={url} rel="noreferrer" target="_blank" aria-label={`Open ${rc.candidates.full_name} on LinkedIn`}><ExternalLink size={14} /></a>}
             </div>
@@ -974,6 +982,9 @@ export function RolePipeline({
       summary.matchedExisting &&
         `${summary.matchedExisting} matched an existing candidate`,
       summary.alreadyInRole && `${summary.alreadyInRole} already in this role`,
+      // Worth its own clause: a rating is the one imported value that can move
+      // somebody, so it should not arrive silently.
+      summary.rated && `${summary.rated} rated`,
       summary.updated && `${summary.updated} updated`,
       summary.skipped &&
         `${summary.skipped} skipped, not on this role yet — add them from All profiles`,
