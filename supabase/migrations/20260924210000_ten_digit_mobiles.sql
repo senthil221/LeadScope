@@ -16,15 +16,6 @@ begin;
 alter table public.candidates
  add column alternate_phone text check(length(alternate_phone) between 1 and 40);
 
--- Every number on file is +91 followed by the ten digits we now keep on their
--- own. Anything else is left exactly as it is: two legacy rows predate any
--- validation, and the trigger below only judges a value when it changes, so
--- nothing is lost and nobody is locked out of an unrelated edit.
-update public.candidates set phone=substring(phone from 4)
- where phone ~ '^\+91[0-9]{10}$';
-update public.candidate_identities set normalized_value=substring(normalized_value from 4)
- where kind='phone' and normalized_value ~ '^\+91[0-9]{10}$';
-
 create or replace function private.validate_candidate_contacts()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin
@@ -55,6 +46,19 @@ drop trigger candidates_validate_contacts on public.candidates;
 create trigger candidates_validate_contacts
  before insert or update of phone,alternate_phone,email on public.candidates
  for each row execute function private.validate_candidate_contacts();
+
+-- Only now, with the rule above in place. Run before it and the old trigger
+-- refuses the very update that takes the country code off, which is exactly
+-- what it did the first time this was deployed.
+--
+-- Every number on file is +91 followed by the ten digits we now keep on their
+-- own. Anything else is left exactly as it is: two legacy rows predate any
+-- validation, and the trigger only judges a value when it changes, so nothing
+-- is lost and nobody is locked out of an unrelated edit.
+update public.candidates set phone=substring(phone from 4)
+ where phone ~ '^\+91[0-9]{10}$';
+update public.candidate_identities set normalized_value=substring(normalized_value from 4)
+ where kind='phone' and normalized_value ~ '^\+91[0-9]{10}$';
 
 -- One cell, one save: the grid's two mobile columns both come through here.
 create or replace function private.save_candidate_field(p_id uuid,p_field text,p_value text)
