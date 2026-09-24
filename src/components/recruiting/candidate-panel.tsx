@@ -21,12 +21,12 @@ import { RejectDialog } from "./reject-dialog";
 import { EditHistory } from "./edit-history";
 import { normalizeIdentity } from "@/lib/recruiting/identity";
 import {
-  getPhoneCountry,
+  formatMobile,
+  mobileDigits,
   normalizeCandidateEmail,
   normalizeCandidatePhone,
-  parseStoredPhone,
-  phoneCountries,
 } from "@/lib/recruiting/contact";
+import { MobileField } from "./mobile-field";
 import { act as sharedAct } from "@/lib/client/act";
 
 function act<T = { ok: true }>(action: string, payload: unknown): Promise<T> {
@@ -197,7 +197,6 @@ export function CandidatePanel({
   const existingLinkedin =
     c.candidate_identities?.find((identity) => identity.kind === "linkedin")
       ?.normalized_value ?? "";
-  const initialPhone = parseStoredPhone(c.phone);
 
   const [details, setDetails] = useState({
     fullName: c.full_name,
@@ -207,11 +206,11 @@ export function CandidatePanel({
     location: c.location,
     totalExperienceYears:
       c.total_experience_years != null ? String(c.total_experience_years) : "",
-    phone: initialPhone.nationalNumber,
+    phone: c.phone ?? "",
+    alternatePhone: c.alternate_phone ?? "",
     email: c.email ?? "",
     linkedin: existingLinkedin,
   });
-  const [phoneCountry, setPhoneCountry] = useState(initialPhone.countryIso);
   const [screening, setScreening] = useState<Screening>(
     (rc.screening as Screening) ?? {},
   );
@@ -271,9 +270,14 @@ export function CandidatePanel({
       setError("A valid LinkedIn profile URL is required.");
       return;
     }
-    const phone = normalizeCandidatePhone(phoneCountry, details.phone);
-    if (phone.error) {
-      setError(phone.error);
+    const phone = normalizeCandidatePhone(details.phone);
+    const alternate = normalizeCandidatePhone(details.alternatePhone);
+    if (phone.error || alternate.error) {
+      setError(phone.error ?? alternate.error ?? "");
+      return;
+    }
+    if (alternate.value && alternate.value === phone.value) {
+      setError("The alternate mobile is the same as the primary one.");
       return;
     }
     const emailInput = details.email.trim();
@@ -296,12 +300,14 @@ export function CandidatePanel({
           ? Number(details.totalExperienceYears)
           : null,
         phone: phone.value,
+        alternatePhone: alternate.value,
         email,
         linkedin: linkedin.value,
       });
       setDetails((current) => ({
         ...current,
-        phone: current.phone.replace(/\D/g, ""),
+        phone: phone.value ?? "",
+        alternatePhone: alternate.value ?? "",
         email: email ?? "",
       }));
       setMessage("Candidate details saved.");
@@ -450,8 +456,8 @@ export function CandidatePanel({
       details.location !== c.location ||
       details.totalExperienceYears !==
         (c.total_experience_years != null ? String(c.total_experience_years) : "") ||
-      phoneCountry !== initialPhone.countryIso ||
-      details.phone !== initialPhone.nationalNumber ||
+      details.phone !== (c.phone ?? "") ||
+      details.alternatePhone !== (c.alternate_phone ?? "") ||
       details.email !== (c.email ?? "") ||
       details.linkedin !== existingLinkedin;
     const screeningChanged =
@@ -573,7 +579,8 @@ export function CandidatePanel({
                 <div><dt>Company</dt><dd>{details.currentCompany || "Not added"}</dd></div>
                 <div><dt>Location</dt><dd>{details.location || "Not added"}</dd></div>
                 <div><dt>Email</dt><dd>{details.email || "Not added"}</dd></div>
-                <div><dt>Phone</dt><dd>{details.phone ? `${getPhoneCountry(phoneCountry).dialCode} ${details.phone}` : "Not added"}</dd></div>
+                <div><dt>Mobile</dt><dd>{details.phone ? formatMobile(details.phone) : "Not added"}</dd></div>
+                <div><dt>Alternate</dt><dd>{details.alternatePhone ? formatMobile(details.alternatePhone) : "Not added"}</dd></div>
               </dl>
               {details.linkedin && normalizeIdentity("linkedin", details.linkedin) && (
                 <a className="candidate-overview-link" href={normalizeIdentity("linkedin", details.linkedin)?.value} target="_blank" rel="noreferrer">
@@ -863,49 +870,29 @@ export function CandidatePanel({
               }
             />
           </label>
-          <fieldset className="candidate-contact-field">
-            <legend>Phone <span className="optional">optional</span></legend>
-            <div className="phone-input-group">
-              <select
-                aria-label="Phone country code"
-                disabled={savingDetails}
-                value={phoneCountry}
-                onChange={(event) => setPhoneCountry(event.target.value)}
-              >
-                {phoneCountries.map((country) => (
-                  <option key={country.iso} value={country.iso}>
-                    {country.name} ({country.dialCode})
-                  </option>
-                ))}
-              </select>
-              <input
-                aria-label="National phone number"
-                aria-invalid={Boolean(
-                  details.phone &&
-                    normalizeCandidatePhone(phoneCountry, details.phone).error,
-                )}
-                autoComplete="tel-national"
-                disabled={savingDetails}
-                inputMode="numeric"
-                maxLength={getPhoneCountry(phoneCountry).maxDigits}
-                placeholder={getPhoneCountry(phoneCountry).example}
-                type="tel"
-                value={details.phone}
-                onChange={(event) =>
-                  setDetails({
-                    ...details,
-                    phone: event.target.value.replace(/\D/g, ""),
-                  })
-                }
-              />
-            </div>
-            <small className={details.phone && normalizeCandidatePhone(phoneCountry, details.phone).error ? "candidate-field-help field-error-text" : "candidate-field-help"}>
-              {details.phone
-                ? normalizeCandidatePhone(phoneCountry, details.phone).error ??
-                  `Will be saved as ${normalizeCandidatePhone(phoneCountry, details.phone).value}.`
-                : `Choose a country, then enter the number without ${getPhoneCountry(phoneCountry).dialCode}.`}
-            </small>
-          </fieldset>
+          {/* Ten digits each. The alternate is the number a candidate gives
+              when the first one does not answer, which used to end up in a
+              note or on top of the primary. */}
+          <div className="mobile-field-pair">
+            <MobileField
+              label="Mobile"
+              value={details.phone}
+              disabled={savingDetails}
+              onChange={(phone) => setDetails({ ...details, phone })}
+            />
+            <MobileField
+              label="Alternate mobile"
+              value={details.alternatePhone}
+              disabled={savingDetails}
+              duplicate={Boolean(
+                details.alternatePhone &&
+                  mobileDigits(details.alternatePhone) === mobileDigits(details.phone),
+              )}
+              onChange={(alternatePhone) =>
+                setDetails({ ...details, alternatePhone })
+              }
+            />
+          </div>
           <label>
             Email <span className="optional">optional</span>
             <input

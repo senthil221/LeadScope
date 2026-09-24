@@ -10,6 +10,7 @@ export type CandidateColumnId =
   | "source"
   | "rating"
   | "phone"
+  | "alternate_phone"
   | "email"
   | "location"
   | "current_company"
@@ -100,9 +101,20 @@ const specs: Spec[] = [
     label: "Mobile",
     kind: "text",
     editable: true,
-    width: "md",
-    placeholder: "+91…",
+    width: "sm",
+    placeholder: "98765 43210",
     stages: ["profile_shortlisted", ...detailStages],
+  },
+  // The second number a candidate gives for when the first does not answer.
+  // Only where somebody is actually being called, which is not triage.
+  {
+    id: "alternate_phone",
+    label: "Alternate",
+    kind: "text",
+    editable: true,
+    width: "sm",
+    placeholder: "98765 43210",
+    stages: detailStages,
   },
   { id: "email", label: "Email", kind: "text", editable: true, width: "lg", stages: detailStages },
   {

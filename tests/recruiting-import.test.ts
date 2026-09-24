@@ -71,13 +71,22 @@ describe("buildImportRow", () => {
     });
     expect(isRowError(result) && result.reason).toContain("valid email");
   });
-  it("requires an international country code for imported phone numbers", () => {
+  it("refuses a mobile number that is not ten digits", () => {
+    const result = buildImportRow({
+      name: "Arjun Mehta",
+      linkedin: "https://www.linkedin.com/in/arjun-mehta",
+      phone: "90000",
+    });
+    expect(isRowError(result) && result.reason).toContain("10 digit");
+  });
+  it("refuses an alternate that repeats the primary number", () => {
     const result = buildImportRow({
       name: "Arjun Mehta",
       linkedin: "https://www.linkedin.com/in/arjun-mehta",
       phone: "9000000000",
+      alternatePhone: "+91 90000 00000",
     });
-    expect(isRowError(result) && result.reason).toContain("country code");
+    expect(isRowError(result) && result.reason).toContain("same");
   });
   it("carries optional fields only when present, trimmed and bounded", () => {
     const result = buildImportRow({
@@ -101,14 +110,20 @@ describe("buildImportRow", () => {
     expect(isRowError(result)).toBe(false);
     if (!isRowError(result)) expect(result.fields.totalExperienceYears).toBeUndefined();
   });
-  it("persists a normalized phone number with the candidate details", () => {
+  it("stores both numbers as bare ten digits, whatever was pasted", () => {
     const result = buildImportRow({
       name: "Arjun Mehta",
       email: "arjun@example.com",
       phone: "+91 90000 00000",
+      alternatePhone: "098765-43210",
     });
     expect(isRowError(result)).toBe(false);
-    if (!isRowError(result)) expect(result.fields.phone).toBe("+919000000000");
+    if (!isRowError(result)) {
+      expect(result.fields.phone).toBe("9000000000");
+      expect(result.fields.alternatePhone).toBe("9876543210");
+      // The alternate is candidate data, never an identity to merge on.
+      expect(result.identities.filter((i) => i.kind === "phone")).toHaveLength(1);
+    }
   });
   it("keeps a per-row source provider from a CSV import", () => {
     const result = buildImportRow({

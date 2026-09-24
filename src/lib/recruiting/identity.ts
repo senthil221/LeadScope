@@ -1,6 +1,7 @@
 import { canonicalLinkedIn } from "../urls";
 import {
-  isE164Phone,
+  isMobileNumber,
+  mobileDigits,
   normalizeCandidateEmail,
 } from "./contact";
 
@@ -64,10 +65,10 @@ export function normalizeIdentity(
     return value ? { kind, value } : null;
   }
   if (kind === "phone") {
-    // Keep a leading +, drop separators. Not a merge key, so this only has to
-    // be stable enough to search on.
-    const digits = input.replace(/(?!^\+)[^0-9]/g, "");
-    return isE164Phone(digits) ? { kind, value: digits } : null;
+    // Ten bare digits, however the number was pasted. Not a merge key, so
+    // this only has to be stable enough to search on.
+    const digits = mobileDigits(input);
+    return isMobileNumber(digits) ? { kind, value: digits } : null;
   }
   return { kind: "external", value: input };
 }

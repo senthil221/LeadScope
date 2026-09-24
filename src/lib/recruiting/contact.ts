@@ -1,100 +1,50 @@
-export type PhoneCountry = {
-  iso: string;
-  name: string;
-  dialCode: `+${string}`;
-  minDigits: number;
-  maxDigits: number;
-  example: string;
-};
+// A mobile number is ten digits.
+//
+// This replaced a country picker with twenty-eight entries and a dial code on
+// every stored number. Every candidate in this database is in India, so the
+// picker asked a question with one answer and then made somebody answer it
+// anyway. Ten digits is not a worldwide rule — China is eleven, Singapore
+// eight, the UAE nine — so a number from outside India cannot be recorded
+// until this is revisited, which is a deliberate trade, not an oversight.
+//
+// Input is read generously and stored strictly: spaces, dashes and brackets
+// come off, and so does a +91, a 91 or a leading 0, because that is how
+// numbers arrive when they are pasted out of a CV or a spreadsheet. What
+// lands in the column is always the bare ten digits.
 
-// Common recruiting markets are listed explicitly so validation remains
-// deterministic in every browser and does not depend on a third-party API.
-export const phoneCountries: readonly PhoneCountry[] = [
-  { iso: "IN", name: "India", dialCode: "+91", minDigits: 10, maxDigits: 10, example: "98765 43210" },
-  { iso: "US", name: "United States", dialCode: "+1", minDigits: 10, maxDigits: 10, example: "415 555 0123" },
-  { iso: "CA", name: "Canada", dialCode: "+1", minDigits: 10, maxDigits: 10, example: "416 555 0123" },
-  { iso: "GB", name: "United Kingdom", dialCode: "+44", minDigits: 10, maxDigits: 10, example: "7400 123456" },
-  { iso: "AE", name: "United Arab Emirates", dialCode: "+971", minDigits: 9, maxDigits: 9, example: "50 123 4567" },
-  { iso: "SG", name: "Singapore", dialCode: "+65", minDigits: 8, maxDigits: 8, example: "8123 4567" },
-  { iso: "AU", name: "Australia", dialCode: "+61", minDigits: 9, maxDigits: 9, example: "412 345 678" },
-  { iso: "DE", name: "Germany", dialCode: "+49", minDigits: 7, maxDigits: 11, example: "1512 3456789" },
-  { iso: "FR", name: "France", dialCode: "+33", minDigits: 9, maxDigits: 9, example: "6 12 34 56 78" },
-  { iso: "NL", name: "Netherlands", dialCode: "+31", minDigits: 9, maxDigits: 9, example: "6 12345678" },
-  { iso: "IE", name: "Ireland", dialCode: "+353", minDigits: 9, maxDigits: 9, example: "85 123 4567" },
-  { iso: "NZ", name: "New Zealand", dialCode: "+64", minDigits: 8, maxDigits: 10, example: "21 123 4567" },
-  { iso: "ZA", name: "South Africa", dialCode: "+27", minDigits: 9, maxDigits: 9, example: "82 123 4567" },
-  { iso: "SA", name: "Saudi Arabia", dialCode: "+966", minDigits: 9, maxDigits: 9, example: "50 123 4567" },
-  { iso: "QA", name: "Qatar", dialCode: "+974", minDigits: 8, maxDigits: 8, example: "3312 3456" },
-  { iso: "MY", name: "Malaysia", dialCode: "+60", minDigits: 9, maxDigits: 10, example: "12 345 6789" },
-  { iso: "ID", name: "Indonesia", dialCode: "+62", minDigits: 9, maxDigits: 12, example: "812 3456 7890" },
-  { iso: "PH", name: "Philippines", dialCode: "+63", minDigits: 10, maxDigits: 10, example: "917 123 4567" },
-  { iso: "LK", name: "Sri Lanka", dialCode: "+94", minDigits: 9, maxDigits: 9, example: "77 123 4567" },
-  { iso: "BD", name: "Bangladesh", dialCode: "+880", minDigits: 10, maxDigits: 10, example: "1712 345678" },
-  { iso: "PK", name: "Pakistan", dialCode: "+92", minDigits: 10, maxDigits: 10, example: "300 1234567" },
-  { iso: "NP", name: "Nepal", dialCode: "+977", minDigits: 10, maxDigits: 10, example: "9812 345678" },
-  { iso: "CN", name: "China", dialCode: "+86", minDigits: 11, maxDigits: 11, example: "138 0013 8000" },
-  { iso: "JP", name: "Japan", dialCode: "+81", minDigits: 10, maxDigits: 10, example: "90 1234 5678" },
-  { iso: "KR", name: "South Korea", dialCode: "+82", minDigits: 9, maxDigits: 10, example: "10 1234 5678" },
-  { iso: "HK", name: "Hong Kong", dialCode: "+852", minDigits: 8, maxDigits: 8, example: "5123 4567" },
-  { iso: "BR", name: "Brazil", dialCode: "+55", minDigits: 10, maxDigits: 11, example: "11 91234 5678" },
-  { iso: "MX", name: "Mexico", dialCode: "+52", minDigits: 10, maxDigits: 10, example: "55 1234 5678" },
-];
+const MOBILE_DIGITS = 10;
 
-export const defaultPhoneCountry = "IN";
-
-export function getPhoneCountry(iso: string): PhoneCountry {
-  return phoneCountries.find((country) => country.iso === iso) ?? phoneCountries[0];
+export function isMobileNumber(value: string): boolean {
+  return new RegExp(`^\\d{${MOBILE_DIGITS}}$`).test(value);
 }
 
-export function parseStoredPhone(value: string | null | undefined): {
-  countryIso: string;
-  nationalNumber: string;
+/** Strips the punctuation and country prefixes a pasted number arrives with. */
+export function mobileDigits(input: string): string {
+  const digits = input.replace(/\D/g, "");
+  if (digits.length === MOBILE_DIGITS) return digits;
+  // 0 98765 43210, 91 98765 43210, +91 98765 43210 — all the same number.
+  if (digits.length === 11 && digits.startsWith("0")) return digits.slice(1);
+  if (digits.length === 12 && digits.startsWith("91")) return digits.slice(2);
+  return digits;
+}
+
+export function normalizeCandidatePhone(input: string): {
+  value: string | null;
+  error: string | null;
 } {
-  const input = value?.trim() ?? "";
-  if (!input.startsWith("+")) {
-    return {
-      countryIso: defaultPhoneCountry,
-      nationalNumber: input.replace(/\D/g, ""),
-    };
-  }
-  const digits = input.slice(1).replace(/\D/g, "");
-  const country = [...phoneCountries]
-    .sort((a, b) => b.dialCode.length - a.dialCode.length)
-    .find((option) => digits.startsWith(option.dialCode.slice(1)));
-  if (!country) {
-    return { countryIso: defaultPhoneCountry, nationalNumber: digits };
-  }
-  return {
-    countryIso: country.iso,
-    nationalNumber: digits.slice(country.dialCode.length - 1),
-  };
+  const trimmed = input.trim();
+  if (!trimmed) return { value: null, error: null };
+  if (/[A-Za-z]/.test(trimmed))
+    return { value: null, error: "Use digits only for the mobile number." };
+  const digits = mobileDigits(trimmed);
+  if (!isMobileNumber(digits))
+    return { value: null, error: "Enter a 10 digit mobile number." };
+  return { value: digits, error: null };
 }
 
-export function normalizeCandidatePhone(
-  countryIso: string,
-  nationalInput: string,
-): { value: string | null; error: string | null } {
-  const country = getPhoneCountry(countryIso);
-  const trimmed = nationalInput.trim();
-  if (!trimmed) return { value: null, error: null };
-  if (/[A-Za-z]/.test(trimmed)) {
-    return { value: null, error: "Use digits only for the phone number." };
-  }
-  const digits = trimmed.replace(/\D/g, "");
-  if (digits.length < country.minDigits || digits.length > country.maxDigits) {
-    const required = country.minDigits === country.maxDigits
-      ? `${country.minDigits} digits`
-      : `${country.minDigits}–${country.maxDigits} digits`;
-    return {
-      value: null,
-      error: `${country.name} numbers need ${required} after ${country.dialCode}.`,
-    };
-  }
-  const value = `${country.dialCode}${digits}`;
-  if (!/^\+[1-9]\d{7,14}$/.test(value)) {
-    return { value: null, error: "Enter a valid international phone number." };
-  }
-  return { value, error: null };
+/** What to show in a cell: grouped for reading, never for storing. */
+export function formatMobile(value: string): string {
+  return isMobileNumber(value) ? `${value.slice(0, 5)} ${value.slice(5)}` : value;
 }
 
 export function normalizeCandidateEmail(value: string): string | null {
@@ -102,8 +52,4 @@ export function normalizeCandidateEmail(value: string): string | null {
   if (!email) return null;
   if (email.length > 254) return null;
   return /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(email) ? email : null;
-}
-
-export function isE164Phone(value: string): boolean {
-  return /^\+[1-9]\d{7,14}$/.test(value);
 }

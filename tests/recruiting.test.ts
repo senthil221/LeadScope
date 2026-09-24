@@ -20,7 +20,7 @@ import {
 import {
   normalizeCandidateEmail,
   normalizeCandidatePhone,
-  parseStoredPhone,
+  formatMobile,
 } from "../src/lib/recruiting/contact";
 import {
   roleCandidateExportCells,
@@ -156,7 +156,7 @@ describe("candidate identity normalization", () => {
       "priya.nair@example.com",
     );
     expect(normalizeIdentity("phone", "+91 98765 43210")?.value).toBe(
-      "+919876543210",
+      "9876543210",
     );
   });
   it("dedupes repeats within one import and requires a mergeable identity", () => {
@@ -184,24 +184,36 @@ describe("candidate contact details", () => {
     expect(normalizeCandidateEmail("priya @example.com")).toBeNull();
   });
 
-  it("combines a selected country code with the required national digits", () => {
-    expect(normalizeCandidatePhone("IN", "98765 43210")).toEqual({
-      value: "+919876543210",
-      error: null,
-    });
-    expect(normalizeCandidatePhone("IN", "541354").error).toContain(
-      "10 digits",
-    );
-    expect(normalizeCandidatePhone("SG", "81234567").value).toBe(
-      "+6581234567",
-    );
+  // Ten digits, however they arrive: a CV paste brings +91, spaces, dashes
+  // and sometimes a leading 0 along with the number.
+  it("keeps ten digits and strips what a pasted number arrives with", () => {
+    for (const input of [
+      "9876543210",
+      "98765 43210",
+      "98765-43210",
+      "+91 98765 43210",
+      "+919876543210",
+      "91 9876543210",
+      "098765 43210",
+      "(98765) 43210",
+    ])
+      expect(normalizeCandidatePhone(input)).toEqual({
+        value: "9876543210",
+        error: null,
+      });
   });
 
-  it("splits a stored international number back into its form controls", () => {
-    expect(parseStoredPhone("+919876543210")).toEqual({
-      countryIso: "IN",
-      nationalNumber: "9876543210",
-    });
+  it("refuses anything that is not ten digits", () => {
+    expect(normalizeCandidatePhone("541354").error).toContain("10 digit");
+    expect(normalizeCandidatePhone("98765432101").error).toContain("10 digit");
+    expect(normalizeCandidatePhone("98765 4321o").error).toContain("digits only");
+    // Empty is not an error: the number is optional.
+    expect(normalizeCandidatePhone("  ")).toEqual({ value: null, error: null });
+  });
+
+  it("groups a number for reading without changing what is stored", () => {
+    expect(formatMobile("9876543210")).toBe("98765 43210");
+    expect(formatMobile("541354")).toBe("541354");
   });
 });
 

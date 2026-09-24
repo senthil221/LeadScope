@@ -28,7 +28,8 @@ describe("import template", () => {
       "LinkedIn URL",
       "Rating",
       "Email",
-      "Phone",
+      "Mobile",
+      "Alternate Mobile",
       "Company",
       "Designation",
       "Location",
@@ -108,9 +109,11 @@ describe("import template", () => {
             ? "4"
             : header === "Email"
               ? "test@example.com"
-              : header === "Phone"
-                ? "+919876543210"
-                : "value";
+              : header === "Mobile"
+                ? "9876543210"
+                : header === "Alternate Mobile"
+                  ? "9812345678"
+                  : "value";
     const csv = [headers.join(","), headers.map(value).join(",")].join("\r\n");
     const preview = csvImportPreview(csv, [], {}, { requireLinkedin: true });
     expect(preview.ignoredColumns).toEqual([]);

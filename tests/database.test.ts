@@ -1215,7 +1215,7 @@ describe("edit history, duplicate review and bulk editing", () => {
     const f = await twoRows("history-paging");
     await sql("update public.candidates set full_name='Same name' where id=any($1::uuid[])", [[f.candidateId,f.second]]);
     expect((await asUser(actor, () => rpc("duplicate_review_page", [f.cid,f.rid,"pending",null]))).rows).toHaveLength(0);
-    await sql("update public.candidates set current_company='Same Company',phone='+14155552671' where id=any($1::uuid[])", [[f.candidateId,f.second]]);
+    await sql("update public.candidates set current_company='Same Company',phone='4155552671' where id=any($1::uuid[])", [[f.candidateId,f.second]]);
     const matches = await asUser(actor, () => rpc("duplicate_review_page", [f.cid,f.rid,"pending",null]));
     expect(matches.rows[0].reasons).toEqual(["Same phone","Same name and company"]);
     for (let n=0;n<53;n++) await asUser(actor, () => rpc("save_candidate_field", [f.candidateId,"location",`Location ${n}`]));
@@ -1417,7 +1417,7 @@ describe("recruiting foundation: roles, master candidates and pipeline history",
       rpc("upsert_candidate", [
         "Enriched Person",
         identity,
-        JSON.stringify({ phone: "+919876543210", location: "Chennai" }),
+        JSON.stringify({ phone: "9876543210", location: "Chennai" }),
       ]),
     );
     await asUser(actor, () =>
@@ -1426,14 +1426,14 @@ describe("recruiting foundation: roles, master candidates and pipeline history",
     expect(
       (await sql("select phone,location from public.candidates where id=$1", [id]))
         .rows[0],
-    ).toEqual({ phone: "+919876543210", location: "Chennai" });
+    ).toEqual({ phone: "9876543210", location: "Chennai" });
   });
   it("requires a mergeable identity and stops an ambiguous merge", async () => {
     await expect(
       asUser(actor, () =>
         rpc("upsert_candidate", [
           "Nameless",
-          JSON.stringify([{ kind: "phone", value: "+919000000001" }]),
+          JSON.stringify([{ kind: "phone", value: "9000000001" }]),
           "{}",
         ]),
       ),
@@ -1725,6 +1725,66 @@ function linkedinRow(slug: string, overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+describe("import_candidates: two mobile numbers, ten digits each", () => {
+  const importRows = (cid: string, rid: string, rows: unknown[]) =>
+    asUser(actor, () =>
+      rpc("import_candidates", [cid, rid, JSON.stringify(rows), "csv", "all_profiles"]),
+    );
+  const contacts = async (rid: string) =>
+    (
+      await sql(
+        "select c.phone,c.alternate_phone from public.candidates c join public.role_candidates rc on rc.candidate_id=c.id where rc.role_id=$1",
+        [rid],
+      )
+    ).rows[0];
+
+  it("stores both numbers", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const summary = await importRows(cid, rid, [
+      linkedinRow("two-mobiles", {
+        fields: { phone: "9876543210", alternatePhone: "9812345678" },
+      }),
+    ]);
+    expect(summary).toMatchObject({ created: 1 });
+    expect(await contacts(rid)).toEqual({
+      phone: "9876543210",
+      alternate_phone: "9812345678",
+    });
+  });
+
+  it("fails a row whose number is not ten digits, or repeats itself", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    for (const fields of [
+      { phone: "+919876543210" },
+      { phone: "98765" },
+      { phone: "9876543210", alternatePhone: "98765432101" },
+      { phone: "9876543210", alternatePhone: "9876543210" },
+    ]) {
+      const summary = await importRows(cid, rid, [
+        linkedinRow(`bad-mobile-${JSON.stringify(fields).length}-${fields.alternatePhone ?? "x"}`, { fields }),
+      ]);
+      expect(summary).toMatchObject({ created: 0, invalid: 1 });
+    }
+  });
+
+  it("does not clear an alternate already on file with a blank one", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await importRows(cid, rid, [
+      linkedinRow("keep-alternate", {
+        fields: { phone: "9876543210", alternatePhone: "9812345678" },
+      }),
+    ]);
+    await importRows(cid, rid, [linkedinRow("keep-alternate")]);
+    expect(await contacts(rid)).toEqual({
+      phone: "9876543210",
+      alternate_phone: "9812345678",
+    });
+  });
+});
 
 describe("import_candidates: a rating in the file does what a typed one does", () => {
   const importRows = (cid: string, rid: string, rows: unknown[], stage = "all_profiles") =>
@@ -2026,7 +2086,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
           linkedinRow("valid-one"),
           { name: "", identities: [normalizeIdentity("linkedin", "https://www.linkedin.com/in/no-name")] },
           { name: "No identity" },
-          { name: "Phone only", identities: [{ kind: "phone", value: "+919000000002" }] },
+          { name: "Phone only", identities: [{ kind: "phone", value: "9000000002" }] },
           { name: "Bad kind", identities: [{ kind: "fax", value: "123" }] },
         ]),
         "csv",
@@ -2062,7 +2122,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
   it("never clears reusable contact data with a blank field on a bulk re-import", async () => {
     const cid = await client();
     const rid = await role(cid);
-    await person("bulk-enriched", { phone: "+919876500000" });
+    await person("bulk-enriched", { phone: "9876500000" });
     await asUser(actor, () =>
       rpc("import_candidates", [
         cid,
@@ -2079,7 +2139,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
           ["https://www.linkedin.com/in/bulk-enriched"],
         )
       ).rows[0].phone,
-    ).toBe("+919876500000");
+    ).toBe("9876500000");
   });
   it("creates nobody when importing into a later stage", async () => {
     const cid = await client();
@@ -2743,12 +2803,12 @@ describe("update_candidate_details: correcting the reusable master record", () =
     const id = await person("edit-denied");
     await expect(
       asUser(outsider, () =>
-        rpc("update_candidate_details", [id, "New Name", "", "", "", "", null, null, null]),
+        rpc("update_candidate_details", [id, "New Name", "", "", "", "", null, null, null, null]),
       ),
     ).rejects.toThrow("Agency access");
   });
   it("updates every editable field, including clearing phone and email", async () => {
-    const id = await person("edit-full", { phone: "+919876500000", email: "old@example.com" });
+    const id = await person("edit-full", { phone: "9876500000", email: "old@example.com" });
     await asUser(actor, () =>
       rpc("update_candidate_details", [
         id,
@@ -2758,6 +2818,7 @@ describe("update_candidate_details: correcting the reusable master record", () =
         "Principal engineer",
         "Bengaluru",
         9.5,
+        null,
         null,
         null,
       ]),
@@ -2794,26 +2855,30 @@ describe("update_candidate_details: correcting the reusable master record", () =
   it("rejects a blank name, an out-of-range experience, and an invalid email", async () => {
     const id = await person("edit-invalid");
     await expect(
-      asUser(actor, () => rpc("update_candidate_details", [id, "  ", "", "", "", "", null, null, null])),
+      asUser(actor, () => rpc("update_candidate_details", [id, "  ", "", "", "", "", null, null, null, null])),
     ).rejects.toThrow("Enter a candidate name");
     await expect(
       asUser(actor, () =>
-        rpc("update_candidate_details", [id, "Name", "", "", "", "", 71, null, null]),
+        rpc("update_candidate_details", [id, "Name", "", "", "", "", 71, null, null, null]),
       ),
     ).rejects.toThrow("between 0 and 70");
     await expect(
       asUser(actor, () =>
-        rpc("update_candidate_details", [id, "Name", "", "", "", "", null, null, "not-an-email"]),
+        rpc("update_candidate_details", [id, "Name", "", "", "", "", null, null, null, "not-an-email"]),
       ),
     ).rejects.toThrow("valid email");
     await expect(
       asUser(actor, () =>
-        rpc("update_candidate_details", [id, "Name", "", "", "", "", null, "541354", null]),
+        rpc("update_candidate_details", [id, "Name", "", "", "", "", null, "541354", null, null]),
       ),
-    ).rejects.toThrow("country code");
+    ).rejects.toThrow("10 digit");
     await expect(
       sql("update public.candidates set phone='not-a-phone' where id=$1", [id]),
-    ).rejects.toThrow("valid phone");
+    ).rejects.toThrow("10 digit mobile");
+    // The trigger also refuses a second number that repeats the first.
+    await expect(
+      sql("update public.candidates set phone='9876543210',alternate_phone='9876543210' where id=$1", [id]),
+    ).rejects.toThrow("same as the primary");
   });
   it("stores email in a consistent lowercase format", async () => {
     const id = await person("edit-email-normalized");
@@ -2826,13 +2891,14 @@ describe("update_candidate_details: correcting the reusable master record", () =
         "",
         "",
         null,
-        "+919876543210",
+        "9876543210",
+        null,
         "Recruiter@Example.COM",
       ]),
     );
     expect(
       (await sql("select phone,email from public.candidates where id=$1", [id])).rows[0],
-    ).toEqual({ phone: "+919876543210", email: "recruiter@example.com" });
+    ).toEqual({ phone: "9876543210", email: "recruiter@example.com" });
   });
   it("fails for a candidate that does not exist", async () => {
     await expect(
@@ -2844,6 +2910,7 @@ describe("update_candidate_details: correcting the reusable master record", () =
           "",
           "",
           "",
+          null,
           null,
           null,
           null,
@@ -3391,7 +3458,8 @@ describe.skip("legacy flexible share projection", () => {
         "Staff engineer",
         "Chennai",
         7,
-        "+919876500000",
+        "9876500000",
+        null,
         "priya@example.com",
       ]),
     );

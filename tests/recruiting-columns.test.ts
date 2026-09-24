@@ -52,6 +52,36 @@ describe("the Full name column", () => {
   });
 });
 
+describe("the two mobile columns", () => {
+  // The primary appears as soon as somebody is worth calling. The alternate
+  // is for when that call does not connect, which is not a triage concern.
+  it("shows Mobile from Profile shortlisted on, and Alternate only in detail", () => {
+    const ids = (stage: (typeof stages)[number]) =>
+      candidateColumns(stage, []).map((column) => column.id);
+    expect(ids("all_profiles")).not.toContain("phone");
+    expect(ids("profile_shortlisted")).toContain("phone");
+    expect(ids("profile_shortlisted")).not.toContain("alternate_phone");
+    for (const stage of ["recruiter_shortlisted", "client_shortlisted", "offer_sent"] as const) {
+      expect(ids(stage)).toContain("phone");
+      expect(ids(stage)).toContain("alternate_phone");
+    }
+  });
+
+  it("puts the alternate immediately after the number it backs up", () => {
+    const ids = candidateColumns("recruiter_shortlisted", []).map((c) => c.id);
+    expect(ids.indexOf("alternate_phone")).toBe(ids.indexOf("phone") + 1);
+  });
+
+  it("asks for ten digits, with no country code in the hint", () => {
+    const columns = candidateColumns("recruiter_shortlisted", []);
+    for (const id of ["phone", "alternate_phone"]) {
+      const column = columns.find((c) => c.id === id);
+      expect(column?.placeholder).toBe("98765 43210");
+      expect(column?.placeholder).not.toContain("+");
+    }
+  });
+});
+
 describe("the Status column", () => {
   // All profiles spans every stage now, so each row has to say where its
   // person actually sits. On a stage tab that would repeat the tab's own name.

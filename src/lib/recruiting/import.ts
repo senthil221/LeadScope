@@ -1,3 +1,4 @@
+import { mobileDigits } from "./contact";
 import {
   normalizeIdentity,
   dedupeIdentities,
@@ -14,6 +15,7 @@ export type DraftRow = {
   naukri?: string;
   email?: string;
   phone?: string;
+  alternatePhone?: string;
   currentCompany?: string;
   currentDesignation?: string;
   location?: string;
@@ -64,11 +66,14 @@ export function buildImportRow(
       row: draft,
       reason: "Enter a valid email address, such as name@company.com.",
     };
-  if (draft.phone?.trim() && !normalizeIdentity("phone", draft.phone))
-    return {
-      row: draft,
-      reason: "Enter the phone with its country code, such as +91 98765 43210.",
-    };
+  for (const number of [draft.phone, draft.alternatePhone])
+    if (number?.trim() && !normalizeIdentity("phone", number))
+      return { row: draft, reason: "Enter a 10 digit mobile number." };
+  if (
+    draft.alternatePhone?.trim() &&
+    mobileDigits(draft.alternatePhone) === mobileDigits(draft.phone ?? "")
+  )
+    return { row: draft, reason: "Both mobile numbers are the same." };
   const tryAdd = (kind: "linkedin" | "naukri" | "email" | "phone", raw?: string) => {
     if (!raw?.trim()) return;
     const identity = normalizeIdentity(kind, raw);
@@ -103,6 +108,10 @@ export function buildImportRow(
   const phone = deduped.find((identity) => identity.kind === "phone");
   if (email) fields.email = email.value;
   if (phone) fields.phone = phone.value;
+  // The alternate is candidate data but never an identity: it is not what a
+  // duplicate check should merge two people on.
+  if (draft.alternatePhone?.trim())
+    fields.alternatePhone = mobileDigits(draft.alternatePhone);
   if (draft.currentCompany?.trim())
     fields.currentCompany = draft.currentCompany.trim().slice(0, 200);
   if (draft.currentDesignation?.trim())
@@ -238,6 +247,13 @@ const csvColumnAliases: Record<string, keyof DraftRow> = {
   phone: "phone",
   "phone number": "phone",
   mobile: "phone",
+  "mobile number": "phone",
+  "primary mobile": "phone",
+  "alternate mobile": "alternatePhone",
+  "alternate phone": "alternatePhone",
+  "alternate number": "alternatePhone",
+  "alternative mobile": "alternatePhone",
+  "secondary mobile": "alternatePhone",
   company: "currentCompany",
   "current company": "currentCompany",
   designation: "currentDesignation",
@@ -270,7 +286,8 @@ export const csvTemplateColumns = [
   "LinkedIn URL",
   "Rating",
   "Email",
-  "Phone",
+  "Mobile",
+  "Alternate Mobile",
   "Company",
   "Designation",
   "Location",

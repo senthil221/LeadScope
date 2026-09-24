@@ -73,6 +73,7 @@ import { act as sharedAct } from "@/lib/client/act";
 import { ColumnResizeHandle, useTableLayout } from "./table-layout";
 import styles from "./role-workspace.module.css";
 import { DeletedCandidates } from "./deleted-candidates";
+import { formatMobile } from "@/lib/recruiting/contact";
 import { TableDialog } from "./table-dialog";
 import { BulkEditDialog } from "./bulk-edit-dialog";
 import { EditHistoryDialog } from "./edit-history";
@@ -918,8 +919,26 @@ export function RolePipeline({
         });
       case "reject_reason":
         return cell({ value: rc.rejection_reason, save: async () => {} });
+      // Grouped to read, stored bare. A cell opened for editing shows the ten
+      // digits, which is what a save sends and what the column holds.
       case "phone":
-        return candidateField("phone", rc.candidates.phone ?? "");
+        return cell({
+          value: rc.candidates.phone ?? "",
+          display: formatMobile,
+          save: (next) =>
+            act("candidateField", { id: rc.candidate_id, field: "phone", value: next }),
+        });
+      case "alternate_phone":
+        return cell({
+          value: rc.candidates.alternate_phone ?? "",
+          display: formatMobile,
+          save: (next) =>
+            act("candidateField", {
+              id: rc.candidate_id,
+              field: "alternate_phone",
+              value: next,
+            }),
+        });
       case "email":
         return candidateField("email", rc.candidates.email ?? "");
       case "location":

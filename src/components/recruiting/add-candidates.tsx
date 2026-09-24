@@ -19,12 +19,11 @@ import {
 } from "@/lib/recruiting/template";
 import { normalizeIdentity } from "@/lib/recruiting/identity";
 import {
-  defaultPhoneCountry,
-  getPhoneCountry,
+  mobileDigits,
   normalizeCandidateEmail,
   normalizeCandidatePhone,
-  phoneCountries,
 } from "@/lib/recruiting/contact";
+import { MobileField } from "./mobile-field";
 import {
   stageLabels,
   type CandidateSource,
@@ -85,7 +84,6 @@ export function AddCandidatesDialog({
   const [mode, setMode] = useState<Mode>("paste");
   const [pasteText, setPasteText] = useState("");
   const [manual, setManual] = useState<DraftRow>(emptyManual);
-  const [manualPhoneCountry, setManualPhoneCountry] = useState(defaultPhoneCountry);
   const [csvText, setCsvText] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -265,16 +263,23 @@ export function AddCandidatesDialog({
       setError("Enter a valid email address, such as name@company.com.");
       return;
     }
-    const phone = normalizeCandidatePhone(
-      manualPhoneCountry,
-      manual.phone ?? "",
-    );
-    if (phone.error) {
-      setError(phone.error);
+    const phone = normalizeCandidatePhone(manual.phone ?? "");
+    const alternate = normalizeCandidatePhone(manual.alternatePhone ?? "");
+    if (phone.error || alternate.error) {
+      setError(phone.error ?? alternate.error ?? "");
+      return;
+    }
+    if (alternate.value && alternate.value === phone.value) {
+      setError("The alternate mobile is the same as the primary one.");
       return;
     }
     const built = buildImportRow(
-      { ...manual, email: email ?? undefined, phone: phone.value ?? undefined },
+      {
+        ...manual,
+        email: email ?? undefined,
+        phone: phone.value ?? undefined,
+        alternatePhone: alternate.value ?? undefined,
+      },
       { requireLinkedin: true },
     );
     if (isRowError(built)) {
@@ -444,49 +449,27 @@ export function AddCandidatesDialog({
               </small>
             )}
           </label>
-          <fieldset className="candidate-contact-field">
-            <legend>Phone <span className="optional">optional</span></legend>
-            <div className="phone-input-group">
-              <select
-                aria-label="Phone country code"
-                disabled={busy}
-                value={manualPhoneCountry}
-                onChange={(event) => setManualPhoneCountry(event.target.value)}
-              >
-                {phoneCountries.map((country) => (
-                  <option key={country.iso} value={country.iso}>
-                    {country.name} ({country.dialCode})
-                  </option>
-                ))}
-              </select>
-              <input
-                aria-label="National phone number"
-                aria-invalid={Boolean(
-                  manual.phone &&
-                    normalizeCandidatePhone(manualPhoneCountry, manual.phone).error,
-                )}
-                autoComplete="tel-national"
-                disabled={busy}
-                inputMode="numeric"
-                maxLength={getPhoneCountry(manualPhoneCountry).maxDigits}
-                placeholder={getPhoneCountry(manualPhoneCountry).example}
-                type="tel"
-                value={manual.phone ?? ""}
-                onChange={(event) =>
-                  setManual({
-                    ...manual,
-                    phone: event.target.value.replace(/\D/g, ""),
-                  })
-                }
-              />
-            </div>
-            <small className={manual.phone && normalizeCandidatePhone(manualPhoneCountry, manual.phone).error ? "candidate-field-help field-error-text" : "candidate-field-help"}>
-              {manual.phone
-                ? normalizeCandidatePhone(manualPhoneCountry, manual.phone).error ??
-                  `Will be saved as ${normalizeCandidatePhone(manualPhoneCountry, manual.phone).value}.`
-                : `Choose a country, then enter the number without ${getPhoneCountry(manualPhoneCountry).dialCode}.`}
-            </small>
-          </fieldset>
+          {/* Ten digits each, no country to choose. The second number is where
+              an alternate used to end up in a note or on top of the first. */}
+          <div className="mobile-field-pair">
+            <MobileField
+              label="Mobile"
+              value={manual.phone ?? ""}
+              disabled={busy}
+              onChange={(phone) => setManual({ ...manual, phone })}
+            />
+            <MobileField
+              label="Alternate mobile"
+              value={manual.alternatePhone ?? ""}
+              disabled={busy}
+              duplicate={Boolean(
+                manual.alternatePhone &&
+                  mobileDigits(manual.alternatePhone) ===
+                    mobileDigits(manual.phone ?? ""),
+              )}
+              onChange={(alternatePhone) => setManual({ ...manual, alternatePhone })}
+            />
+          </div>
           <label>
             Current company <span className="optional">optional</span>
             <input

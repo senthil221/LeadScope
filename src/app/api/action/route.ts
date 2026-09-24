@@ -8,7 +8,8 @@ import { generateQueries, normalizeQuery, signature } from "@/lib/queries";
 import { canonicalLinkedIn } from "@/lib/urls";
 import { parseExcludedUrls } from "@/lib/exclusions";
 import {
-  isE164Phone,
+  isMobileNumber,
+  mobileDigits,
   normalizeCandidateEmail,
 } from "@/lib/recruiting/contact";
 import { processNext } from "@/lib/server/process";
@@ -197,13 +198,18 @@ export async function POST(request: Request) {
               );
             fields.email = normalized;
           }
-          const rawPhone = fields.phone;
-          if (
-            rawPhone != null &&
-            (typeof rawPhone !== "string" || !isE164Phone(rawPhone))
-          )
+          for (const key of ["phone", "alternatePhone"] as const) {
+            const raw = fields[key];
+            if (raw == null) continue;
+            if (typeof raw !== "string" || !isMobileNumber(mobileDigits(raw)))
+              throw new AppError(
+                `Candidate row ${index + 1} needs a 10 digit mobile number.`,
+              );
+            fields[key] = mobileDigits(raw);
+          }
+          if (fields.alternatePhone != null && fields.alternatePhone === fields.phone)
             throw new AppError(
-              `Candidate row ${index + 1} needs a phone country code and valid number.`,
+              `Candidate row ${index + 1} repeats the same mobile number twice.`,
             );
           // A rating can move a candidate into Profile shortlisted, so it is
           // checked here on the same scale the grid and the database use
@@ -221,10 +227,14 @@ export async function POST(request: Request) {
               `Candidate row ${index + 1} needs a rating from 0.0 to 5.0, to one decimal place.`,
             );
           const identities = row.identities.map((entry) => {
-            if (entry.kind === "phone" && !isE164Phone(entry.value))
-              throw new AppError(
-                `Candidate row ${index + 1} needs a phone country code and valid number.`,
-              );
+            if (entry.kind === "phone") {
+              const digits = mobileDigits(entry.value);
+              if (!isMobileNumber(digits))
+                throw new AppError(
+                  `Candidate row ${index + 1} needs a 10 digit mobile number.`,
+                );
+              return { ...entry, value: digits };
+            }
             if (entry.kind === "email") {
               const normalized = normalizeCandidateEmail(entry.value);
               if (!normalized)
@@ -492,14 +502,21 @@ export async function POST(request: Request) {
             currentDesignation: z.string().max(200).default(""),
             location: z.string().max(200).default(""),
             totalExperienceYears: z.number().min(0).max(70).nullable().default(null),
-            phone: z.string().max(16).nullable().default(null),
+            phone: z.string().max(24).nullable().default(null),
+            alternatePhone: z.string().max(24).nullable().default(null),
             email: z.string().max(254).nullable().default(null),
             linkedin: z.string().url().max(500),
           })
           .parse(payload);
-        if (p.phone && !isE164Phone(p.phone))
+        const phone = p.phone ? mobileDigits(p.phone) : null;
+        const alternatePhone = p.alternatePhone ? mobileDigits(p.alternatePhone) : null;
+        if (phone && !isMobileNumber(phone))
+          throw new AppError("Enter a 10 digit mobile number.");
+        if (alternatePhone && !isMobileNumber(alternatePhone))
+          throw new AppError("Enter a 10 digit alternate mobile number.");
+        if (alternatePhone && alternatePhone === phone)
           throw new AppError(
-            "Choose the phone country and enter a valid national number.",
+            "The alternate mobile is the same as the primary one.",
           );
         const normalizedEmail = p.email
           ? normalizeCandidateEmail(p.email)
@@ -517,7 +534,8 @@ export async function POST(request: Request) {
             p_current_designation: p.currentDesignation,
             p_location: p.location,
             p_total_experience_years: p.totalExperienceYears,
-            p_phone: p.phone,
+            p_phone: phone,
+            p_alternate_phone: alternatePhone,
             p_email: normalizedEmail,
           }),
         );
@@ -588,6 +606,7 @@ export async function POST(request: Request) {
               "highest_qualification",
               "total_experience_years",
               "phone",
+              "alternate_phone",
               "email",
             ]),
             value: z.string().max(400).nullable().default(null),
@@ -602,10 +621,11 @@ export async function POST(request: Request) {
             );
           value = normalized;
         }
-        if (p.field === "phone" && value && !isE164Phone(value))
-          throw new AppError(
-            "Choose the phone country and enter a valid national number.",
-          );
+        if ((p.field === "phone" || p.field === "alternate_phone") && value) {
+          value = mobileDigits(value);
+          if (!isMobileNumber(value))
+            throw new AppError("Enter a 10 digit mobile number.");
+        }
         checked(
           await db.rpc("save_candidate_field", {
             p_id: p.id,
