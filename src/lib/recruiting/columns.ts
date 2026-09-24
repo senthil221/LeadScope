@@ -106,7 +106,8 @@ const specs: Spec[] = [
     stages: ["profile_shortlisted", ...detailStages],
   },
   // The second number a candidate gives for when the first does not answer.
-  // Only where somebody is actually being called, which is not triage.
+  // It sits beside the primary wherever the primary is: calling starts at
+  // Profile shortlisted, and that is where the first number goes unanswered.
   {
     id: "alternate_phone",
     label: "Alternate",
@@ -114,7 +115,7 @@ const specs: Spec[] = [
     editable: true,
     width: "sm",
     placeholder: "98765 43210",
-    stages: detailStages,
+    stages: ["profile_shortlisted", ...detailStages],
   },
   { id: "email", label: "Email", kind: "text", editable: true, width: "lg", stages: detailStages },
   {
@@ -221,12 +222,20 @@ export function candidateColumns(
   columns.push(...(tabExtras[stage] ?? []).map(withoutStages));
   // With the name column gone from triage, the LinkedIn URL is what identifies
   // a row. It leads the table and takes the room the name gave up, so it reads
-  // as the identity column rather than truncating three columns in.
+  // as the identity column rather than truncating three columns in. The rating
+  // follows it: on these tabs the job is to look at a profile and score it, so
+  // the two columns that work belong together rather than with a date and a
+  // source between them.
   if (!stageShowsName(stage)) {
-    const index = columns.findIndex((column) => column.id === "linkedin");
-    if (index >= 0) {
-      const [linkedin] = columns.splice(index, 1);
-      columns.unshift({ ...linkedin, width: "lg" });
+    const lead: CandidateColumnId[] = ["linkedin", "rating"];
+    const widths: Partial<Record<CandidateColumnId, ColumnWidth>> = { linkedin: "lg" };
+    // Walked backwards, so each unshift lands in front of the one before it
+    // and the list comes out in the order written above.
+    for (const id of [...lead].reverse()) {
+      const index = columns.findIndex((column) => column.id === id);
+      if (index < 0) continue;
+      const [column] = columns.splice(index, 1);
+      columns.unshift({ ...column, width: widths[id] ?? column.width });
     }
   }
   return columns;

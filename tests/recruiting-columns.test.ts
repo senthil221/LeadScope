@@ -39,12 +39,16 @@ describe("the Full name column", () => {
   });
 
   // Where the name is hidden, LinkedIn is the identity: it leads the table and
-  // inherits the room the name gave up. Where the name is shown it stays put.
-  it("hands its place and its width to LinkedIn on the tabs where it is hidden", () => {
+  // inherits the room the name gave up, with the rating it earns beside it.
+  // Where the name is shown, both stay where the registry puts them.
+  it("leads the triage tabs with LinkedIn and then the rating", () => {
     for (const stage of ["all_profiles", "profile_shortlisted"] as const) {
-      const [first] = candidateColumns(stage, []);
-      expect(first.id).toBe("linkedin");
-      expect(first.width).toBe("lg");
+      const columns = candidateColumns(stage, []);
+      expect(columns.slice(0, 2).map((column) => column.id)).toEqual([
+        "linkedin",
+        "rating",
+      ]);
+      expect(columns[0].width).toBe("lg");
     }
     const detail = candidateColumns("recruiter_shortlisted", []);
     expect(detail[0].id).toBe("date_added");
@@ -53,23 +57,29 @@ describe("the Full name column", () => {
 });
 
 describe("the two mobile columns", () => {
-  // The primary appears as soon as somebody is worth calling. The alternate
-  // is for when that call does not connect, which is not a triage concern.
-  it("shows Mobile from Profile shortlisted on, and Alternate only in detail", () => {
+  // Both numbers appear as soon as somebody is worth calling, which is
+  // Profile shortlisted. All profiles is still a list of URLs to look at.
+  it("shows both numbers from Profile shortlisted onwards, and neither before", () => {
     const ids = (stage: (typeof stages)[number]) =>
       candidateColumns(stage, []).map((column) => column.id);
     expect(ids("all_profiles")).not.toContain("phone");
-    expect(ids("profile_shortlisted")).toContain("phone");
-    expect(ids("profile_shortlisted")).not.toContain("alternate_phone");
-    for (const stage of ["recruiter_shortlisted", "client_shortlisted", "offer_sent"] as const) {
+    expect(ids("all_profiles")).not.toContain("alternate_phone");
+    for (const stage of [
+      "profile_shortlisted",
+      "recruiter_shortlisted",
+      "client_shortlisted",
+      "offer_sent",
+    ] as const) {
       expect(ids(stage)).toContain("phone");
       expect(ids(stage)).toContain("alternate_phone");
     }
   });
 
   it("puts the alternate immediately after the number it backs up", () => {
-    const ids = candidateColumns("recruiter_shortlisted", []).map((c) => c.id);
-    expect(ids.indexOf("alternate_phone")).toBe(ids.indexOf("phone") + 1);
+    for (const stage of ["profile_shortlisted", "recruiter_shortlisted"] as const) {
+      const ids = candidateColumns(stage, []).map((c) => c.id);
+      expect(ids.indexOf("alternate_phone")).toBe(ids.indexOf("phone") + 1);
+    }
   });
 
   it("asks for ten digits, with no country code in the hint", () => {
