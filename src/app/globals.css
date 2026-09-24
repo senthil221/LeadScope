@@ -1086,46 +1086,181 @@ label small {
   width: 232px;
   height: auto;
 }
-.shell-switcher {
+/* The client switcher. The trigger keeps the shape the old <select> had; the
+   list below it is drawn by the app, because a native one is drawn by the
+   operating system and ignores everything here. */
+.client-switcher {
+  position: relative;
+}
+.client-switcher-trigger {
   display: flex;
-  flex-direction: row;
   align-items: center;
   gap: 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-md);
-  margin: 0;
+  width: 100%;
   padding: 0 8px 0 10px;
   min-height: 34px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
   background: #fafbfa;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: left;
   cursor: pointer;
+  box-shadow: none;
   transition:
     border-color var(--t-base) var(--t-ease),
     background var(--t-base) var(--t-ease);
 }
-.shell-switcher:hover {
+.client-switcher-trigger:hover {
   border-color: #c5d2e5;
   background: #f1f5fb;
 }
-.shell-switcher select {
-  appearance: none;
-  padding: 0;
-  border: 0;
-  min-height: 0;
-  background: transparent;
-  font-size: 13px;
-  font-weight: 600;
-  width: 100%;
-  box-shadow: none;
-  cursor: pointer;
+.client-switcher-trigger[aria-expanded="true"] {
+  border-color: var(--brand);
+  background: var(--surface);
 }
-.shell-switcher > svg:first-child {
-  flex-shrink: 0;
+.client-switcher-trigger > svg:first-child {
+  flex: 0 0 auto;
   color: var(--muted);
 }
-.shell-switcher > svg:last-child {
-  flex-shrink: 0;
-  color: var(--faint);
+.client-switcher-trigger > svg:last-child {
+  flex: 0 0 auto;
   margin-left: auto;
+  color: var(--faint);
+  transition: transform var(--t-base) var(--t-ease);
+}
+.client-switcher-trigger[aria-expanded="true"] > svg:last-child {
+  transform: rotate(180deg);
+}
+.client-switcher-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.client-switcher-popover {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.06),
+    0 12px 28px -8px rgb(15 23 42 / 0.22);
+}
+.client-switcher-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+  color: var(--faint);
+}
+.client-switcher-search input {
+  border: 0;
+  padding: 0;
+  min-height: 32px;
+  background: transparent;
+  font-size: 13px;
+  box-shadow: none;
+}
+/* The popover is already a bounded surface; a focus ring drawn inside it
+   frames a box within a box. The caret says where you are typing. */
+.client-switcher-search input:focus,
+.client-switcher-search input:focus-visible {
+  border: 0;
+  outline: none;
+  box-shadow: none;
+}
+.client-switcher-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 264px;
+  margin: 0;
+  /* Room for the scrollbar, so a long name or an Archived tag is not sitting
+     underneath it on the rows where the list overflows. */
+  padding: 0 2px 0 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  list-style: none;
+  outline: none;
+}
+.client-switcher-option {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+/* The pointer and the arrow keys drive the same highlight, so there is never
+   a second one following the mouse around. */
+.client-switcher-option[data-active="true"] {
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+}
+.client-switcher-option[aria-selected="true"] {
+  font-weight: 650;
+}
+.client-switcher-option > svg {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--brand);
+}
+/* All clients is not one of them; a rule says so without a heading. */
+.client-switcher-option.is-all {
+  border-bottom: 1px solid var(--line);
+  border-radius: 6px 6px 0 0;
+  margin-bottom: 3px;
+  padding-bottom: 2px;
+  min-height: 32px;
+  color: var(--ink-soft);
+}
+.client-switcher-option-name {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.client-switcher-option-name > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.client-switcher-option-name em {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.client-switcher-empty {
+  padding: 8px;
+  color: var(--muted);
+  font-size: 12px;
 }
 .shell-nav {
   display: flex;
@@ -3340,7 +3475,7 @@ details h3 {
     padding-bottom: 10px;
     margin-bottom: 6px;
   }
-  .shell-switcher {
+  .client-switcher {
     max-width: 320px;
   }
   .shell-nav {
@@ -3461,11 +3596,11 @@ details h3 {
   .shell-brand { padding: 4px 2px; }
   .shell-name { font-size: 13px; }
   .beta { display: none; }
-  .shell-switcher {
+  .client-switcher-trigger {
     min-height: 32px;
     padding-left: 8px;
+    font-size: 12px;
   }
-  .shell-switcher select { font-size: 12px; }
   .shell-nav {
     padding: 0 0 4px;
     gap: 2px;
@@ -3675,8 +3810,8 @@ body { background: var(--bg); letter-spacing: -0.005em; }
 .shell-brand { padding: 7px 8px; }
 .shell-mark { width: 26px; height: 26px; border-radius: 7px; background: #0f172a; }
 .shell-name { font-size: 15px; font-weight: 700; }
-.shell-switcher { min-height: 38px; border-color: var(--line); background: #f8fafc; }
-.shell-switcher:hover { border-color: var(--brand-line); background: var(--brand-soft); }
+.client-switcher-trigger { min-height: 38px; border-color: var(--line); background: #f8fafc; }
+.client-switcher-trigger:hover { border-color: var(--brand-line); background: var(--brand-soft); }
 .shell-nav { gap: 18px; padding: 6px 2px; }
 .shell-label { padding: 0 8px 7px; color: #94a3b8; font-size: 10px; letter-spacing: .1em; }
 .shell-link { min-height: 38px; border-radius: 7px; color: #475569; font-weight: 550; }
@@ -4530,7 +4665,7 @@ input[aria-invalid="true"] { border-color: var(--danger); }
     padding: 0;
   }
   .shell-brand { padding: 4px 2px; }
-  .shell-switcher { width: 100%; max-width: 320px; justify-self: end; }
+  .client-switcher { width: 100%; max-width: 320px; justify-self: end; }
   .shell-nav { min-width: 0; padding: 0; }
   .shell-label { display: none; }
   .shell-footer { margin: 0; padding: 0; }

@@ -1,25 +1,16 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
-import {
-  Briefcase,
-  ChevronDown,
-  FolderOpen,
-  LogOut,
-  Settings,
-  ShieldCheck,
-  Users,
-} from "lucide-react";
+import { Briefcase, LogOut, Settings, ShieldCheck, Users } from "lucide-react";
 import type { PageData } from "@/lib/types";
 import logo from "@/assets/brand/leadvance-recruiting.png";
+import { ClientSwitcher } from "./ClientSwitcher";
 
 function itemClass(view: string, views: string[]) {
   return `shell-link${views.includes(view) ? " active" : ""}`;
 }
 
 export function Sidebar({ data }: { data: PageData }) {
-  const router = useRouter();
   const client = data.client ?? null;
   const navigationClients = data.navigationClients ?? data.clients;
   const view = data.view;
@@ -37,27 +28,7 @@ export function Sidebar({ data }: { data: PageData }) {
             unoptimized
           />
         </Link>
-        <label className="shell-switcher">
-          <FolderOpen size={16} aria-hidden="true" />
-          <select
-            aria-label="Switch client"
-            value={client?.id ?? ""}
-            onChange={(e) =>
-              router.push(
-                e.target.value ? `/clients/${e.target.value}` : "/clients",
-              )
-            }
-          >
-            <option value="">All clients</option>
-            {navigationClients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-                {c.archived ? " (archived)" : ""}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={14} aria-hidden="true" />
-        </label>
+        <ClientSwitcher clients={navigationClients} currentId={client?.id ?? null} />
       </div>
       <nav className="shell-nav" aria-label="Primary">
         <div className="shell-group">
