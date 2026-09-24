@@ -28,6 +28,42 @@ describe("stage table defaults", () => {
   });
 });
 
+// The rule that replaced dealing columns out per stage. Hiding one is a click
+// in the Columns menu and is remembered per tab; not offering it at all was
+// the tool deciding for the people using it.
+describe("every column, on every stage", () => {
+  it("offers the same set whichever tab you are on", () => {
+    const sorted = (stage: (typeof stages)[number]) =>
+      candidateColumns(stage, [])
+        .map((column) => column.id)
+        .sort();
+    const first = sorted(stages[0]);
+    expect(first.length).toBeGreaterThan(15);
+    for (const stage of stages) expect(sorted(stage)).toEqual(first);
+  });
+
+  it("includes the outcome columns, which All profiles spans as well", () => {
+    for (const stage of stages) {
+      const ids = candidateColumns(stage, []).map((column) => column.id);
+      for (const id of ["reject_type", "reject_reason", "offer_details", "outcome"])
+        expect(ids).toContain(id);
+    }
+  });
+
+  it("offers a role's own custom columns everywhere too", () => {
+    const field = {
+      key: "visa",
+      label: "Visa status",
+      kind: "text" as const,
+      options: [],
+    };
+    for (const stage of stages)
+      expect(
+        candidateColumns(stage, [field as never]).map((column) => column.id),
+      ).toContain("custom:visa");
+  });
+});
+
 describe("the Full name column", () => {
   // Only the LinkedIn URL is asked for on the way in, so on triage the name is
   // a guess derived from that URL or blank. The URL is the identity there.
@@ -57,26 +93,17 @@ describe("the Full name column", () => {
 });
 
 describe("the two mobile columns", () => {
-  // Both numbers appear as soon as somebody is worth calling, which is
-  // Profile shortlisted. All profiles is still a list of URLs to look at.
-  it("shows both numbers from Profile shortlisted onwards, and neither before", () => {
-    const ids = (stage: (typeof stages)[number]) =>
-      candidateColumns(stage, []).map((column) => column.id);
-    expect(ids("all_profiles")).not.toContain("phone");
-    expect(ids("all_profiles")).not.toContain("alternate_phone");
-    for (const stage of [
-      "profile_shortlisted",
-      "recruiter_shortlisted",
-      "client_shortlisted",
-      "offer_sent",
-    ] as const) {
-      expect(ids(stage)).toContain("phone");
-      expect(ids(stage)).toContain("alternate_phone");
+  // Nothing is dealt out per stage any more: every column is offered
+  // everywhere and hiding one is the reader's choice, remembered per tab.
+  it("offers both numbers on every stage", () => {
+    for (const stage of stages) {
+      const ids = candidateColumns(stage, []).map((column) => column.id);
+      expect(ids).toContain("phone");
+      expect(ids).toContain("alternate_phone");
     }
   });
-
   it("puts the alternate immediately after the number it backs up", () => {
-    for (const stage of ["profile_shortlisted", "recruiter_shortlisted"] as const) {
+    for (const stage of stages) {
       const ids = candidateColumns(stage, []).map((c) => c.id);
       expect(ids.indexOf("alternate_phone")).toBe(ids.indexOf("phone") + 1);
     }
@@ -93,14 +120,14 @@ describe("the two mobile columns", () => {
 });
 
 describe("the Status column", () => {
-  // All profiles spans every stage now, so each row has to say where its
-  // person actually sits. On a stage tab that would repeat the tab's own name.
-  it("appears on All profiles and nowhere else", () => {
-    const has = (stage: (typeof stages)[number]) =>
-      candidateColumns(stage, []).some((column) => column.id === "status");
-    expect(has("all_profiles")).toBe(true);
-    for (const stage of stages.filter((s) => s !== "all_profiles"))
-      expect(has(stage)).toBe(false);
+  // All profiles spans every stage, so there this is the only way to tell
+  // where somebody sits. On a stage tab it repeats the tab's own name, which
+  // is a fair reason to hide it and the reader's call to make.
+  it("appears on every stage, like every other column", () => {
+    for (const stage of stages)
+      expect(
+        candidateColumns(stage, []).some((column) => column.id === "status"),
+      ).toBe(true);
   });
 
   it("is read-only, because a stage is moved through, not typed", () => {

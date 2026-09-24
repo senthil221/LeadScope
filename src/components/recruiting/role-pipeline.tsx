@@ -872,6 +872,11 @@ export function RolePipeline({
       case "outcome":
         return cell({
           options: Object.values(outcomes),
+          // The column is shown everywhere, like every other one. The dropdown
+          // is only live where recording an outcome can actually succeed:
+          // record_outcome requires Offer sent, so anywhere else this would be
+          // a control that fails every time it is used.
+          readOnly: locked || rc.stage !== "offer_sent",
           value: rc.outcome ? outcomes[rc.outcome as keyof typeof outcomes] : "",
           save: async (next) => {
             const outcome = (Object.keys(outcomes) as (keyof typeof outcomes)[]).find(
