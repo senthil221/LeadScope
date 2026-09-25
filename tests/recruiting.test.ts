@@ -33,6 +33,7 @@ import {
 import {
   hasRoleCandidateListFilters,
   roleCandidateListFilters,
+  roleCandidateListQuery,
 } from "../src/lib/server/recruiting";
 import type { RoleCandidate, RoleField } from "../src/lib/types";
 
@@ -316,6 +317,58 @@ describe("candidate exports", () => {
       1200000,
       "30 days",
     ]);
+  });
+});
+
+// A stand-in for the query builder: every call returns itself and records
+// what it was asked for, which is all this needs to check.
+function recordingClient() {
+  const calls: { method: string; args: unknown[] }[] = [];
+  const builder: Record<string, unknown> = {};
+  for (const method of ["from", "select", "eq", "gte", "lt", "is", "or", "order", "range"])
+    builder[method] = (...args: unknown[]) => { calls.push({ method, args }); return builder; };
+  return { db: builder as never, calls };
+}
+const listed = (raw: Record<string, string | undefined>) => {
+  const { db, calls } = recordingClient();
+  roleCandidateListQuery(db, "role", "all_profiles", 4, roleCandidateListFilters(raw));
+  return calls;
+};
+
+describe("the order a stage list comes back in", () => {
+  // The default view listed the oldest profile first while saying "Newest
+  // first", which put anyone who had just been rated on the last page.
+  it("puts the newest first by default, and the oldest first when asked", () => {
+    expect(listed({})).toContainEqual({
+      method: "order", args: ["created_at", { ascending: false }],
+    });
+    expect(listed({ sort: "oldest" })).toContainEqual({
+      method: "order", args: ["created_at", { ascending: true }],
+    });
+  });
+  it("orders by when somebody joined the role, not when they last moved stage", () => {
+    const ordered = listed({}).filter((call) => call.method === "order");
+    expect(ordered.map((call) => call.args[0])).toEqual(["created_at", "id"]);
+    expect(JSON.stringify(listed({}))).not.toContain("stage_entered_at");
+  });
+  it("reads the Added window against the same date the column shows", () => {
+    const calls = listed({ entered_from: "2026-09-01", entered_to: "2026-09-30" });
+    expect(calls).toContainEqual({
+      method: "gte", args: ["created_at", "2026-09-01T00:00:00.000Z"],
+    });
+    expect(calls.find((call) => call.method === "lt")?.args[0]).toBe("created_at");
+  });
+  it("still sorts by rating when a recruiter asks for that", () => {
+    expect(listed({ sort: "rating_high" })).toContainEqual({
+      method: "order", args: ["rating", { ascending: false, nullsFirst: false }],
+    });
+  });
+  // All profiles is the whole role; every other tab is one stage of it.
+  it("filters to a stage everywhere except All profiles", () => {
+    const { db, calls } = recordingClient();
+    roleCandidateListQuery(db, "role", "profile_shortlisted", 4, roleCandidateListFilters({}));
+    expect(calls).toContainEqual({ method: "eq", args: ["stage", "profile_shortlisted"] });
+    expect(listed({}).filter((call) => call.args[0] === "stage")).toEqual([]);
   });
 });
 

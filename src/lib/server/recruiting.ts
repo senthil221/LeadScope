@@ -103,10 +103,13 @@ export function roleCandidateListQuery(
   if (filters.source) query = query.eq("source", filters.source);
   if (filters.sourceDetail)
     query = query.ilike("source_detail", `%${filters.sourceDetail}%`);
+  // When the profile was added to this role, not when it last changed stage:
+  // the filter is labelled Added, and a rating must not move somebody out of
+  // the window they arrived in.
   if (filters.enteredFrom)
-    query = query.gte("stage_entered_at", `${filters.enteredFrom}T00:00:00.000Z`);
+    query = query.gte("created_at", `${filters.enteredFrom}T00:00:00.000Z`);
   if (filters.enteredTo)
-    query = query.lt("stage_entered_at", startOfNextDay(filters.enteredTo));
+    query = query.lt("created_at", startOfNextDay(filters.enteredTo));
   if (filters.rating === "unrated") query = query.is("rating", null);
   else if (filters.rating === "meets_floor")
     query = query.gte("rating", ratingThreshold);
@@ -126,9 +129,11 @@ export function roleCandidateListQuery(
     query = query.order("rating", { ascending: false, nullsFirst: false });
   else if (filters.sort === "rating_low")
     query = query.order("rating", { ascending: true, nullsFirst: false });
+  // Newest first means newest first. This read "ascending: not oldest", which
+  // is backwards, so the default view listed the oldest profile at the top and
+  // put anything that had just moved on the last page - which is where a
+  // freshly rated candidate went to be lost.
   else
-    query = query.order("stage_entered_at", {
-      ascending: filters.sort !== "oldest",
-    });
+    query = query.order("created_at", { ascending: filters.sort === "oldest" });
   return query.order("id");
 }

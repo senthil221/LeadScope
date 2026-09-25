@@ -789,7 +789,10 @@ export function RolePipeline({
     switch (column.id) {
       case "date_added":
         return cell({
-          value: rc.stage_entered_at,
+          // When they joined the role. Showing the stage timestamp here meant
+          // rating somebody re-dated them to today, as though they had just
+          // arrived.
+          value: rc.created_at,
           display: (value) => date(value),
           save: async () => {},
         });
