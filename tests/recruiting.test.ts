@@ -358,6 +358,14 @@ describe("the order a stage list comes back in", () => {
     });
     expect(calls.find((call) => call.method === "lt")?.args[0]).toBe("created_at");
   });
+  it("sorts by what changed last when asked, newest change first", () => {
+    expect(listed({ sort: "updated" })).toContainEqual({
+      method: "order", args: ["updated_at", { ascending: false }],
+    });
+    expect(roleCandidateListFilters({ sort: "updated" }).sort).toBe("updated");
+    // An unknown sort is not an error, it is the default.
+    expect(roleCandidateListFilters({ sort: "sideways" }).sort).toBe("newest");
+  });
   it("still sorts by rating when a recruiter asks for that", () => {
     expect(listed({ sort: "rating_high" })).toContainEqual({
       method: "order", args: ["rating", { ascending: false, nullsFirst: false }],

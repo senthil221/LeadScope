@@ -1477,6 +1477,7 @@ export function RolePipeline({
                   >
                     <option value="newest">Newest first</option>
                     <option value="oldest">Oldest first</option>
+                    <option value="updated">Last modified</option>
                     <option value="rating_high">Highest rating</option>
                     <option value="rating_low">Lowest rating</option>
                   </select>

@@ -15,7 +15,7 @@ export type RoleCandidateListFilters = {
   rating?: RatingFilter;
   enteredFrom?: string;
   enteredTo?: string;
-  sort: "newest" | "oldest" | "rating_high" | "rating_low";
+  sort: "newest" | "oldest" | "updated" | "rating_high" | "rating_low";
 };
 
 function validDate(value: string | undefined) {
@@ -48,7 +48,7 @@ export function roleCandidateListFilters(
   const rating = isRatingFilter(raw.rating) ? raw.rating : undefined;
   const enteredFrom = validDate(raw.entered_from);
   const enteredTo = validDate(raw.entered_to);
-  const sort = ["oldest", "rating_high", "rating_low"].includes(raw.sort ?? "")
+  const sort = ["oldest", "updated", "rating_high", "rating_low"].includes(raw.sort ?? "")
     ? (raw.sort as RoleCandidateListFilters["sort"])
     : "newest";
   return {
@@ -125,7 +125,11 @@ export function roleCandidateListQuery(
       ].join(","),
       { referencedTable: "candidates" },
     );
-  if (filters.sort === "rating_high")
+  // What changed most recently, on this role: a stage move, a rating, a note,
+  // a custom column, or an edit to the profile itself.
+  if (filters.sort === "updated")
+    query = query.order("updated_at", { ascending: false });
+  else if (filters.sort === "rating_high")
     query = query.order("rating", { ascending: false, nullsFirst: false });
   else if (filters.sort === "rating_low")
     query = query.order("rating", { ascending: true, nullsFirst: false });
