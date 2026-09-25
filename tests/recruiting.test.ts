@@ -8,6 +8,9 @@ import {
   nextStage,
   isPipelineStage,
   candidateSources,
+  candidateSourceLabel,
+  candidateSourceFromCell,
+  sourceSkipsRating,
   isRatingFilter,
   ratingFilters,
 } from "../src/lib/recruiting/stages";
@@ -38,9 +41,12 @@ const migration = readFileSync(
   "utf8",
 );
 const latestSourceMigration = readFileSync(
-  resolve("supabase/migrations/20260916093000_recruiting_master_database_reuse.sql"),
+  resolve("supabase/migrations/20260925120000_six_sources.sql"),
   "utf8",
 );
+// Still valid in the column so old rows keep opening, deliberately absent
+// from the list anybody is offered.
+const retiredSources = ["manual", "url_paste", "sourcing_import"];
 const offerMigration = readFileSync(
   resolve("supabase/migrations/20260916044004_offer_closing_workspace.sql"),
   "utf8",
@@ -108,7 +114,34 @@ describe("recruiting stages match the database constraint", () => {
     expect(checkList("stage").sort()).toEqual([...stages].sort());
   });
   it("declares exactly the sources the role_candidates CHECK allows", () => {
-    expect(checkList("source", latestSourceMigration).sort()).toEqual([...candidateSources].sort());
+    expect(checkList("source", latestSourceMigration).sort()).toEqual(
+      [...candidateSources, ...retiredSources].sort(),
+    );
+  });
+  it("offers the six the agency works with, and no mechanism among them", () => {
+    expect([...candidateSources]).toEqual([
+      "linkedin", "naukri", "google", "csv", "master_db", "other",
+    ]);
+    for (const retired of retiredSources)
+      expect(candidateSources).not.toContain(retired);
+    // A retired value still reads as something in the table it survives in.
+    expect(candidateSourceLabel("url_paste")).toBe("Pasted profile URLs");
+    expect(candidateSourceLabel("linkedin")).toBe("LinkedIn Recruiter");
+    expect(candidateSourceLabel("nonsense")).toBe("Other Source");
+  });
+  it("reads a Source cell the way a sheet writes one", () => {
+    for (const [cell, source] of [
+      ["LinkedIn Recruiter", "linkedin"], ["linkedin", "linkedin"],
+      ["Naukri", "naukri"], ["Naukri / Resdex", "naukri"],
+      ["google search", "google"], ["Master Database", "master_db"],
+      ["CSV Import", "csv"], ["Other Source", "other"],
+    ] as const)
+      expect(candidateSourceFromCell(cell)).toBe(source);
+    for (const cell of ["Upwork", "", "Referral"])
+      expect(candidateSourceFromCell(cell)).toBeNull();
+  });
+  it("sends only Naukri past the rating queue", () => {
+    expect(candidateSources.filter(sourceSkipsRating)).toEqual(["naukri"]);
   });
   it("keeps rejected out of the pipeline and labels every stage", () => {
     expect(pipelineStages).not.toContain("rejected");

@@ -23,27 +23,67 @@ export const rejectionTypes = {
   client: "Client reject",
 } as const;
 export type RejectionType = keyof typeof rejectionTypes;
+// Where a profile came from — the six the agency actually works with. The
+// list used to mix these with the mechanism a row arrived by (typed, pasted,
+// a CSV), which is not the same question and answered a less useful one.
 export const candidateSources = [
   "linkedin",
   "naukri",
-  "manual",
-  "url_paste",
+  "google",
   "csv",
-  "sourcing_import",
   "master_db",
   "other",
 ] as const;
 export type CandidateSource = (typeof candidateSources)[number];
 export const candidateSourceLabels: Record<CandidateSource, string> = {
-  linkedin: "LinkedIn",
+  linkedin: "LinkedIn Recruiter",
   naukri: "Naukri",
+  google: "Google Search",
+  csv: "CSV Import",
+  master_db: "Master Database",
+  other: "Other Source",
+};
+// Most profiles come from LinkedIn Recruiter, so that is what a row gets
+// unless somebody says otherwise.
+export const defaultCandidateSource: CandidateSource = "linkedin";
+// Not offered any more. Kept so a row recorded before the list settled still
+// reads as something rather than as its database value.
+const retiredSourceLabels: Record<string, string> = {
   manual: "Manual entry",
   url_paste: "Pasted profile URLs",
-  csv: "CSV import",
   sourcing_import: "Sourcing workspace",
-  master_db: "Master database",
-  other: "Other source",
 };
+// What a Source cell in an uploaded file means. The label as we write it, the
+// stored value, and the short spellings a sheet actually carries. Anything
+// else is not a source we know, and the batch setting stands instead.
+const sourceCellAliases: Record<string, CandidateSource> = {
+  linkedin: "linkedin",
+  "linked in": "linkedin",
+  "linkedin recruiter": "linkedin",
+  recruiter: "linkedin",
+  naukri: "naukri",
+  resdex: "naukri",
+  "naukri resdex": "naukri",
+  google: "google",
+  "google search": "google",
+  csv: "csv",
+  "csv import": "csv",
+  sheet: "csv",
+  "master database": "master_db",
+  "master db": "master_db",
+  master_db: "master_db",
+  other: "other",
+  "other source": "other",
+};
+export function candidateSourceFromCell(value: string): CandidateSource | null {
+  const key = value.trim().toLowerCase().replace(/[^a-z_ ]+/g, " ").replace(/\s+/g, " ").trim();
+  return sourceCellAliases[key] ?? null;
+}
+// Naukri profiles are not rated here, so waiting in All profiles for a score
+// nobody intends to give would be waiting forever. They start one stage on.
+export function sourceSkipsRating(source: string) {
+  return source === "naukri";
+}
 export const ratingFilters = [
   "unrated",
   "meets_floor",
@@ -55,8 +95,14 @@ export const ratingFilterLabels: Record<RatingFilter, string> = {
   meets_floor: "At or above rating floor",
   below_floor: "Below rating floor",
 };
-export function candidateSourceLabel(source: string, detail = "") {
-  return detail.trim() || candidateSourceLabels[source as CandidateSource] || "Imported profile";
+// The source alone. A free text note about the batch used to win over it,
+// which made the same source read three different ways down one column.
+export function candidateSourceLabel(source: string) {
+  return (
+    candidateSourceLabels[source as CandidateSource] ??
+    retiredSourceLabels[source] ??
+    "Other Source"
+  );
 }
 export const outcomes = {
   offer_sent: "Offer sent",

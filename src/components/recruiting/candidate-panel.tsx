@@ -96,9 +96,8 @@ function activityCopy(event: CandidateActivity) {
   switch (event.kind) {
     case "import": {
       const source = detailValue(event.detail, "source");
-      const sourceDetail = detailValue(event.detail, "sourceDetail");
       return {
-        title: `Added from ${candidateSourceLabel(source, sourceDetail)}`,
+        title: `Added from ${candidateSourceLabel(source)}`,
         description: "",
       };
     }
@@ -520,7 +519,7 @@ export function CandidatePanel({
         </p>
       )}
       <p className="candidate-source candidate-drawer-source">
-        Added from {candidateSourceLabel(rc.source, rc.source_detail)}
+        Added from {candidateSourceLabel(rc.source)}
       </p>
       <nav
         className="candidate-drawer-section-nav"

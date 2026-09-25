@@ -21,7 +21,7 @@ export function EditHistory({ clientId, roleId, candidateId = null }: { clientId
       <ol className="edit-history-list">{page.rows.map((entry) => <li key={entry.id}>
         <div className="edit-history-heading"><strong>{entry.candidateName} · {entry.fieldLabel ?? editFieldLabel(entry.field)}</strong><time dateTime={entry.at}>{new Date(entry.at).toLocaleString()}</time></div>
         <p className="muted">{entry.actor} · {entry.scope}{entry.batchId ? ` · Bulk edit ${entry.batchId.slice(0,8)}` : ""}</p>
-        <div className="edit-history-values"><div><small>Before</small><p>{displayEditValue(entry.before)}</p></div><div><small>After</small><p>{displayEditValue(entry.after)}</p></div></div>
+        <div className="edit-history-values"><div><small>Before</small><p>{displayEditValue(entry.before, entry.field)}</p></div><div><small>After</small><p>{displayEditValue(entry.after, entry.field)}</p></div></div>
       </li>)}</ol>}
     <div className="row table-tools-actions">{cursor && <button onClick={() => load(null)}>Latest edits</button>}{page?.nextCursor && <button onClick={() => load(page.nextCursor)}>Older edits</button>}</div>
   </div>;

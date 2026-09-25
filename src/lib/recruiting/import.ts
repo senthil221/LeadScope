@@ -1,4 +1,5 @@
 import { mobileDigits } from "./contact";
+import { candidateSourceFromCell } from "./stages";
 import {
   normalizeIdentity,
   dedupeIdentities,
@@ -24,13 +25,16 @@ export type DraftRow = {
   currentCtc?: string;
   highestQualification?: string;
   rating?: string;
-  sourceDetail?: string;
+  // What the file's own Source column said for this row, if anything.
+  source?: string;
 };
 export type ImportRow = {
   name: string;
   identities: Identity[];
   fields: Record<string, string | number>;
-  sourceDetail?: string;
+  // One of the six sources, when the row named one. Otherwise the batch
+  // setting stands.
+  source?: string;
   custom?: Record<string, string | number | boolean>;
 };
 // The line the row came from in the file, counting the header as line 1,
@@ -145,13 +149,14 @@ export function buildImportRow(
       };
     fields.rating = rating;
   }
+  const rowSource = candidateSourceFromCell(draft.source ?? "");
   return {
     name: resolvedName,
     identities: deduped,
     fields,
-    ...(draft.sourceDetail?.trim()
-      ? { sourceDetail: draft.sourceDetail.trim().slice(0, 500) }
-      : {}),
+    // A Source cell only counts when it names one of the six. Anything else
+    // is left to the batch setting rather than failing the row.
+    ...(rowSource ? { source: rowSource } : {}),
   };
 }
 
@@ -274,10 +279,10 @@ const csvColumnAliases: Record<string, keyof DraftRow> = {
   rating: "rating",
   "rating (0 5)": "rating",
   score: "rating",
-  source: "sourceDetail",
-  provider: "sourceDetail",
-  vendor: "sourceDetail",
-  "source / provider": "sourceDetail",
+  source: "source",
+  provider: "source",
+  vendor: "source",
+  "source / provider": "source",
 };
 // The columns the downloadable template carries, in the order it writes them.
 // Not every header the parser accepts: a Naukri URL still imports, and so do

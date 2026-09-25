@@ -38,6 +38,7 @@ import {
   rejectionTypes,
   candidateSourceLabel,
   candidateSources,
+  defaultCandidateSource,
   candidateSourceLabels,
   ratingFilters,
   ratingFilterLabels,
@@ -346,7 +347,6 @@ export function RolePipeline({
   const showRowActions = Boolean(advanceTo || canRejectFromTab) || canDeleteRows;
   const activeCandidateFilterCount = [
     params.get("source"),
-    params.get("source_detail"),
     params.get("rating"),
     params.get("entered_from"),
     params.get("entered_to"),
@@ -620,7 +620,7 @@ export function RolePipeline({
       const summary = await act<ImportSummary>("importCandidates", {
         clientId: client.id,
         roleId: role.id,
-        source: "manual",
+        source: defaultCandidateSource,
         stage: "all_profiles",
         rows: ready.map(draftImportRow),
       });
@@ -794,7 +794,7 @@ export function RolePipeline({
         });
       case "source":
         return cell({
-          value: candidateSourceLabel(rc.source, rc.source_detail),
+          value: candidateSourceLabel(rc.source),
           save: async () => {},
         });
       case "status":
@@ -1348,7 +1348,8 @@ export function RolePipeline({
               stageFilterUrl({
                 q: String(form.get("q") ?? ""),
                 source: String(form.get("source") ?? ""),
-                source_detail: String(form.get("source_detail") ?? ""),
+                // Cleared alongside: one source, so nothing to narrow within it.
+                source_detail: "",
                 rating: String(form.get("rating") ?? ""),
                 entered_from: String(form.get("entered_from") ?? ""),
                 entered_to: String(form.get("entered_to") ?? ""),
@@ -1382,23 +1383,13 @@ export function RolePipeline({
               </summary>
               <div className="candidate-filter-grid">
                 <label>
-                  Source or vendor
-                  <input
-                    aria-label="Filter candidates by source or vendor"
-                    defaultValue={params.get("source_detail") ?? ""}
-                    maxLength={200}
-                    name="source_detail"
-                    placeholder="e.g. LinkedIn"
-                  />
-                </label>
-                <label>
-                  Import method
+                  Source
                   <select
-                    aria-label="Filter candidates by import method"
+                    aria-label="Filter candidates by source"
                     name="source"
                     defaultValue={params.get("source") ?? ""}
                   >
-                    <option value="">All methods</option>
+                    <option value="">All sources</option>
                     {candidateSources.map((source) => (
                       <option key={source} value={source}>
                         {candidateSourceLabels[source]}
@@ -1603,7 +1594,7 @@ export function RolePipeline({
                         {rc.candidates.full_name}
                       </button>
                       <small className="candidate-source">
-                        {candidateSourceLabel(rc.source, rc.source_detail)}
+                        {candidateSourceLabel(rc.source)}
                       </small>
                     </td>
                     <td className="candidate-linkedin-cell">

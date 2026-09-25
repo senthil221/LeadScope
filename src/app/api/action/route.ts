@@ -12,6 +12,7 @@ import {
   mobileDigits,
   normalizeCandidateEmail,
 } from "@/lib/recruiting/contact";
+import { candidateSources } from "@/lib/recruiting/stages";
 import { processNext } from "@/lib/server/process";
 import { qualify, mergeAssessment } from "@/lib/qualification";
 export const runtime = "nodejs";
@@ -146,15 +147,7 @@ export async function POST(request: Request) {
           .object({
             clientId: uuid,
             roleId: uuid,
-            source: z.enum([
-              "linkedin",
-              "naukri",
-              "manual",
-              "url_paste",
-              "csv",
-              "sourcing_import",
-              "other",
-            ]),
+            source: z.enum(candidateSources),
             // Rejected is not importable: that stage needs a rejection type
             // and reason, which a spreadsheet row cannot carry.
             stage: z
@@ -174,7 +167,9 @@ export async function POST(request: Request) {
                   fields: z
                     .record(z.string(), z.union([z.string(), z.number()]))
                     .default({}),
-                  sourceDetail: z.string().trim().max(500).optional(),
+                  // A Source cell in the file, already resolved to one of the
+                  // six before it left the browser.
+                  source: z.enum(candidateSources).optional(),
                   custom: z
                     .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
                     .default({}),

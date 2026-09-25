@@ -1,7 +1,12 @@
 import type { RoleField } from "@/lib/types";
+import { candidateSourceLabel, candidateSourceLabels, candidateSources } from "./stages";
 
 export type EditMode = "replace" | "fill_empty" | "clear";
-export type BulkField = { id: string; label: string; kind: string; shared?: boolean; options?: string[] };
+export type BulkField = {
+  id: string; label: string; kind: string; shared?: boolean; options?: string[];
+  // What to show for each stored option, when the two differ.
+  optionLabels?: Record<string, string>;
+};
 export const bulkProfileFields: BulkField[] = [
   { id: "current_company", label: "Company", kind: "text", shared: true },
   { id: "current_designation", label: "Designation", kind: "text", shared: true },
@@ -16,6 +21,13 @@ export function bulkFields(custom: RoleField[]): BulkField[] {
     { id: "internal_notes", label: "Recruiter notes", kind: "text" },
     { id: "client_notes", label: "Client notes", kind: "text" },
     { id: "rating", label: "Rating", kind: "number" },
+    // Where a batch came from is the thing most often recorded wrong, and it
+    // is recorded once for a whole file. Correcting it row by row was the
+    // only way to fix a mistake made in one click.
+    {
+      id: "source", label: "Source", kind: "select",
+      options: [...candidateSources], optionLabels: candidateSourceLabels,
+    },
     ...custom.filter((field) => !field.archived).map((field) => ({ id: `custom:${field.key}`, label: field.label, kind: field.kind, options: field.options })),
     ...bulkProfileFields,
   ];
@@ -49,10 +61,14 @@ export type DuplicatePair = {
   first: DuplicateProfile; second: DuplicateProfile; reasons: string[]; fingerprint: string; revision: number;
   status: DuplicateStatus; note: string; reviewedAt: string | null; cursor: string;
 };
-export function displayEditValue(value: unknown): string {
+// A stored source reads as its label wherever the field is known; everything
+// else is shown as it is held.
+export function displayEditValue(value: unknown, field?: string): string {
+  if (field === "source" && typeof value === "string" && value)
+    return candidateSourceLabel(value);
   if (value === null || value === undefined || value === "") return "Empty";
   if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (Array.isArray(value)) return value.map(displayEditValue).join("\n");
+  if (Array.isArray(value)) return value.map((item) => displayEditValue(item, field)).join("\n");
   if (typeof value === "object") {
     const reviewLabels: Record<string, string> = { pending: "Needs review", confirmed: "Confirmed duplicate", separate: "Keep separate" };
     return Object.entries(value).map(([key, item]) => `${editFieldLabel(key)}: ${key === "status" && typeof item === "string" ? reviewLabels[item] ?? item : displayEditValue(item)}`).join("\n");

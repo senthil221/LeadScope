@@ -131,14 +131,23 @@ describe("buildImportRow", () => {
       expect(result.identities.filter((i) => i.kind === "phone")).toHaveLength(1);
     }
   });
-  it("keeps a per-row source provider from a CSV import", () => {
+  it("takes a per-row source from the file when it names one of the six", () => {
     const result = buildImportRow({
       name: "Priya Nair",
       email: "priya@example.com",
-      sourceDetail: "Upwork",
+      source: "naukri",
     });
     expect(isRowError(result)).toBe(false);
-    if (!isRowError(result)) expect(result.sourceDetail).toBe("Upwork");
+    if (!isRowError(result)) expect(result.source).toBe("naukri");
+  });
+  it("ignores a source the list does not hold, leaving the batch setting", () => {
+    const result = buildImportRow({
+      name: "Priya Nair",
+      email: "priya@example.com",
+      source: "Upwork",
+    });
+    expect(isRowError(result)).toBe(false);
+    if (!isRowError(result)) expect(result.source).toBeUndefined();
   });
 });
 
@@ -248,11 +257,11 @@ describe("csvImportPreview", () => {
       { name: "Priya Nair", email: "priya@example.com" },
     ]);
   });
-  it("recognizes a Source column as the row-level provider", () => {
+  it("reads a Source column into the row's own source", () => {
     const preview = csvImportPreview(
       "Full Name,Email,Source\nPriya Nair,priya@example.com,LinkedIn Recruiter",
     );
-    expect(preview.validRows[0].sourceDetail).toBe("LinkedIn Recruiter");
+    expect(preview.validRows[0].source).toBe("linkedin");
     expect(preview.recognizedColumns).toContain("Source");
   });
   it("holds CSV rows without LinkedIn when intake requires it", () => {

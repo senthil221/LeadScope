@@ -1111,7 +1111,7 @@ async function pipeline(slug: string, threshold = 3) {
   const rid = await role(cid, threshold);
   const candidateId = await person(slug);
   await asUser(actor, () =>
-    rpc("add_candidates_to_role", [cid, rid, [candidateId], "manual"]),
+    rpc("add_candidates_to_role", [cid, rid, [candidateId], "linkedin"]),
   );
   const rcId = (
     await sql("select id from public.role_candidates where role_id=$1", [rid])
@@ -1123,7 +1123,7 @@ describe("edit history, duplicate review and bulk editing", () => {
   async function twoRows(slug: string) {
     const first = await pipeline(slug);
     const second = await person(`${slug}-second`);
-    await asUser(actor, () => rpc("add_candidates_to_role", [first.cid, first.rid, [second], "manual"]));
+    await asUser(actor, () => rpc("add_candidates_to_role", [first.cid, first.rid, [second], "linkedin"]));
     const ids = (await sql("select id from public.role_candidates where role_id=$1 order by id", [first.rid])).rows.map((row) => row.id);
     return { ...first, second, ids };
   }
@@ -1271,7 +1271,7 @@ describe("recoverable role membership deletion", () => {
   it("removes only the selected role membership and restores its exact fields and history", async () => {
     const { cid, rid, candidateId, rcId } = await pipeline("trash-roundtrip");
     const secondRole = await role(cid, 3, "Another role");
-    await asUser(actor, () => rpc("add_candidates_to_role", [cid, secondRole, [candidateId], "manual"]));
+    await asUser(actor, () => rpc("add_candidates_to_role", [cid, secondRole, [candidateId], "linkedin"]));
     await sql("update public.role_candidates set internal_notes='Keep these notes' where id=$1", [rcId]);
     const original = (await sql("select to_jsonb(rc) as record from public.role_candidates rc where id=$1", [rcId])).rows[0].record;
     const history = (await sql("select to_jsonb(e) as record from public.role_candidate_events e where role_candidate_id=$1 order by id", [rcId])).rows;
@@ -1313,7 +1313,7 @@ describe("recoverable role membership deletion", () => {
     await expect(asUser(actor, () => rpc("remove_role_candidates", [cid, rid, [rcId], "all_profiles"]))).rejects.toThrow("Active role not found");
     await sql("update public.roles set archived=false where id=$1", [rid]);
     const batch = await asUser(actor, () => rpc("remove_role_candidates", [cid, rid, [rcId], "all_profiles"]));
-    await asUser(actor, () => rpc("add_candidates_to_role", [cid, rid, [candidateId], "manual"]));
+    await asUser(actor, () => rpc("add_candidates_to_role", [cid, rid, [candidateId], "linkedin"]));
     await expect(asUser(actor, () => rpc("restore_role_candidates", [cid, rid, batch]))).rejects.toThrow("already been added");
     expect((await sql("select id from public.role_candidates where role_id=$1", [rid])).rowCount).toBe(1);
     expect(await asUser(actor, () => rpc("deleted_role_candidate_batches", [cid, rid]))).toHaveLength(1);
@@ -1483,10 +1483,10 @@ describe("recruiting foundation: roles, master candidates and pipeline history",
     const second = await role(cid, 4, "Platform engineer");
     const candidateId = await person("two-roles");
     await asUser(actor, () =>
-      rpc("add_candidates_to_role", [cid, first, [candidateId], "manual"]),
+      rpc("add_candidates_to_role", [cid, first, [candidateId], "linkedin"]),
     );
     await asUser(actor, () =>
-      rpc("add_candidates_to_role", [cid, second, [candidateId], "manual"]),
+      rpc("add_candidates_to_role", [cid, second, [candidateId], "linkedin"]),
     );
     expect(
       (
@@ -1711,7 +1711,7 @@ describe("recruiting foundation: roles, master candidates and pipeline history",
     await asUser(actor, () => rpc("archive_role", [rid, true]));
     await expect(
       asUser(actor, () =>
-        rpc("add_candidates_to_role", [cid, rid, [candidateId], "manual"]),
+        rpc("add_candidates_to_role", [cid, rid, [candidateId], "linkedin"]),
       ),
     ).rejects.toThrow("Restore this role");
   });
@@ -1817,6 +1817,120 @@ describe("import_candidates: two mobile numbers, ten digits each", () => {
       phone: "9876543210",
       alternate_phone: "9812345678",
     });
+  });
+});
+
+describe("six sources, and Naukri that skips the rating queue", () => {
+  const importRows = (cid: string, rid: string, rows: unknown[], source = "naukri") =>
+    asUser(actor, () =>
+      rpc("import_candidates", [cid, rid, JSON.stringify(rows), source, "all_profiles"]),
+    );
+  const placed = async (rid: string) =>
+    (
+      await sql(
+        "select stage,source from public.role_candidates where role_id=$1 order by id",
+        [rid],
+      )
+    ).rows;
+
+  it("starts a Naukri profile in Profile shortlisted, and says why in the timeline", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    expect(await importRows(cid, rid, [linkedinRow("naukri-one")])).toMatchObject({ created: 1 });
+    expect(await placed(rid)).toEqual([
+      { stage: "profile_shortlisted", source: "naukri" },
+    ]);
+    const events = (
+      await sql(
+        "select kind,from_stage,to_stage,reason from public.role_candidate_events where client_id=$1 order by id",
+        [cid],
+      )
+    ).rows;
+    expect(events).toContainEqual({
+      kind: "stage",
+      from_stage: "all_profiles",
+      to_stage: "profile_shortlisted",
+      reason: "Naukri profile, added without a rating.",
+    });
+    expect(events.find((event) => event.kind === "import").to_stage).toBe("profile_shortlisted");
+  });
+
+  it("leaves every other source in All profiles", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    for (const source of ["linkedin", "google", "csv", "master_db", "other"])
+      await importRows(cid, rid, [linkedinRow(`source-${source}`)], source);
+    expect((await placed(rid)).every((row) => row.stage === "all_profiles")).toBe(true);
+  });
+
+  it("lets a Source cell in the file overrule the batch setting", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await importRows(
+      cid,
+      rid,
+      [
+        linkedinRow("row-source-naukri", { source: "naukri" }),
+        linkedinRow("row-source-unknown", { source: "carrier pigeon" }),
+      ],
+      "csv",
+    );
+    const rows = [...(await placed(rid))].sort((a, b) => a.source.localeCompare(b.source));
+    expect(rows).toEqual([
+      // Unreadable, so the batch setting stands rather than the row failing.
+      { stage: "all_profiles", source: "csv" },
+      { stage: "profile_shortlisted", source: "naukri" },
+    ]);
+  });
+
+  it("refuses the mechanism-shaped sources it used to accept", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    for (const source of ["manual", "url_paste", "sourcing_import"])
+      await expect(importRows(cid, rid, [linkedinRow("old-source")], source)).rejects.toThrow(
+        "Unsupported candidate source",
+      );
+  });
+
+  it("applies the same rule to a candidate added from the master database", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const candidateId = await person("master-naukri");
+    await asUser(actor, () => rpc("add_candidates_to_role", [cid, rid, [candidateId], "naukri"]));
+    expect(await placed(rid)).toEqual([
+      { stage: "profile_shortlisted", source: "naukri" },
+    ]);
+  });
+
+  it("bulk edits the source, and will not empty it", async () => {
+    const { cid, rid, rcId } = await pipeline("bulk-source");
+    const preview = await asUser(actor, () =>
+      rpc("bulk_edit_role_candidates", [cid, rid, [rcId], null, "source", JSON.stringify("google"), "replace", null]),
+    );
+    expect(preview).toMatchObject({ changed: 1 });
+    expect(preview.rows[0]).toMatchObject({ before: "linkedin", after: "google" });
+    await asUser(actor, () =>
+      rpc("bulk_edit_role_candidates", [cid, rid, [rcId], null, "source", JSON.stringify("google"), "replace", preview.token]),
+    );
+    expect((await placed(rid))[0].source).toBe("google");
+    // Recorded like any other edit.
+    expect(
+      (
+        await sql(
+          "select before_value,after_value from private.candidate_edit_history where field='source' order by id desc limit 1",
+        )
+      ).rows[0],
+    ).toEqual({ before_value: "linkedin", after_value: "google" });
+    await expect(
+      asUser(actor, () =>
+        rpc("bulk_edit_role_candidates", [cid, rid, [rcId], null, "source", JSON.stringify("pigeon"), "replace", null]),
+      ),
+    ).rejects.toThrow("one of the listed sources");
+    await expect(
+      asUser(actor, () =>
+        rpc("bulk_edit_role_candidates", [cid, rid, [rcId], null, "source", null, "clear", null]),
+      ),
+    ).rejects.toThrow("Every row has a source");
   });
 });
 
@@ -1928,7 +2042,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
       ),
     ).rejects.toThrow("Unsupported candidate source");
     await expect(
-      asUser(actor, () => rpc("import_candidates", [cid, rid, JSON.stringify([]), "manual", "all_profiles"])),
+      asUser(actor, () => rpc("import_candidates", [cid, rid, JSON.stringify([]), "linkedin", "all_profiles"])),
     ).rejects.toThrow("between 1 and 200");
     await expect(
       asUser(actor, () =>
@@ -1936,7 +2050,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
           cid,
           rid,
           JSON.stringify(Array.from({ length: 201 }, (_, i) => linkedinRow(`over-${i}`))),
-          "manual",
+          "linkedin",
           "all_profiles",
         ]),
       ),
@@ -1948,13 +2062,13 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
     const rid = await role(cid);
     await expect(
       asUser(actor, () =>
-        rpc("import_candidates", [other, rid, JSON.stringify([linkedinRow("cross-client")]), "manual", "all_profiles"]),
+        rpc("import_candidates", [other, rid, JSON.stringify([linkedinRow("cross-client")]), "linkedin", "all_profiles"]),
       ),
     ).rejects.toThrow("Restore this role");
     await asUser(actor, () => rpc("archive_role", [rid, true]));
     await expect(
       asUser(actor, () =>
-        rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("archived")]), "manual", "all_profiles"]),
+        rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("archived")]), "linkedin", "all_profiles"]),
       ),
     ).rejects.toThrow("Restore this role");
   });
@@ -1966,7 +2080,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         cid,
         rid,
         JSON.stringify([linkedinRow("bulk-a"), linkedinRow("bulk-b")]),
-        "url_paste",
+        "linkedin",
         "all_profiles",
       ]),
     );
@@ -2065,11 +2179,11 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
     const cid = await client();
     const rid = await role(cid);
     const first = await asUser(actor, () =>
-      rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("bulk-repeat")]), "manual", "all_profiles"]),
+      rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("bulk-repeat")]), "linkedin", "all_profiles"]),
     );
     expect(first.created).toBe(1);
     const second = await asUser(actor, () =>
-      rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("bulk-repeat")]), "manual", "all_profiles"]),
+      rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("bulk-repeat")]), "linkedin", "all_profiles"]),
     );
     expect(second).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 1, invalid: 0, updated: 0, skipped: 0, rated: 0, flagged: 0, flaggedRows: [] });
     expect(
@@ -2210,7 +2324,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
             ],
           },
         ]),
-        "manual",
+        "linkedin",
         "all_profiles",
       ]),
     );
@@ -2225,7 +2339,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         cid,
         rid,
         JSON.stringify([linkedinRow("bulk-enriched", { fields: { phone: "" } })]),
-        "manual",
+        "linkedin",
         "all_profiles",
       ]),
     );
@@ -2666,7 +2780,7 @@ describe("apply_threshold: the only path that moves an already-rated candidate",
     const below = await person("threshold-below");
     const unrated = await person("threshold-unrated");
     await asUser(actor, () =>
-      rpc("add_candidates_to_role", [cid, rid, [meets, below, unrated], "manual"]),
+      rpc("add_candidates_to_role", [cid, rid, [meets, below, unrated], "linkedin"]),
     );
     const rows = await sql(
       "select id,candidate_id from public.role_candidates where role_id=$1",

@@ -69,7 +69,6 @@ export function draftImportRow(row: DraftRow) {
     name: (row.values.full_name ?? "").trim() || nameFromProfileUrl(linkedin),
     identities: [{ kind: "linkedin" as const, value: linkedin }],
     fields,
-    sourceDetail: "Added in sheet",
     custom: {},
   };
 }

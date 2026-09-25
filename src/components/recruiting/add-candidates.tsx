@@ -26,6 +26,9 @@ import {
 } from "@/lib/recruiting/contact";
 import { MobileField } from "./mobile-field";
 import {
+  candidateSourceLabels,
+  candidateSources,
+  defaultCandidateSource,
   stageLabels,
   type CandidateSource,
   type PipelineStage,
@@ -74,15 +77,10 @@ function skippedRowLabel(row: DraftRow) {
     "—"
   );
 }
-const providerOptions = [
-  "LinkedIn Recruiter",
-  "LinkedIn",
-  "Upwork",
-  "Naukri / Resdex",
-  "Google Search",
-  "Job post",
-  "Referral",
-];
+// A CSV or Excel file is usually an export of a search, so the tab it is
+// uploaded on is the only place the source is not LinkedIn Recruiter by
+// default. Either way it is one dropdown away.
+const modeSource: Partial<Record<Mode, CandidateSource>> = { csv: "csv" };
 const maximumImportRows = 1_000;
 const importBatchSize = 200;
 
@@ -110,8 +108,7 @@ export function AddCandidatesDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [csvFileName, setCsvFileName] = useState("");
-  const [provider, setProvider] = useState("");
-  const [customProvider, setCustomProvider] = useState("");
+  const [source, setSource] = useState<CandidateSource | null>(null);
   const [progress, setProgress] = useState("");
   const [excelSheets, setExcelSheets] = useState<{ name: string; text: string }[]>([]);
   const [selectedSheet, setSelectedSheet] = useState("");
@@ -137,7 +134,8 @@ export function AddCandidatesDialog({
     if (next === "sourcing" && sourcingProspects === null) void loadSourcingProspects();
   }
 
-  const selectedProvider = provider === "custom" ? customProvider.trim() : provider;
+  // Until somebody chooses, the tab decides.
+  const batchSource = source ?? modeSource[mode] ?? defaultCandidateSource;
 
   async function loadSourcingProspects() {
     try {
@@ -220,7 +218,7 @@ export function AddCandidatesDialog({
     );
   }
 
-  async function submit(rows: ImportRow[], source: CandidateSource) {
+  async function submit(rows: ImportRow[]) {
     if (!rows.length) {
       setError("Add at least one candidate before importing.");
       return;
@@ -241,13 +239,10 @@ export function AddCandidatesDialog({
         const result = await act<ImportSummary>("importCandidates", {
           clientId,
           roleId,
-          source,
+          source: batchSource,
           stage: targetStage,
-          rows: batch.map((row) => ({
-            ...row,
-            // A source supplied in the file is more specific than the batch setting.
-            ...(row.sourceDetail?.trim() || !selectedProvider ? {} : { sourceDetail: selectedProvider }),
-          })),
+          // A row that named its own source keeps it; the rest take the batch.
+          rows: batch,
         });
         summary.created += result.created;
         summary.matchedExisting += result.matchedExisting;
@@ -293,7 +288,7 @@ export function AddCandidatesDialog({
         ? `${invalid} line${invalid === 1 ? "" : "s"} were not a valid LinkedIn profile URL and were skipped.`
         : "",
     );
-    void submit(rows, "url_paste");
+    void submit(rows);
   }
   function submitManual() {
     const emailInput = manual.email?.trim() ?? "";
@@ -326,7 +321,7 @@ export function AddCandidatesDialog({
       return;
     }
     setError("");
-    void submit([built], "manual");
+    void submit([built]);
   }
   function submitCsv() {
     if (csvPreview.totalRows > maximumImportRows) {
@@ -334,7 +329,7 @@ export function AddCandidatesDialog({
       return;
     }
     setError("");
-    void submit(csvPreview.validRows, "csv");
+    void submit(csvPreview.validRows);
   }
   function submitSourcing() {
     const prospects = sourcingProspects ?? [];
@@ -350,7 +345,7 @@ export function AddCandidatesDialog({
         },
       ];
     });
-    void submit(rows, "sourcing_import");
+    void submit(rows);
   }
 
   return (
@@ -393,26 +388,23 @@ export function AddCandidatesDialog({
           : `This updates the details of people already in ${stageLabels[targetStage]}. Nobody new is created: add new profiles through All profiles first. Updated details show everywhere that person appears.`}
       </p>
       <label>
-        Source provider <span className="optional">optional</span>
-        <select disabled={busy} value={provider} onChange={(event) => setProvider(event.target.value)}>
-          <option value="">No provider selected</option>
-          {providerOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-          <option value="custom">Other provider</option>
+        Source
+        <select
+          disabled={busy}
+          value={batchSource}
+          onChange={(event) => setSource(event.target.value as CandidateSource)}
+        >
+          {candidateSources.map((option) => (
+            <option key={option} value={option}>{candidateSourceLabels[option]}</option>
+          ))}
         </select>
       </label>
-      {provider === "custom" && (
-        <label>
-          Other provider
-          <input
-            maxLength={500}
-            disabled={busy}
-            value={customProvider}
-            onChange={(event) => setCustomProvider(event.target.value)}
-            placeholder="e.g. specialist job board or partner"
-          />
-        </label>
-      )}
-      <p className="muted">A value in a CSV Source column takes priority over this batch setting.</p>
+      <p className="muted">
+        A Source column in the file wins for its own row.{" "}
+        {batchSource === "naukri"
+          ? "Naukri profiles are not rated here, so these land in Profile shortlisted."
+          : "Naukri profiles skip the rating queue and land in Profile shortlisted."}
+      </p>
       {error && (
         <p className="error" role="alert">
           {error}

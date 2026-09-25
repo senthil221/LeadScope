@@ -101,7 +101,7 @@ export function RoleAnalytics({
           {sourcePerformance.map((row) => (
             <tr key={`${row.source}:${row.source_detail}`}>
               <td className="strong">
-                {candidateSourceLabel(row.source, row.source_detail)}
+                {candidateSourceLabel(row.source)}
               </td>
               <td>{row.total_profiles}</td>
               <td>{row.profile_shortlisted}</td>
