@@ -1889,7 +1889,7 @@ describe("import_candidates: a rating in the file does what a typed one does", (
       const summary = await importRows(cid, rid, [
         linkedinRow(`import-rating-bad-${String(rating)}`, { fields: { rating } }),
       ]);
-      expect(summary).toMatchObject({ created: 0, invalid: 1, rated: 0 });
+      expect(summary).toMatchObject({ created: 0, invalid: 1, rated: 0, flagged: 0, flaggedRows: [] });
     }
     expect(
       (await sql("select count(*) from public.role_candidates where role_id=$1", [rid]))
@@ -1970,7 +1970,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         "all_profiles",
       ]),
     );
-    expect(summary).toEqual({ created: 2, matchedExisting: 0, alreadyInRole: 0, invalid: 0, updated: 0, skipped: 0, rated: 0 });
+    expect(summary).toEqual({ created: 2, matchedExisting: 0, alreadyInRole: 0, invalid: 0, updated: 0, skipped: 0, rated: 0, flagged: 0, flaggedRows: [] });
     expect(
       (await sql("select count(*)::int as n from public.role_candidates where role_id=$1", [rid]))
         .rows[0].n,
@@ -2054,7 +2054,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         "all_profiles",
       ]),
     );
-    expect(summary).toEqual({ created: 0, matchedExisting: 1, alreadyInRole: 0, invalid: 0, updated: 0, skipped: 0, rated: 0 });
+    expect(summary).toEqual({ created: 0, matchedExisting: 1, alreadyInRole: 0, invalid: 0, updated: 0, skipped: 0, rated: 0, flagged: 0, flaggedRows: [] });
     expect(
       (
         await sql("select candidate_id from public.role_candidates where role_id=$1", [rid])
@@ -2071,7 +2071,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
     const second = await asUser(actor, () =>
       rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("bulk-repeat")]), "manual", "all_profiles"]),
     );
-    expect(second).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 1, invalid: 0, updated: 0, skipped: 0, rated: 0 });
+    expect(second).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 1, invalid: 0, updated: 0, skipped: 0, rated: 0, flagged: 0, flaggedRows: [] });
     expect(
       (await sql("select count(*)::int as n from public.role_candidates where role_id=$1", [rid]))
         .rows[0].n,
@@ -2103,7 +2103,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         "all_profiles",
       ]),
     );
-    expect(summary).toEqual({ created: 1, matchedExisting: 0, alreadyInRole: 1, invalid: 0, updated: 0, skipped: 0, rated: 0 });
+    expect(summary).toEqual({ created: 1, matchedExisting: 0, alreadyInRole: 1, invalid: 0, updated: 0, skipped: 0, rated: 0, flagged: 0, flaggedRows: [] });
     expect(
       (await sql("select count(*)::int as n from public.role_candidates where role_id=$1", [rid]))
         .rows[0].n,
@@ -2127,7 +2127,70 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         "all_profiles",
       ]),
     );
-    expect(summary).toEqual({ created: 1, matchedExisting: 0, alreadyInRole: 0, invalid: 4, updated: 0, skipped: 0, rated: 0 });
+    expect(summary).toEqual({ created: 1, matchedExisting: 0, alreadyInRole: 0, invalid: 4, updated: 0, skipped: 0, rated: 0, flagged: 0, flaggedRows: [] });
+  });
+  // Only the profile URL says two rows are the same person. A shared inbox,
+  // a colleague's address, a reused Naukri id: each of those used to be enough
+  // to write one candidate's details over another's, quietly.
+  it("hands back a row that matches only on an email rather than merging it", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const existing = await asUser(actor, () =>
+      rpc("upsert_candidate", [
+        "Priya Raman",
+        JSON.stringify([
+          normalizeIdentity("linkedin", "https://www.linkedin.com/in/priya-raman"),
+          normalizeIdentity("email", "team@agency.com"),
+        ]),
+        JSON.stringify({ currentCompany: "Zoho" }),
+      ]),
+    );
+    const summary = await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        rid,
+        JSON.stringify([
+          {
+            name: "Vikram Nair",
+            identities: [
+              normalizeIdentity("linkedin", "https://www.linkedin.com/in/vikram-nair"),
+              normalizeIdentity("email", "team@agency.com"),
+            ],
+            fields: { currentCompany: "Freshworks" },
+          },
+        ]),
+        "csv",
+        "all_profiles",
+      ]),
+    );
+    expect(summary).toMatchObject({ created: 0, matchedExisting: 0, invalid: 0, flagged: 1 });
+    expect(summary.flaggedRows).toEqual([{ name: "Vikram Nair", matchedOn: "email" }]);
+    // Nothing written: not over the person on file, and not as a new row.
+    expect(
+      (await sql("select current_company from public.candidates where id=$1", [existing]))
+        .rows[0].current_company,
+    ).toBe("Zoho");
+    expect(
+      (await sql("select count(*)::int as n from public.role_candidates where role_id=$1", [rid]))
+        .rows[0].n,
+    ).toBe(0);
+  });
+  it("still merges when the profile URL is the one already on file", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await person("same-profile", { currentCompany: "Zoho" });
+    const summary = await asUser(actor, () =>
+      rpc("import_candidates", [
+        cid,
+        rid,
+        JSON.stringify([
+          linkedinRow("same-profile", { fields: { currentCompany: "Freshworks" } }),
+        ]),
+        "csv",
+        "all_profiles",
+      ]),
+    );
+    expect(summary).toMatchObject({ matchedExisting: 1, flagged: 0 });
   });
   it("treats a row spanning two existing candidates as invalid rather than merging them", async () => {
     const cid = await client();
@@ -2151,7 +2214,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         "all_profiles",
       ]),
     );
-    expect(summary).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 0, invalid: 1, updated: 0, skipped: 0, rated: 0 });
+    expect(summary).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 0, invalid: 1, updated: 0, skipped: 0, rated: 0, flagged: 0, flaggedRows: [] });
   });
   it("never clears reusable contact data with a blank field on a bulk re-import", async () => {
     const cid = await client();
@@ -2187,7 +2250,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         "client_shortlisted",
       ]),
     );
-    expect(summary).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 0, invalid: 0, updated: 0, skipped: 1, rated: 0 });
+    expect(summary).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 0, invalid: 0, updated: 0, skipped: 1, rated: 0, flagged: 0, flaggedRows: [] });
     expect(
       (await sql("select count(*)::int as n from public.role_candidates where role_id=$1", [rid]))
         .rows[0].n,
@@ -2225,7 +2288,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         "recruiter_shortlisted",
       ]),
     );
-    expect(summary).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 0, invalid: 0, updated: 0, skipped: 1, rated: 0 });
+    expect(summary).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 0, invalid: 0, updated: 0, skipped: 1, rated: 0, flagged: 0, flaggedRows: [] });
     expect(
       (await sql("select count(*)::int as n from public.role_candidates where role_id=$1", [rid]))
         .rows[0].n,
@@ -2269,7 +2332,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         "client_shortlisted",
       ]),
     );
-    expect(summary).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 0, invalid: 0, updated: 1, skipped: 0, rated: 0 });
+    expect(summary).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 0, invalid: 0, updated: 1, skipped: 0, rated: 0, flagged: 0, flaggedRows: [] });
     const row = (
       await sql(
         "select c.current_ctc,c.location from public.candidates c join public.candidate_identities i on i.candidate_id=c.id where i.normalized_value=$1",
@@ -2322,7 +2385,7 @@ describe("import_candidates: bulk import shared by paste, manual, CSV and sourci
         "all_profiles",
       ]),
     );
-    expect(summary).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 1, invalid: 0, updated: 0, skipped: 0, rated: 0 });
+    expect(summary).toEqual({ created: 0, matchedExisting: 0, alreadyInRole: 1, invalid: 0, updated: 0, skipped: 0, rated: 0, flagged: 0, flaggedRows: [] });
     expect(
       (await sql("select stage from public.role_candidates where role_id=$1", [rid])).rows[0].stage,
     ).toBe("offer_sent");

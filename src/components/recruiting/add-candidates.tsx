@@ -44,6 +44,11 @@ export type ImportSummary = {
   skipped: number;
   invalid: number;
   rated: number;
+  // Rows that matched somebody already on file on an email or a Naukri id
+  // rather than a profile URL. Nothing was written for them: only the URL is
+  // taken as proof of a person, so these come back to be looked at.
+  flagged: number;
+  flaggedRows: { name: string; matchedOn: string }[];
 };
 
 type Mode = "paste" | "manual" | "csv" | "sourcing";
@@ -227,7 +232,7 @@ export function AddCandidatesDialog({
     setBusy(true);
     setProgress("");
     try {
-      const summary: ImportSummary = { created: 0, matchedExisting: 0, alreadyInRole: 0, updated: 0, skipped: 0, invalid: 0, rated: 0 };
+      const summary: ImportSummary = { created: 0, matchedExisting: 0, alreadyInRole: 0, updated: 0, skipped: 0, invalid: 0, rated: 0, flagged: 0, flaggedRows: [] };
       const batches = Array.from({ length: Math.ceil(rows.length / importBatchSize) }, (_, index) =>
         rows.slice(index * importBatchSize, (index + 1) * importBatchSize),
       );
@@ -251,6 +256,8 @@ export function AddCandidatesDialog({
         summary.skipped += result.skipped;
         summary.invalid += result.invalid;
         summary.rated += result.rated ?? 0;
+        summary.flagged += result.flagged ?? 0;
+        summary.flaggedRows.push(...(result.flaggedRows ?? []));
       }
       onImported(summary);
     } catch (e) {

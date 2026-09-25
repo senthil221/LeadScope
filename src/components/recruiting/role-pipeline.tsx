@@ -634,6 +634,11 @@ export function RolePipeline({
           : "",
         summary.alreadyInRole ? `${summary.alreadyInRole} already in this role` : "",
         summary.invalid ? `${summary.invalid} could not be read` : "",
+        // Matched on an email or a Naukri id rather than a profile URL, so
+        // nothing was written: that match is not proof of the same person.
+        summary.flagged
+          ? `${summary.flagged} matched someone already on file by email or Naukri id, not by LinkedIn URL — left for you to check`
+          : "",
       ].filter(Boolean);
       setMessage(parts.join(" · ") || "Nothing to add.");
       refresh();
@@ -1014,7 +1019,16 @@ export function RolePipeline({
         `${summary.skipped} skipped, not on this role yet — add them from All profiles`,
       summary.invalid && `${summary.invalid} skipped as invalid`,
     ].filter(Boolean);
-    setMessage(parts.length ? parts.join(", ") + "." : "Nothing to import.");
+    // Only a profile URL is taken as proof that two rows are one person. A row
+    // that matched on an email or a Naukri id instead was not written, and is
+    // named here rather than merged quietly into somebody else's record.
+    const flagged = summary.flaggedRows ?? [];
+    const named = flagged.slice(0, 3).map((row) => row.name).join(", ");
+    const rest = summary.flagged - Math.min(flagged.length, 3);
+    const notice = summary.flagged
+      ? ` ${summary.flagged} row${summary.flagged === 1 ? "" : "s"} matched someone already on file by email or Naukri id, not by LinkedIn URL, so ${summary.flagged === 1 ? "it was" : "they were"} left for you to check: ${named}${rest > 0 ? ` and ${rest} more` : ""}.`
+      : "";
+    setMessage((parts.length ? parts.join(", ") + "." : "Nothing to import.") + notice);
     refresh();
   }
   async function toggleArchive() {
