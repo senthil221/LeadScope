@@ -56,6 +56,7 @@ import { RoleAnalytics } from "./role-analytics";
 import { SheetCell, type SheetCellNode } from "./sheet-cell";
 import {
   candidateColumns,
+  defaultVisibleColumnIds,
   stageDefaultsToCompact,
   stageShowsName,
   type CandidateColumn,
@@ -305,7 +306,7 @@ export function RolePipeline({
       document.removeEventListener("keydown", escape, true);
     };
   }, [columnMenuOpen, filterMenuOpen]);
-  const [columnPreference, setColumnPreference] = useState<string | null>(null);
+  const [columnPreference, setColumnPreference] = useState<{ scope: string; value: string } | null>(null);
   const [navigatingTo, setNavigatingTo] = useState<Tab | null>(null);
   const path = `/roles/${role.id}`;
   const layout = useTableLayout(`${role.id}:${tab}`, stageDefaultsToCompact(tab));
@@ -318,10 +319,9 @@ export function RolePipeline({
     observer.observe(frame);
     return () => observer.disconnect();
   }, [tab]);
-  // v2: the stage-aware column set replaced the old fixed ids. A preference
-  // saved under the old key names columns that no longer exist, which would
-  // otherwise filter the table down to whichever id happened to survive.
-  const columnStorageKey = `leadscope:role-columns:v2:${role.id}:${tab}`;
+  // v4 starts each tab from the supplied stage matrix; later choices stay
+  // independent per tab and earlier all-column defaults are left behind.
+  const columnStorageKey = `leadscope:role-columns:v4:${role.id}:${tab}`;
   // Rating is the only way out of All profiles. Later stages support both
   // direct row actions and batch actions.
   const isPipelineTab = isStage(tab) && tab !== "rejected";
@@ -398,10 +398,13 @@ export function RolePipeline({
     () => localStorage.getItem(columnStorageKey) ?? "",
     () => "",
   );
+  const activeColumnPreference = columnPreference?.scope === columnStorageKey
+    ? columnPreference.value
+    : savedColumnPreference;
   const visibleColumns = (() => {
     const availableIds = tabColumns.map((column) => column.id);
     try {
-      const saved = JSON.parse(columnPreference ?? savedColumnPreference);
+      const saved = JSON.parse(activeColumnPreference);
       if (saved && !Array.isArray(saved) && Array.isArray(saved.visible)) {
         const stored = saved.visible.filter(
           (column: unknown): column is ColumnId =>
@@ -414,12 +417,12 @@ export function RolePipeline({
     } catch {
       // A malformed local preference should never prevent recruiter work.
     }
-    return availableIds;
+    return isStage(tab) ? defaultVisibleColumnIds(tab, tabColumns) : availableIds;
   })();
   const orderedColumns = (() => {
     const availableIds = tabColumns.map((column) => column.id);
     try {
-      const saved = JSON.parse(columnPreference ?? savedColumnPreference);
+      const saved = JSON.parse(activeColumnPreference);
       if (saved && !Array.isArray(saved) && Array.isArray(saved.order)) {
         const validOrder = saved.order.filter((column: unknown): column is ColumnId =>
           typeof column === "string" && availableIds.includes(column as ColumnId),
@@ -467,7 +470,7 @@ export function RolePipeline({
       : [...visibleColumns, column];
     const serialized = JSON.stringify({ visible: next, order: orderedColumns });
     localStorage.setItem(columnStorageKey, serialized);
-    setColumnPreference(serialized);
+    setColumnPreference({ scope: columnStorageKey, value: serialized });
   }
   function moveColumn(column: ColumnId, direction: -1 | 1) {
     const index = orderedColumns.indexOf(column);
@@ -477,11 +480,11 @@ export function RolePipeline({
     [next[index], next[target]] = [next[target], next[index]];
     const serialized = JSON.stringify({ visible: visibleColumns, order: next });
     localStorage.setItem(columnStorageKey, serialized);
-    setColumnPreference(serialized);
+    setColumnPreference({ scope: columnStorageKey, value: serialized });
   }
   function resetColumns() {
     localStorage.removeItem(columnStorageKey);
-    setColumnPreference("");
+    setColumnPreference({ scope: columnStorageKey, value: "" });
     layout.reset();
   }
 

@@ -41,14 +41,8 @@ export type CandidateColumn = {
   field?: RoleField;
 };
 
-// Every column, on every stage.
-//
-// These used to be dealt out per stage — a profile URL and a rating on triage,
-// the detail set only once somebody had been shortlisted — on the theory that
-// a stage decides what is worth filling in. That was the tool deciding for the
-// people using it. A column nobody wants on a tab is one click to hide, and
-// the choice is remembered per tab; a column that is not offered at all is a
-// conversation. So everything is shown, and hiding is theirs to do.
+// Keep fields available in the Columns menu on every stage. The stage matrix
+// below controls what appears before a recruiter customizes a tab.
 const triageStages: Stage[] = ["all_profiles", "profile_shortlisted"];
 
 // Where the work is scanning a long list, rows are tight by default. Where it
@@ -68,6 +62,30 @@ export function stageShowsName(tab: string) {
   return !triageStages.includes(tab as Stage);
 }
 
+const triageIds: CandidateColumnId[] = ["date_added", "linkedin", "source", "rating"];
+const shortlistIds: CandidateColumnId[] = [
+  "date_added", "linkedin", "phone", "alternate_phone", "email", "location", "current_company",
+  "current_designation", "total_experience_years", "current_ctc",
+  "highest_qualification", "resume", "notes",
+];
+// Rejects is not in the supplied five-tab matrix, so retain its former layout.
+const rejectIds: CandidateColumnId[] = [
+  ...shortlistIds, "reject_type", "reject_reason",
+];
+
+export function defaultVisibleColumnIds(stage: Stage, available: CandidateColumn[]) {
+  const shown = new Set<CandidateColumnId>(
+    stage === "all_profiles" ? triageIds
+      : stage === "profile_shortlisted" ? [...triageIds, "phone", "alternate_phone"]
+        : stage === "rejected" ? rejectIds : shortlistIds,
+  );
+  const showCustom = !triageStages.includes(stage);
+  return available
+    .filter((column) => shown.has(column.id as CandidateColumnId) ||
+      (showCustom && column.id.startsWith("custom:")))
+    .map((column) => column.id);
+}
+
 type Spec = Omit<CandidateColumn, "field">;
 
 // Labels are what a recruiter would write at the top of a column. "Current"
@@ -78,9 +96,7 @@ type Spec = Omit<CandidateColumn, "field">;
 // each tab remembers its own arrangement once somebody drags a column.
 const specs: Spec[] = [
   { id: "date_added", label: "Added", kind: "date", editable: false, width: "sm" },
-  // Where this person sits. On a stage tab every row says the same thing as
-  // the tab itself, which is a fair column to hide and a fair one to keep:
-  // All profiles spans every stage, so there it is the only way to tell.
+  // Status remains available in Columns but is outside the default matrix.
   { id: "status", label: "Status", kind: "text", editable: false, width: "md" },
   { id: "linkedin", label: "LinkedIn", kind: "text", editable: true, width: "sm" },
   { id: "source", label: "Source", kind: "text", editable: false, width: "md" },
@@ -93,9 +109,9 @@ const specs: Spec[] = [
     numeric: true,
     placeholder: "0.0–5.0",
   },
-  { id: "phone", label: "Mobile", kind: "text", editable: true, width: "sm", placeholder: "98765 43210" },
+  { id: "phone", label: "Mobile", kind: "text", editable: true, width: "sm", placeholder: "Add mobile" },
   // The second number, for when the first does not answer.
-  { id: "alternate_phone", label: "Alternate", kind: "text", editable: true, width: "sm", placeholder: "98765 43210" },
+  { id: "alternate_phone", label: "Alternate", kind: "text", editable: true, width: "sm", placeholder: "Add alternate" },
   { id: "email", label: "Email", kind: "text", editable: true, width: "lg" },
   { id: "location", label: "Location", kind: "text", editable: true, width: "md" },
   { id: "current_company", label: "Company", kind: "text", editable: true, width: "md" },
@@ -122,10 +138,8 @@ const specs: Spec[] = [
   { id: "notes", label: "Notes", kind: "text", editable: true, width: "lg" },
 ];
 
-// Outcomes rather than details to fill in, so they sit after the detail block
-// and after any custom columns. They are empty for anybody the outcome has not
-// happened to, which on All profiles — a list that spans every stage,
-// rejections included — is exactly the distinction worth seeing.
+// Outcome columns remain available in Columns but only rejection details are
+// shown initially, on the Rejects tab.
 const outcomeSpecs: Spec[] = [
   { id: "reject_type", label: "Reject type", kind: "text", editable: false, width: "sm" },
   { id: "reject_reason", label: "Reject reason", kind: "text", editable: false, width: "lg" },

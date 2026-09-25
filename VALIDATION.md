@@ -112,3 +112,23 @@ These results establish the automated checks and hosted schema updates, not comp
 - Added semantic table headers, sticky column headers and candidate identity, bounded horizontal scrolling, compact feedback inputs that expand on focus, subtle cell borders, and contained long-text values. Missing-value labels remain free of em dashes.
 - ESLint and TypeScript passed; the Hostinger production build passed. No API/database changes or new tests were needed for this presentation change. Brave desktop, tablet, and phone screenshots verified the compact layout and visible in-frame horizontal scrollbar. Existing feedback values were preserved during read-only verification.
 - Rollback image: leadscope-rollback:before-client-sheet-20260921. Previous sources: /opt/backups/leadscope-before-client-sheet-20260921.tar.gz. Final source bundle: /opt/backups/leadscope-client-sheet-final-20260921.tar.gz. Build log: /opt/backups/leadscope-client-sheet-final-build-20260921.log. No GitHub push or Vercel deployment.
+
+## Show all non-name columns by default — 2026-09-24
+
+- The all-stage column registry is now live on Hostinger. Every available data and custom column appears by default on each candidate stage. Full name keeps its existing behavior: hidden on All profiles and Profile shortlisted, visible on later stages.
+- Column preferences use a new per-role, per-stage key, clearing older hidden-column defaults once. A subsequent hide or reorder persists for that stage without changing another stage.
+- Local ESLint, TypeScript, and 167 unit tests passed; the Hostinger production build passed. Authenticated Brave checks confirmed all columns on Client shortlisted and All profiles, verified a manual hide persisted after reload, and reset that test preference to show all columns again.
+- Final Hostinger container health was healthy and the live login returned HTTP 200. Existing candidate records were not edited. Rollback image: `leadscope-rollback:before-visible-columns-20260924`; previous sources: `/opt/backups/leadscope-before-visible-columns-20260924.tar.gz`; column-registry backup: `/opt/backups/leadscope-columns-before-all-stages-20260924.ts`; final build log: `/opt/backups/leadscope-all-columns-build-20260924.log`. Direct Hostinger deployment; no GitHub push or Vercel deployment.
+
+## Corrected stage column matrix — 2026-09-24
+
+- Replaced the immediately preceding all-columns default with the supplied five-tab matrix. All profiles shows Added, LinkedIn, Source, and Rating; Profile shortlisted adds Mobile. Recruiter shortlisted, Client shortlisted, and Offer sent show Added, LinkedIn, Mobile, Full name, Email, Location, Company, Designation, Exp, CTC, Qualification, Resume, Notes, and role custom columns. Full name stays outside the Columns menu and appears only on those latter three tabs. The Rejects tab, absent from the matrix, retains its earlier detail and rejection columns.
+- Additional fields stay available in the Columns menu for deliberate selection. The v4 per-role, per-stage preference key replaces the brief all-columns defaults once; subsequent manual visibility and order choices remain per tab. Candidate data was not changed.
+- ESLint, TypeScript, and 163 unit tests passed. The Hostinger production build passed. Authenticated Brave checks confirmed the live headers on all five specified tabs and Rejects. Final container health was healthy and the login returned HTTP 200.
+- Rollback image: `leadscope-rollback:before-column-matrix-20260924`; previous source archive: `/opt/backups/leadscope-before-column-matrix-20260924.tar.gz`; final build log: `/opt/backups/leadscope-column-matrix-build-20260924.log`. Direct Hostinger deployment; no GitHub push or Vercel deployment.
+
+## Alternate mobile default — 2026-09-24
+
+- Alternate now appears immediately after Mobile by default from Profile shortlisted through Rejects. It remains hidden by default on All profiles. Existing candidate values and manually saved column preferences are unchanged.
+- ESLint, TypeScript, 163 unit tests, and the Hostinger production build passed. Authenticated Brave checks confirmed the live headers across all six stages. Final container health was healthy and the login returned HTTP 200.
+- Rollback image: `leadscope-rollback:before-alternate-default-20260924`; registry backup: `/opt/backups/leadscope-columns-before-alternate-default-20260924.ts`; build log: `/opt/backups/leadscope-alternate-default-build-20260924.log`. Direct Hostinger deployment; no GitHub push or Vercel deployment.
