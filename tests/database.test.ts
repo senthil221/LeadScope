@@ -1754,20 +1754,54 @@ describe("import_candidates: two mobile numbers, ten digits each", () => {
     });
   });
 
-  it("fails a row whose number is not ten digits, or repeats itself", async () => {
+  it("fails a row whose number is not ten digits", async () => {
     const cid = await client();
     const rid = await role(cid);
     for (const fields of [
       { phone: "+919876543210" },
       { phone: "98765" },
       { phone: "9876543210", alternatePhone: "98765432101" },
-      { phone: "9876543210", alternatePhone: "9876543210" },
     ]) {
       const summary = await importRows(cid, rid, [
         linkedinRow(`bad-mobile-${JSON.stringify(fields).length}-${fields.alternatePhone ?? "x"}`, { fields }),
       ]);
       expect(summary).toMatchObject({ created: 0, invalid: 1 });
     }
+  });
+
+  it("keeps one number when a row writes the same one in both columns", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const summary = await importRows(cid, rid, [
+      linkedinRow("one-number-twice", {
+        fields: { phone: "9876543210", alternatePhone: "9876543210" },
+      }),
+    ]);
+    expect(summary).toMatchObject({ created: 1 });
+    expect(await contacts(rid)).toEqual({
+      phone: "9876543210",
+      alternate_phone: null,
+    });
+  });
+
+  // The file that found this: one candidate listed twice, their second number
+  // in the alternate column of the first row and as the primary of the second.
+  it("reconciles a second row whose primary is the alternate already on file", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    await importRows(cid, rid, [
+      linkedinRow("listed-twice", {
+        fields: { phone: "9004949735", alternatePhone: "9004949120" },
+      }),
+    ]);
+    const summary = await importRows(cid, rid, [
+      linkedinRow("listed-twice", { fields: { phone: "9004949120" } }),
+    ]);
+    expect(summary).toMatchObject({ invalid: 0, alreadyInRole: 1 });
+    expect(await contacts(rid)).toEqual({
+      phone: "9004949120",
+      alternate_phone: null,
+    });
   });
 
   it("does not clear an alternate already on file with a blank one", async () => {

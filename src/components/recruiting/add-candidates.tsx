@@ -7,6 +7,7 @@ import {
   isRowError,
   nameFromProfileUrl,
   csvImportPreview,
+  skippedRowsCsv,
   spreadsheetRowsToCsv,
   type DraftRow,
   type ImportRow,
@@ -53,6 +54,21 @@ const modeLabels: Record<Mode, string> = {
   sourcing: "From sourcing",
 };
 const emptyManual: DraftRow = { name: "" };
+// Enough of the skipped rows to recognize the pattern without turning the
+// dialog into a second spreadsheet. The file carries all of them.
+const skippedRowsShown = 8;
+// Whatever the row does have to identify it: the name it gave, or the cell
+// that was supposed to be its profile. A row with neither is pointed at by
+// its line number alone.
+function skippedRowLabel(row: DraftRow) {
+  return (
+    row.name.trim() ||
+    row.linkedin?.trim() ||
+    row.email?.trim() ||
+    row.naukri?.trim() ||
+    "—"
+  );
+}
 const providerOptions = [
   "LinkedIn Recruiter",
   "LinkedIn",
@@ -98,6 +114,7 @@ export function AddCandidatesDialog({
     { id: string; canonical_url: string; title: string }[] | null
   >(null);
   const [targetStage, setTargetStage] = useState<PipelineStage>(stage);
+  const [showSkipped, setShowSkipped] = useState(false);
   const csvFileInput = useRef<HTMLInputElement>(null);
   // An import fills the fixed columns of a stage and nothing else: no custom
   // role columns, no new columns invented from the file's own headings. Extra
@@ -170,17 +187,32 @@ export function AddCandidatesDialog({
     }
   }
 
-  function downloadTemplate() {
+  function downloadCsv(content: string, fileName: string) {
     // A BOM so Excel opens the file as UTF-8 instead of guessing at it.
-    const blob = new Blob(["﻿", templateCsv()], {
+    const blob = new Blob(["﻿", content], {
       type: "text/csv;charset=utf-8",
     });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = templateFileName(roleName);
+    link.download = fileName;
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  function downloadTemplate() {
+    downloadCsv(templateCsv(), templateFileName(roleName));
+  }
+
+  // The rows that will not import, as their own file: same columns, same
+  // cells, with the reason on the end. Correct them there and upload that
+  // file — the ones already imported are matched, not duplicated.
+  function downloadSkipped() {
+    const base = (csvFileName || templateFileName(roleName)).replace(/\.(csv|xlsx?)$/i, "");
+    downloadCsv(
+      skippedRowsCsv(csvText, csvPreview.invalidRows),
+      `${base} - rows to fix.csv`,
+    );
   }
 
   async function submit(rows: ImportRow[], source: CandidateSource) {
@@ -640,9 +672,57 @@ export function AddCandidatesDialog({
                 </p>
               )}
               {csvPreview.invalidRows.length > 0 && (
-                <p className="csv-preview-warning">
-                  {csvPreview.invalidRows[0].reason} Check each row&rsquo;s identity and mapped role-column value; invalid rows will not be imported.
-                </p>
+                <div className="csv-skipped">
+                  <div className="csv-skipped-head">
+                    <p className="csv-preview-warning">
+                      {csvPreview.invalidRows.length} row
+                      {csvPreview.invalidRows.length === 1 ? "" : "s"} cannot be
+                      imported. Import the rest now, or fix these and upload
+                      again — nothing is duplicated either way.
+                    </p>
+                    <button
+                      type="button"
+                      className="small"
+                      aria-expanded={showSkipped}
+                      onClick={() => setShowSkipped(!showSkipped)}
+                    >
+                      {showSkipped ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                  {showSkipped && (
+                    <ul
+                      className="csv-skipped-rows"
+                      aria-label="Rows that cannot be imported"
+                    >
+                      {csvPreview.invalidRows.slice(0, skippedRowsShown).map((error, index) => (
+                        <li key={`${error.line ?? index}`}>
+                          <span className="csv-skipped-line">
+                            {error.line ? `Line ${error.line}` : "Row"}
+                          </span>
+                          <span className="csv-skipped-name">
+                            {skippedRowLabel(error.row)}
+                          </span>
+                          <span className="csv-skipped-reason">{error.reason}</span>
+                        </li>
+                      ))}
+                      {csvPreview.invalidRows.length > skippedRowsShown && (
+                        <li className="muted">
+                          +{csvPreview.invalidRows.length - skippedRowsShown} more in the
+                          downloaded file
+                        </li>
+                      )}
+                    </ul>
+                  )}
+                  <button
+                    type="button"
+                    className="small csv-skipped-download"
+                    onClick={downloadSkipped}
+                  >
+                    <Download size={14} aria-hidden />
+                    Download these {csvPreview.invalidRows.length} row
+                    {csvPreview.invalidRows.length === 1 ? "" : "s"} to fix
+                  </button>
+                </div>
               )}
               {csvPreview.validRows.length > 0 && (
                 <ul className="csv-preview-rows" aria-label="Candidates ready to import">
@@ -667,7 +747,9 @@ export function AddCandidatesDialog({
           >
             {busy
               ? "Adding…"
-              : `Import ${csvPreview.validRows.length || "CSV"} candidate${csvPreview.validRows.length === 1 ? "" : "s"}`}
+              : csvPreview.invalidRows.length
+                ? `Skip ${csvPreview.invalidRows.length} and import ${csvPreview.validRows.length}`
+                : `Import ${csvPreview.validRows.length || "CSV"} candidate${csvPreview.validRows.length === 1 ? "" : "s"}`}
           </button>
         </>
       )}

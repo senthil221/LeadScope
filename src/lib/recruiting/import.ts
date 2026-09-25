@@ -33,7 +33,9 @@ export type ImportRow = {
   sourceDetail?: string;
   custom?: Record<string, string | number | boolean>;
 };
-export type RowError = { row: DraftRow; reason: string };
+// The line the row came from in the file, counting the header as line 1,
+// so a row that needs attention can be pointed at rather than described.
+export type RowError = { row: DraftRow; reason: string; line?: number };
 export function isRowError(x: ImportRow | RowError): x is RowError {
   return "reason" in x;
 }
@@ -69,11 +71,6 @@ export function buildImportRow(
   for (const number of [draft.phone, draft.alternatePhone])
     if (number?.trim() && !normalizeIdentity("phone", number))
       return { row: draft, reason: "Enter a 10 digit mobile number." };
-  if (
-    draft.alternatePhone?.trim() &&
-    mobileDigits(draft.alternatePhone) === mobileDigits(draft.phone ?? "")
-  )
-    return { row: draft, reason: "Both mobile numbers are the same." };
   const tryAdd = (kind: "linkedin" | "naukri" | "email" | "phone", raw?: string) => {
     if (!raw?.trim()) return;
     const identity = normalizeIdentity(kind, raw);
@@ -109,9 +106,13 @@ export function buildImportRow(
   if (email) fields.email = email.value;
   if (phone) fields.phone = phone.value;
   // The alternate is candidate data but never an identity: it is not what a
-  // duplicate check should merge two people on.
-  if (draft.alternatePhone?.trim())
-    fields.alternatePhone = mobileDigits(draft.alternatePhone);
+  // duplicate check should merge two people on. A sheet that writes the same
+  // number into both columns is giving one number twice, so the copy is
+  // dropped and the row still imports.
+  const alternate = draft.alternatePhone?.trim()
+    ? mobileDigits(draft.alternatePhone)
+    : "";
+  if (alternate && alternate !== phone?.value) fields.alternatePhone = alternate;
   if (draft.currentCompany?.trim())
     fields.currentCompany = draft.currentCompany.trim().slice(0, 200);
   if (draft.currentDesignation?.trim())
@@ -370,6 +371,29 @@ export function csvToDraftRows(text: string): DraftRow[] {
   });
 }
 
+function csvValue(value: string) {
+  return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
+}
+
+// The header a fix-up file carries for the reason a row was left out. Not a
+// recognised column, so the corrected file imports with it still in place.
+export const skippedReasonHeader = "Why it was skipped";
+
+// The rows that could not be imported, written back out as their own file:
+// the original headers, the original cells, and the reason on the end. Fix
+// the rows there and upload that file, rather than hunting for them in a
+// sheet of four hundred.
+export function skippedRowsCsv(text: string, rows: RowError[]): string {
+  const parsed = parseCsv(text);
+  const header = parsed[0] ?? [];
+  const lines = [[...header.map((cell) => cell.replace(/^\uFEFF/, "")), skippedReasonHeader]];
+  for (const error of rows) {
+    const cells = error.line ? (parsed[error.line - 1] ?? []) : [];
+    lines.push([...header.map((_, index) => cells[index] ?? ""), error.reason]);
+  }
+  return lines.map((line) => line.map(csvValue).join(",")).join("\r\n");
+}
+
 // Build all CSV feedback before the request begins. The dialog can then show
 // exactly what will be sent, while the API remains the final validation layer.
 export function csvImportPreview(
@@ -398,7 +422,7 @@ export function csvImportPreview(
   for (const [index, draft] of drafts.entries()) {
     const built = buildImportRow(draft, rules);
     if (isRowError(built)) {
-      invalidRows.push(built);
+      invalidRows.push({ ...built, line: index + 2 });
       continue;
     }
     const custom: Record<string, string | number | boolean> = {};
@@ -413,7 +437,7 @@ export function csvImportPreview(
       }
       if (value !== undefined) custom[field.key] = value;
     }
-    if (customError) invalidRows.push({ row: draft, reason: customError });
+    if (customError) invalidRows.push({ row: draft, reason: customError, line: index + 2 });
     else validRows.push({ ...built, ...(Object.keys(custom).length ? { custom } : {}) });
   }
   return {

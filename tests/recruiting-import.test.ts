@@ -6,6 +6,8 @@ import {
   parseCsv,
   csvImportPreview,
   csvToDraftRows,
+  skippedRowsCsv,
+  skippedReasonHeader,
   csvHeaders,
   automaticCustomColumnMappings,
   spreadsheetRowsToCsv,
@@ -79,14 +81,18 @@ describe("buildImportRow", () => {
     });
     expect(isRowError(result) && result.reason).toContain("10 digit");
   });
-  it("refuses an alternate that repeats the primary number", () => {
+  it("drops an alternate that repeats the primary number", () => {
     const result = buildImportRow({
       name: "Arjun Mehta",
       linkedin: "https://www.linkedin.com/in/arjun-mehta",
       phone: "9000000000",
       alternatePhone: "+91 90000 00000",
     });
-    expect(isRowError(result) && result.reason).toContain("same");
+    expect(isRowError(result)).toBe(false);
+    if (!isRowError(result)) {
+      expect(result.fields.phone).toBe("9000000000");
+      expect(result.fields.alternatePhone).toBeUndefined();
+    }
   });
   it("carries optional fields only when present, trimmed and bounded", () => {
     const result = buildImportRow({
@@ -286,5 +292,45 @@ describe("csvImportPreview", () => {
     );
     expect(preview.validRows).toHaveLength(0);
     expect(preview.invalidRows[0].reason).toContain("Fit");
+  });
+});
+
+describe("rows the file cannot import", () => {
+  const sheet = [
+    "Full Name,LinkedIn URL,Mobile,Alternate Mobile",
+    "Shrinath Bedarkar,Sent by Purnima,9762357715,8605178721",
+    "Abdul Ahad,https://www.linkedin.com/in/abdul-ahad,7908272276,",
+    '"Roy, Chayan",(8) Chayan | LinkedIn,,',
+  ].join("\n");
+  const preview = () => csvImportPreview(sheet, [], {}, { requireLinkedin: true });
+
+  it("points at the line in the file each skipped row came from", () => {
+    const { validRows, invalidRows } = preview();
+    expect(validRows).toHaveLength(1);
+    expect(invalidRows.map((error) => error.line)).toEqual([2, 4]);
+    expect(invalidRows[0].reason).toContain("LinkedIn");
+  });
+
+  it("writes the skipped rows back out as a file to fix and re-upload", () => {
+    const rows = parseCsv(skippedRowsCsv(sheet, preview().invalidRows));
+    expect(rows[0]).toEqual([
+      "Full Name", "LinkedIn URL", "Mobile", "Alternate Mobile", skippedReasonHeader,
+    ]);
+    expect(rows).toHaveLength(3);
+    expect(rows[1].slice(0, 4)).toEqual([
+      "Shrinath Bedarkar", "Sent by Purnima", "9762357715", "8605178721",
+    ]);
+    // A cell with a comma in it survives the round trip.
+    expect(rows[2][0]).toBe("Roy, Chayan");
+    expect(rows[2][4]).toContain("LinkedIn");
+  });
+
+  it("imports the corrected file once the URLs are real", () => {
+    const fixed = sheet
+      .replace("Sent by Purnima", "https://www.linkedin.com/in/shrinath-bedarkar")
+      .replace("(8) Chayan | LinkedIn", "https://www.linkedin.com/in/chayan-roy");
+    const { validRows, invalidRows } = csvImportPreview(fixed, [], {}, { requireLinkedin: true });
+    expect(invalidRows).toHaveLength(0);
+    expect(validRows).toHaveLength(3);
   });
 });

@@ -870,6 +870,74 @@ label small {
   color: #a15c00;
   margin: 8px 0 0;
 }
+/* The rows that will not import. Shown as a list that can be read and a file
+   that can be fixed, rather than one sentence about the first of them. */
+.csv-skipped {
+  margin: 10px 0 0;
+  padding: 10px;
+  border: 1px solid #f0dcb8;
+  border-radius: 6px;
+  background: #fdf8ef;
+}
+.csv-skipped-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.csv-skipped-head .csv-preview-warning {
+  margin: 0;
+}
+.csv-skipped-head button {
+  flex: 0 0 auto;
+}
+.csv-skipped-rows {
+  display: grid;
+  gap: 4px;
+  max-height: 168px;
+  overflow: auto;
+  padding: 0;
+  margin: 10px 0 0;
+  list-style: none;
+  font-size: 12px;
+}
+.csv-skipped-rows li {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 8px;
+  align-items: baseline;
+}
+.csv-skipped-rows li.muted {
+  display: block;
+}
+.csv-skipped-line {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.csv-skipped-name,
+.csv-skipped-reason {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.csv-skipped-reason {
+  color: #a15c00;
+}
+.csv-skipped-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+@media (max-width: 560px) {
+  .csv-skipped-rows li {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+  .csv-skipped-reason {
+    grid-column: 1 / -1;
+    white-space: normal;
+  }
+}
 .csv-preview-rows {
   display: grid;
   gap: 3px;
