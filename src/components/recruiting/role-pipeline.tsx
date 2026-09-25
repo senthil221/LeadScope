@@ -1052,6 +1052,11 @@ export function RolePipeline({
     }
   }
 
+  // A dropdown that has been chosen is an answer, not a draft. Only the
+  // search box waits, because half a typed word is not one.
+  const applyFilters = (
+    event: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>,
+  ) => event.currentTarget.form?.requestSubmit();
   const stagePageUrl = (nextPage: number) => {
     const p = new URLSearchParams(params);
     p.set("stage", tab);
@@ -1478,7 +1483,7 @@ export function RolePipeline({
               aria-label="Filter candidates by source"
               name="source"
               defaultValue={params.get("source") ?? ""}
-              onChange={(event) => event.currentTarget.form?.requestSubmit()}
+              onChange={applyFilters}
             >
               <option value="">All sources</option>
               {candidateSources.map((source) => (
@@ -1507,6 +1512,7 @@ export function RolePipeline({
                     aria-label="Filter candidates by rating"
                     name="rating"
                     defaultValue={params.get("rating") ?? ""}
+                    onChange={applyFilters}
                   >
                     <option value="">All ratings</option>
                     {ratingFilters.map((filter) => (
@@ -1523,6 +1529,7 @@ export function RolePipeline({
                     defaultValue={params.get("entered_from") ?? ""}
                     name="entered_from"
                     type="date"
+                    onChange={applyFilters}
                   />
                 </label>
                 <label>
@@ -1532,6 +1539,7 @@ export function RolePipeline({
                     defaultValue={params.get("entered_to") ?? ""}
                     name="entered_to"
                     type="date"
+                    onChange={applyFilters}
                   />
                 </label>
                 <label>
@@ -1540,6 +1548,7 @@ export function RolePipeline({
                     aria-label="Sort candidates"
                     name="sort"
                     defaultValue={params.get("sort") ?? "oldest"}
+                    onChange={applyFilters}
                   >
                     <option value="oldest">Added order</option>
                     <option value="newest">Newest first</option>

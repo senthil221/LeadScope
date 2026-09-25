@@ -1946,7 +1946,7 @@ describe("six sources, and Naukri that skips the rating queue", () => {
   // The single-cell version of the same correction, from the dropdown in the
   // grid rather than the bulk dialog.
   it("sets one row's source, moving it only when that source is Naukri", async () => {
-    const { cid, rid, rcId } = await pipeline("one-row-source");
+    const { cid, rcId } = await pipeline("one-row-source");
     const set = (source: string) =>
       asUser(actor, () => rpc("set_candidate_source", [cid, rcId, source]));
     expect(await set("google")).toEqual({ stage: "all_profiles", moved: false });
