@@ -1943,6 +1943,60 @@ describe("six sources, and Naukri that skips the rating queue", () => {
     ]);
   });
 
+  it("takes rows out of the rating queue when their source becomes Naukri", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    // One waiting to be rated, one already past that point.
+    await asUser(actor, () =>
+      rpc("import_candidates", [cid, rid, JSON.stringify([
+        linkedinRow("edit-to-naukri-a"), linkedinRow("edit-to-naukri-b"),
+      ]), "csv", "all_profiles"]),
+    );
+    const ids = (
+      await sql("select id from public.role_candidates where role_id=$1 order by id", [rid])
+    ).rows.map((row) => row.id);
+    await sql("update public.role_candidates set stage='recruiter_shortlisted' where id=$1", [ids[1]]);
+    const edit = (token: string | null) =>
+      asUser(actor, () =>
+        rpc("bulk_edit_role_candidates", [cid, rid, ids, null, "source", JSON.stringify("naukri"), "replace", token]),
+      );
+    const preview = await edit(null);
+    // Said before it happens, and only for the one still in All profiles.
+    expect(preview).toMatchObject({ changed: 2, moved: 1 });
+    expect(
+      (await sql("select stage from public.role_candidates where id=$1", [ids[0]])).rows[0].stage,
+    ).toBe("all_profiles");
+    await edit(preview.token);
+    const stages = (
+      await sql("select id,stage,source from public.role_candidates where role_id=$1 order by id", [rid])
+    ).rows;
+    expect(stages).toEqual([
+      { id: ids[0], stage: "profile_shortlisted", source: "naukri" },
+      // Already being worked; a source correction does not pull it backwards.
+      { id: ids[1], stage: "recruiter_shortlisted", source: "naukri" },
+    ]);
+    expect(
+      (
+        await sql(
+          "select reason from public.role_candidate_events where role_candidate_id=$1 and kind='stage'",
+          [ids[0]],
+        )
+      ).rows.map((row) => row.reason),
+    ).toEqual(["Source set to Naukri, which is not rated here."]);
+  });
+  it("leaves stages alone when the source becomes anything else", async () => {
+    const { cid, rid, rcId } = await pipeline("edit-to-google");
+    const preview = await asUser(actor, () =>
+      rpc("bulk_edit_role_candidates", [cid, rid, [rcId], null, "source", JSON.stringify("google"), "replace", null]),
+    );
+    expect(preview).toMatchObject({ changed: 1, moved: 0 });
+    await asUser(actor, () =>
+      rpc("bulk_edit_role_candidates", [cid, rid, [rcId], null, "source", JSON.stringify("google"), "replace", preview.token]),
+    );
+    expect(
+      (await sql("select stage from public.role_candidates where id=$1", [rcId])).rows[0].stage,
+    ).toBe("all_profiles");
+  });
   it("bulk edits the source, and will not empty it", async () => {
     const { cid, rid, rcId } = await pipeline("bulk-source");
     const preview = await asUser(actor, () =>

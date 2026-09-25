@@ -12,7 +12,11 @@ export function BulkEditDialog({ clientId, roleId, roleName, ids, stage, fields,
   const options = bulkFields(fields);
   const [fieldId, setFieldId] = useState(options[0].id);
   const field = options.find((option) => option.id === fieldId)!;
-  const [mode, setMode] = useState<EditMode>("fill_empty");
+  const [chosenMode, setMode] = useState<EditMode>("fill_empty");
+  // A row always has a source, so there is nothing to fill in and nothing to
+  // empty: the only sensible edit is replacing it.
+  const alwaysSet = field.id === "source";
+  const mode: EditMode = alwaysSet ? "replace" : chosenMode;
   const [value, setValue] = useState("");
   const [preview, setPreview] = useState<BulkPreview | null>(null);
   const [busy, setBusy] = useState(false);
@@ -34,8 +38,8 @@ export function BulkEditDialog({ clientId, roleId, roleName, ids, stage, fields,
     <div className="modal-heading"><h2 id="bulk-edit-title">Bulk edit {ids.length} selected row{ids.length === 1 ? "" : "s"}</h2><button disabled={busy} onClick={onClose}>Close</button></div>
     <p className="muted">{roleName} · Only the rows you selected are included, wherever they are in the list.</p>
     <fieldset disabled={busy} className="table-tools-fields">
-      <label>Field<select value={fieldId} onChange={(event) => { setFieldId(event.target.value); setValue(""); resetPreview(); }}>{options.map((option) => <option key={option.id} value={option.id}>{option.label}{option.shared ? " · Shared profile" : " · This role"}</option>)}</select></label>
-      <label>Edit mode<select value={mode} onChange={(event) => { setMode(event.target.value as EditMode); resetPreview(); }}><option value="fill_empty">Fill empty cells only</option><option value="replace">Replace existing values</option><option value="clear">Clear values</option></select></label>
+      {options.length > 1 && <label>Field<select value={fieldId} onChange={(event) => { setFieldId(event.target.value); setValue(""); resetPreview(); }}>{options.map((option) => <option key={option.id} value={option.id}>{option.label}{option.shared ? " · Shared profile" : " · This role"}</option>)}</select></label>}
+      {!alwaysSet && <label>Edit mode<select value={mode} onChange={(event) => { setMode(event.target.value as EditMode); resetPreview(); }}><option value="fill_empty">Fill empty cells only</option><option value="replace">Replace existing values</option><option value="clear">Clear values</option></select></label>}
       {mode !== "clear" && <label>New value{field.kind === "select" || field.kind === "boolean" ?
         <select value={value} onChange={(event) => { setValue(event.target.value); resetPreview(); }}><option value="">Choose a value</option>{(field.kind === "boolean" ? ["true","false"] : field.options ?? []).map((option) => <option key={option} value={option}>{field.kind === "boolean" ? option === "true" ? "Yes" : "No" : field.optionLabels?.[option] ?? option}</option>)}</select> :
         field.id.endsWith("notes") ? <textarea value={value} maxLength={4000} onChange={(event) => { setValue(event.target.value); resetPreview(); }} /> :
@@ -43,11 +47,11 @@ export function BulkEditDialog({ clientId, roleId, roleName, ids, stage, fields,
     </fieldset>
     {field.shared && <p className="table-tools-notice">This edits shared profiles. The value will also appear in every other role using these candidates.</p>}
     {field.id === "rating" && <p className="table-tools-notice">Ratings meeting the role threshold move All profiles rows to Profile shortlisted.</p>}
-    {field.id === "source" && <p className="table-tools-notice">This corrects where these rows came from. It does not move anyone: Naukri profiles skip the rating queue when they are added, not afterwards.</p>}
+    {field.id === "source" && <p className="table-tools-notice">Naukri profiles are not rated here, so any of these still in All profiles move to Profile shortlisted. The preview says how many.</p>}
     {field.id === "client_notes" && <p className="table-tools-notice">These notes are visible through existing client share links.</p>}
     {error && <p className="error" role="alert">{error}</p>}
     {preview && <section aria-label="Bulk edit preview">
-      <p role="status"><strong>{preview.changed} rows will change</strong> · {preview.skipped} unchanged{preview.shared ? ` · ${preview.otherRoleMemberships} other role memberships use these profiles` : ""}</p>
+      <p role="status"><strong>{preview.changed} rows will change</strong> · {preview.skipped} unchanged{preview.moved ? ` · ${preview.moved} move to Profile shortlisted` : ""}{preview.shared ? ` · ${preview.otherRoleMemberships} other role memberships use these profiles` : ""}</p>
       <div className="table-tools-preview"><table><thead><tr><th>Candidate</th><th>Before</th><th>After</th></tr></thead><tbody>{preview.rows.map((row) => <tr key={row.id}><td>{row.name}</td><td>{displayEditValue(row.before, field.id)}</td><td>{displayEditValue(row.after, field.id)}</td></tr>)}</tbody></table></div>
       <p className="muted">Changes are saved together and recorded in Edit history. If a selected record changes after preview, you will be asked to preview again.</p>
     </section>}

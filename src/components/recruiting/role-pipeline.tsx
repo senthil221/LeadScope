@@ -2167,7 +2167,7 @@ export function RolePipeline({
         </>
       )}
       </section>
-      {bulkEditing && <BulkEditDialog clientId={client.id} roleId={role.id} roleName={role.name} ids={bulkEditing} stage={isStage(tab) ? tab : null} fields={roleFields} onClose={() => setBulkEditing(null)} onSaved={(count) => { setBulkEditing(null); setSelected([]); setMessage(`Updated ${count} rows. Changes are recorded in Edit history.`); refresh(); }} />}
+      {bulkEditing && <BulkEditDialog clientId={client.id} roleId={role.id} roleName={role.name} ids={bulkEditing} stage={isStage(tab) && tab !== "all_profiles" ? tab : null} fields={roleFields} onClose={() => setBulkEditing(null)} onSaved={(count) => { setBulkEditing(null); setSelected([]); setMessage(`Updated ${count} rows. Changes are recorded in Edit history.`); refresh(); }} />}
       {showHistory && <EditHistoryDialog clientId={client.id} roleId={role.id} onClose={() => setShowHistory(false)} />}
       {showDuplicates && <DuplicateReview clientId={client.id} roleId={role.id} onClose={() => setShowDuplicates(false)} />}
       {showDeleted && <DeletedCandidates clientId={client.id} roleId={role.id} archived={role.archived} onClose={() => setShowDeleted(false)} onRestored={() => refresh()} />}

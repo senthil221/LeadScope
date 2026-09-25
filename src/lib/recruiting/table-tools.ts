@@ -16,7 +16,14 @@ export const bulkProfileFields: BulkField[] = [
   { id: "current_ctc", label: "Current CTC", kind: "text", shared: true },
   { id: "highest_qualification", label: "Highest qualification", kind: "text", shared: true },
 ];
+// Only the source, for now. The rest of these edit the same way and the
+// server still accepts them; they are simply not offered while bulk editing
+// is being used for the one job it was asked for. Widening this line is all
+// it takes to bring them back.
 export function bulkFields(custom: RoleField[]): BulkField[] {
+  return everyBulkField(custom).filter((field) => field.id === "source");
+}
+function everyBulkField(custom: RoleField[]): BulkField[] {
   return [
     { id: "internal_notes", label: "Recruiter notes", kind: "text" },
     { id: "client_notes", label: "Client notes", kind: "text" },
@@ -45,6 +52,9 @@ export function bulkValue(field: BulkField, mode: EditMode, value: string): stri
 }
 export type BulkPreview = {
   token: string; changed: number; skipped: number; shared: boolean; otherRoleMemberships: number; batchId: string | null;
+  // Rows this edit also takes out of All profiles: setting a source to Naukri
+  // says the row is not waiting for a rating.
+  moved?: number;
   rows: { id: string; name: string; before: unknown; after: unknown }[];
 };
 export type EditHistoryEntry = {
