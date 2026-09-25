@@ -32,7 +32,7 @@ export function BulkEditDialog({ clientId, roleId, roleName, ids, stage, fields,
   }
   return <TableDialog titleId="bulk-edit-title" busy={busy} wide onClose={onClose}>
     <div className="modal-heading"><h2 id="bulk-edit-title">Bulk edit {ids.length} selected row{ids.length === 1 ? "" : "s"}</h2><button disabled={busy} onClick={onClose}>Close</button></div>
-    <p className="muted">{roleName} · Only the selected rows on this page are included.</p>
+    <p className="muted">{roleName} · Only the rows you selected are included, wherever they are in the list.</p>
     <fieldset disabled={busy} className="table-tools-fields">
       <label>Field<select value={fieldId} onChange={(event) => { setFieldId(event.target.value); setValue(""); resetPreview(); }}>{options.map((option) => <option key={option.id} value={option.id}>{option.label}{option.shared ? " · Shared profile" : " · This role"}</option>)}</select></label>
       <label>Edit mode<select value={mode} onChange={(event) => { setMode(event.target.value as EditMode); resetPreview(); }}><option value="fill_empty">Fill empty cells only</option><option value="replace">Replace existing values</option><option value="clear">Clear values</option></select></label>

@@ -219,6 +219,7 @@ export function RolePipeline({
   const resumeForRef = useRef<string | null>(null);
   const [showDeleted, setShowDeleted] = useState(false);
   const [bulkEditing, setBulkEditing] = useState<string[] | null>(null);
+  const [selectingAll, setSelectingAll] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showDuplicates, setShowDuplicates] = useState(false);
   useEffect(() => {
@@ -346,7 +347,6 @@ export function RolePipeline({
   const canDeleteRows = canSelectCandidates && !role.archived && isOwner;
   const showRowActions = Boolean(advanceTo || canRejectFromTab) || canDeleteRows;
   const activeCandidateFilterCount = [
-    params.get("source"),
     params.get("rating"),
     params.get("entered_from"),
     params.get("entered_to"),
@@ -1007,6 +1007,33 @@ export function RolePipeline({
     return `${path}?${p}`;
   };
 
+  // Everything the current stage and filters match, up to what one bulk edit
+  // can take. Fetched rather than guessed: the page only holds fifty ids.
+  async function selectAllMatching() {
+    if (!isStage(tab)) return;
+    setSelectingAll(true);
+    setError("");
+    try {
+      const filters: Record<string, string> = {};
+      for (const key of ["q", "source", "rating", "entered_from", "entered_to", "sort"]) {
+        const value = params.get(key);
+        if (value) filters[key] = value;
+      }
+      const ids = await act<string[]>("roleCandidateIds", {
+        clientId: client.id,
+        roleId: role.id,
+        stage: tab,
+        filters,
+      });
+      setSelected(ids);
+      if (ids.length < total)
+        setMessage(`Selected the first ${ids.length} of ${total}. Edit these, then select again for the rest.`);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSelectingAll(false);
+    }
+  }
   function summarize(summary: ImportSummary) {
     setImporting(false);
     const parts = [
@@ -1313,6 +1340,14 @@ export function RolePipeline({
       {canSelectCandidates && selected.length > 0 && (
         <div className="bulk-bar">
           <strong>{selected.length} selected</strong>
+          {/* The page is fifty rows; the mistake worth fixing is usually a
+              whole import. This selects everything the current filter shows,
+              not just what is on screen. */}
+          {total > selected.length && (
+            <button type="button" disabled={selectingAll} onClick={() => void selectAllMatching()}>
+              {selectingAll ? "Selecting…" : `Select all ${total}`}
+            </button>
+          )}
           <button type="button" disabled={busy || role.archived} onClick={() => setBulkEditing([...selected])}>Bulk edit</button>
           {canDeleteRows && <button type="button" disabled={busy || role.archived} onClick={() => setDeleting([...selected])}><Trash2 size={15} /> Delete from role</button>}
           <button type="button" onClick={() => setSelected([])}>Clear selection</button>
@@ -1368,6 +1403,20 @@ export function RolePipeline({
               maxLength={200}
             />
             <button className="primary" type="submit">Search</button>
+            <select
+              className="candidate-source-filter"
+              aria-label="Filter candidates by source"
+              name="source"
+              defaultValue={params.get("source") ?? ""}
+              onChange={(event) => event.currentTarget.form?.requestSubmit()}
+            >
+              <option value="">All sources</option>
+              {candidateSources.map((source) => (
+                <option key={source} value={source}>
+                  {candidateSourceLabels[source]}
+                </option>
+              ))}
+            </select>
             <details
               className="candidate-filter-menu"
               ref={filterMenu}
@@ -1382,21 +1431,6 @@ export function RolePipeline({
                 )}
               </summary>
               <div className="candidate-filter-grid">
-                <label>
-                  Source
-                  <select
-                    aria-label="Filter candidates by source"
-                    name="source"
-                    defaultValue={params.get("source") ?? ""}
-                  >
-                    <option value="">All sources</option>
-                    {candidateSources.map((source) => (
-                      <option key={source} value={source}>
-                        {candidateSourceLabels[source]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
                 <label>
                   Rating
                   <select

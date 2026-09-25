@@ -1130,6 +1130,47 @@ describe("edit history, duplicate review and bulk editing", () => {
   async function bulk(fixture: Awaited<ReturnType<typeof twoRows>>, field: string, value: unknown, mode = "replace", token: string | null = null) {
     return asUser(actor, () => rpc("bulk_edit_role_candidates", [fixture.cid, fixture.rid, fixture.ids, "all_profiles", field, value === null ? null : JSON.stringify(value), mode, token]));
   }
+  // The edit worth making in bulk is a whole import that went in wrong, and
+  // an import is bigger than the fifty rows a page shows.
+  it("covers more rows than one page holds, listing the first fifty", async () => {
+    const cid = await client();
+    const rid = await role(cid);
+    const rows = Array.from({ length: 60 }, (_, index) => linkedinRow(`wide-bulk-${index}`));
+    expect(
+      await asUser(actor, () =>
+        rpc("import_candidates", [cid, rid, JSON.stringify(rows), "csv", "all_profiles"]),
+      ),
+    ).toMatchObject({ created: 60 });
+    const ids = (
+      await sql("select id from public.role_candidates where role_id=$1 order by id", [rid])
+    ).rows.map((row) => row.id);
+    const edit = (token: string | null) =>
+      asUser(actor, () =>
+        rpc("bulk_edit_role_candidates", [cid, rid, ids, "all_profiles", "source", JSON.stringify("google"), "replace", token]),
+      );
+    const preview = await edit(null);
+    expect(preview).toMatchObject({ changed: 60, skipped: 0 });
+    expect(preview.rows).toHaveLength(50);
+    await edit(preview.token);
+    expect(
+      (await sql("select count(*)::int as n from public.role_candidates where role_id=$1 and source='google'", [rid]))
+        .rows[0].n,
+    ).toBe(60);
+    // One batch, so Edit history reads as the single action it was.
+    expect(
+      (await sql("select count(distinct batch_id)::int as n from private.candidate_edit_history where field='source'"))
+        .rows[0].n,
+    ).toBe(1);
+  });
+  it("still refuses a selection beyond what one edit should carry", async () => {
+    const f = await twoRows("bulk-cap");
+    const tooMany = Array.from({ length: 2001 }, () => randomUUID());
+    await expect(
+      asUser(actor, () =>
+        rpc("bulk_edit_role_candidates", [f.cid, f.rid, tooMany, "all_profiles", "source", JSON.stringify("google"), "replace", null]),
+      ),
+    ).rejects.toThrow("Select 1");
+  });
   it("previews without writing, fills only blanks, applies atomically and records before/after with a batch", async () => {
     const f = await twoRows("bulk-fill");
     await asUser(actor, () => rpc("save_candidate_field", [f.second, "current_company", "Existing company"]));

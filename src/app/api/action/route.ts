@@ -12,7 +12,11 @@ import {
   mobileDigits,
   normalizeCandidateEmail,
 } from "@/lib/recruiting/contact";
-import { candidateSources } from "@/lib/recruiting/stages";
+import { candidateSources, stages } from "@/lib/recruiting/stages";
+import {
+  roleCandidateListFilters,
+  roleCandidateListQuery,
+} from "@/lib/server/recruiting";
 import { processNext } from "@/lib/server/process";
 import { qualify, mergeAssessment } from "@/lib/qualification";
 export const runtime = "nodejs";
@@ -550,7 +554,7 @@ export async function POST(request: Request) {
         break;
       }
       case "removeRoleCandidates": {
-        const p = z.object({ clientId: uuid, roleId: uuid, ids: z.array(uuid).min(1).max(50), stage: z.string().max(50).nullable() }).parse(payload);
+        const p = z.object({ clientId: uuid, roleId: uuid, ids: z.array(uuid).min(1).max(2000), stage: z.string().max(50).nullable() }).parse(payload);
         result = { batchId: checked(await db.rpc("remove_role_candidates", { p_client: p.clientId, p_role: p.roleId, p_ids: p.ids, p_stage: p.stage })) };
         break;
       }
@@ -572,6 +576,40 @@ export async function POST(request: Request) {
       case "bulkEditCandidates": {
         const p = z.object({ clientId: uuid, roleId: uuid, ids: z.array(uuid).min(1).max(50), stage: z.string().max(50).nullable(), field: z.string().min(1).max(100), value: z.union([z.string().max(4000),z.number().finite(),z.boolean()]).nullable(), mode: z.enum(["replace","fill_empty","clear"]), expected: z.string().regex(/^[a-f0-9]{32}$/).nullable().default(null) }).parse(payload);
         result = checked(await db.rpc("bulk_edit_role_candidates", { p_client: p.clientId, p_role: p.roleId, p_ids: p.ids, p_stage: p.stage, p_field: p.field, p_value: p.value, p_mode: p.mode, p_expected: p.expected }));
+        break;
+      }
+      // The ids behind the list a recruiter is looking at, so "select all"
+      // can mean the whole filtered view rather than the page of it on
+      // screen. Read-only, and bounded by the same limit the bulk edit takes.
+      case "roleCandidateIds": {
+        const p = z
+          .object({
+            clientId: uuid,
+            roleId: uuid,
+            stage: z.enum(stages),
+            filters: z.record(z.string(), z.string().max(200)).default({}),
+          })
+          .parse(payload);
+        const role = checked(
+          await db
+            .from("roles")
+            .select("id,rating_threshold")
+            .eq("id", p.roleId)
+            .eq("client_id", p.clientId)
+            .single(),
+        ) as { rating_threshold: number };
+        const rows = checked(
+          await roleCandidateListQuery(
+            db,
+            p.roleId,
+            p.stage,
+            role.rating_threshold,
+            roleCandidateListFilters(p.filters),
+            false,
+            "id,candidates!inner(id)",
+          ).range(0, 1999),
+        ) as unknown as { id: string }[];
+        result = rows.map((row) => row.id);
         break;
       }
       case "duplicateReview": {

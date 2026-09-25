@@ -83,11 +83,14 @@ export function roleCandidateListQuery(
   ratingThreshold: number,
   filters: RoleCandidateListFilters,
   includeTotal = true,
+  // The whole row by default; a caller that only needs ids says so, because
+  // two thousand joined candidate records is a different kind of request.
+  columns = "*,candidates!inner(*,candidate_identities(kind,normalized_value))",
 ) {
   let query = db
     .from("role_candidates")
     .select(
-      "*,candidates!inner(*,candidate_identities(kind,normalized_value))",
+      columns,
       includeTotal ? { count: "exact" } : undefined,
     )
     .eq("role_id", roleId);
