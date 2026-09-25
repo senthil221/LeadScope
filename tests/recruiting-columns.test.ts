@@ -27,10 +27,10 @@ describe("stage table defaults", () => {
 
   it("follows the supplied five-tab column matrix", () => {
     expect(visible("all_profiles")).toEqual([
-      "linkedin", "rating", "date_added", "status", "source",
+      "linkedin", "rating", "source", "date_added", "status",
     ]);
     expect(visible("profile_shortlisted")).toEqual([
-      "linkedin", "rating", "date_added", "source", "phone", "alternate_phone",
+      "linkedin", "rating", "source", "date_added", "phone", "alternate_phone",
     ]);
     const detail = [
       "date_added", "linkedin", "phone", "alternate_phone", "email", "location",
@@ -71,13 +71,20 @@ describe("stage table defaults", () => {
     }
   });
 
-  it("keeps LinkedIn as the wide identity column on triage tabs", () => {
+  it("leads the triage tabs with the profile, its rating and its source", () => {
     for (const stage of ["all_profiles", "profile_shortlisted"] as const) {
       const available = candidateColumns(stage, []);
-      expect(available.slice(0, 2).map((column) => column.id)).toEqual([
-        "linkedin", "rating",
+      expect(available.slice(0, 3).map((column) => column.id)).toEqual([
+        "linkedin", "rating", "source",
       ]);
       expect(available[0].width).toBe("lg");
+    }
+  });
+  // Everywhere else the reading order is the same idea without the hoist.
+  it("keeps Source beside Rating on the stages that show a name", () => {
+    for (const stage of stages.filter(stageShowsName)) {
+      const ids = candidateColumns(stage, []).map((column) => column.id);
+      expect(ids.indexOf("source")).toBe(ids.indexOf("rating") + 1);
     }
   });
 

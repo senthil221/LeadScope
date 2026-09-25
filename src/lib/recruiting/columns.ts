@@ -102,7 +102,6 @@ const specs: Spec[] = [
   // Status remains available in Columns but is outside the default matrix.
   { id: "status", label: "Status", kind: "text", editable: false, width: "md" },
   { id: "linkedin", label: "LinkedIn", kind: "text", editable: true, width: "sm" },
-  { id: "source", label: "Source", kind: "select", editable: true, width: "md" },
   {
     id: "rating",
     label: "Rating",
@@ -112,6 +111,10 @@ const specs: Spec[] = [
     numeric: true,
     placeholder: "0.0–5.0",
   },
+  // Beside the rating rather than further along: where a profile came from is
+  // part of judging it, and on the tabs where it is judged the two are read
+  // together.
+  { id: "source", label: "Source", kind: "select", editable: true, width: "md" },
   { id: "phone", label: "Mobile", kind: "text", editable: true, width: "sm", placeholder: "Add mobile" },
   // The second number, for when the first does not answer.
   { id: "alternate_phone", label: "Alternate", kind: "text", editable: true, width: "sm", placeholder: "Add alternate" },
@@ -184,10 +187,11 @@ export function candidateColumns(
   // With the name column gone from triage, the LinkedIn URL is what identifies
   // a row. It leads the table and takes the room the name gave up, so it reads
   // as the identity column rather than truncating three columns in. The rating
-  // follows it: on these tabs the job is to look at a profile and score it, so
-  // the two columns that do that work belong together.
+  // and the source follow it: on these tabs the job is to look at a profile and
+  // score it, and where it came from is part of that, so the three columns
+  // doing that work stay together.
   if (!stageShowsName(stage)) {
-    const lead: CandidateColumnId[] = ["linkedin", "rating"];
+    const lead: CandidateColumnId[] = ["linkedin", "rating", "source"];
     const widths: Partial<Record<CandidateColumnId, ColumnWidth>> = { linkedin: "lg" };
     // Walked backwards, so each unshift lands in front of the one before it
     // and the list comes out in the order written above.
