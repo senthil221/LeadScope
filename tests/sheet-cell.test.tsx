@@ -12,6 +12,20 @@ function setup(props: Partial<Parameters<typeof SheetCell>[0]> = {}) {
   return { save, cell: screen.getByRole("gridcell", { name: "Name" }) };
 }
 describe("spreadsheet editing and persistence", () => {
+  it("moves through the current and next row without leaving the grid", () => {
+    render(<div data-sheet-grid>
+      <SheetCell row={0} col={0} label="First name" value="A" save={async () => {}} />
+      <SheetCell row={0} col={1} label="First company" value="B" save={async () => {}} />
+      <SheetCell row={1} col={0} label="Second name" value="C" save={async () => {}} />
+      <SheetCell row={1} col={1} label="Second company" value="D" save={async () => {}} />
+    </div>);
+    const first = screen.getByRole("gridcell", { name: "First name" });
+    first.focus();
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(screen.getByRole("gridcell", { name: "First company" }));
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByRole("gridcell", { name: "Second company" }));
+  });
   it("opens with one click and saves once when focus leaves the editor", async () => {
     const { save, cell } = setup();
     fireEvent.click(cell);

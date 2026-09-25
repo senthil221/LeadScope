@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
@@ -47,13 +48,7 @@ import {
   type RejectionType,
   type Stage,
 } from "@/lib/recruiting/stages";
-import { RoleFormDialog } from "./role-form";
-import { AddCandidatesDialog, type ImportSummary } from "./add-candidates";
-import { RejectDialog } from "./reject-dialog";
-import { CandidatePanel } from "./candidate-panel";
-import { RoleFieldsDialog } from "./role-fields-dialog";
-import { ShareDialog } from "./share-dialog";
-import { RoleAnalytics } from "./role-analytics";
+import type { ImportSummary } from "./add-candidates";
 import { SheetCell, type SheetCellNode } from "./sheet-cell";
 import {
   candidateColumns,
@@ -74,13 +69,23 @@ import {
 import { act as sharedAct } from "@/lib/client/act";
 import { ColumnResizeHandle, useTableLayout } from "./table-layout";
 import styles from "./role-workspace.module.css";
-import { DeletedCandidates } from "./deleted-candidates";
 import { formatMobile } from "@/lib/recruiting/contact";
 import { TableDialog } from "./table-dialog";
-import { BulkEditDialog } from "./bulk-edit-dialog";
-import { EditHistoryDialog } from "./edit-history";
-import { DuplicateReview } from "./duplicate-review";
 import { RoleToolsMenu } from "./role-tools-menu";
+
+// These views and dialogs are opened on demand. Keep their code out of the
+// spreadsheet's initial bundle, which every recruiter downloads on every role.
+const RoleFormDialog = dynamic(() => import("./role-form").then((m) => m.RoleFormDialog));
+const AddCandidatesDialog = dynamic(() => import("./add-candidates").then((m) => m.AddCandidatesDialog));
+const RejectDialog = dynamic(() => import("./reject-dialog").then((m) => m.RejectDialog));
+const CandidatePanel = dynamic(() => import("./candidate-panel").then((m) => m.CandidatePanel));
+const RoleFieldsDialog = dynamic(() => import("./role-fields-dialog").then((m) => m.RoleFieldsDialog));
+const ShareDialog = dynamic(() => import("./share-dialog").then((m) => m.ShareDialog));
+const RoleAnalytics = dynamic(() => import("./role-analytics").then((m) => m.RoleAnalytics));
+const DeletedCandidates = dynamic(() => import("./deleted-candidates").then((m) => m.DeletedCandidates));
+const BulkEditDialog = dynamic(() => import("./bulk-edit-dialog").then((m) => m.BulkEditDialog));
+const EditHistoryDialog = dynamic(() => import("./edit-history").then((m) => m.EditHistoryDialog));
+const DuplicateReview = dynamic(() => import("./duplicate-review").then((m) => m.DuplicateReview));
 
 function act<T = { id: string }>(action: string, payload: unknown = {}): Promise<T> {
   return sharedAct<T>(action, payload);
@@ -319,25 +324,38 @@ export function RolePipeline({
   // one list.
   const [laterRows, setLaterRows] = useState<RoleCandidate[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
+  const loadingMoreRef = useRef(false);
+  const [nextOffset, setNextOffset] = useState(firstRows.length);
   const roleCandidates = useMemo<RoleCandidate[]>(
     () => (laterRows.length ? [...firstRows, ...laterRows] : firstRows),
     [firstRows, laterRows],
   );
   // A different tab, filter or sort is a different list, so what was loaded
   // for the old one is dropped rather than shown under the new heading.
-  const listKey = `${tab}:${params.toString()}`;
+  const listKey = `${role.id}:${tab}:${params.toString()}`;
   const [loadedListKey, setLoadedListKey] = useState(listKey);
+  const listKeyRef = useRef(listKey);
+  useEffect(() => {
+    listKeyRef.current = listKey;
+    loadingMoreRef.current = false;
+  }, [listKey]);
   if (loadedListKey !== listKey) {
     setLoadedListKey(listKey);
+    setNextOffset(firstRows.length);
+    setLoadingMore(false);
     if (laterRows.length) setLaterRows([]);
   }
-  const moreToLoad = roleCandidates.length < total;
+  const moreToLoad = nextOffset < total;
   async function loadMore() {
-    if (loadingMore || !moreToLoad || !isStage(tab)) return;
+    // Scroll events can fire again before React commits the loading state.
+    // Guard synchronously so a single scroll never fetches the same page twice.
+    if (loadingMoreRef.current || !moreToLoad || !isStage(tab)) return;
+    loadingMoreRef.current = true;
+    const requestedList = listKey;
     setLoadingMore(true);
     try {
       const filters: Record<string, string> = {};
-      for (const key of ["q", "source", "rating", "entered_from", "entered_to", "sort"]) {
+      for (const key of ["q", "source", "source_detail", "rating", "entered_from", "entered_to", "sort"]) {
         const value = params.get(key);
         if (value) filters[key] = value;
       }
@@ -346,17 +364,22 @@ export function RolePipeline({
         roleId: role.id,
         stage: tab,
         filters,
-        offset: roleCandidates.length,
+        offset: nextOffset,
       });
+      if (listKeyRef.current !== requestedList) return;
+      setNextOffset(nextOffset + next.length);
       // Rows can be added while somebody scrolls, which shifts the offsets
       // under them; anything already on screen is not shown twice.
       const seen = new Set(roleCandidates.map((row) => row.id));
       const fresh = next.filter((row) => !seen.has(row.id));
       if (fresh.length) setLaterRows((rows) => [...rows, ...fresh]);
     } catch (e) {
-      setError((e as Error).message);
+      if (listKeyRef.current === requestedList) setError((e as Error).message);
     } finally {
-      setLoadingMore(false);
+      if (listKeyRef.current === requestedList) {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
     }
   }
   const tableFrame = useRef<HTMLDivElement>(null);
@@ -618,12 +641,12 @@ export function RolePipeline({
         key={key}
         className={`stage-tab stage-${key}${extra ? ` ${extra}` : ""}${tab === key ? " selected" : ""}${loading ? " is-loading" : ""}`}
         href={tabUrl(key)}
-        // These six are the navigation of this screen and all of them are on
-        // it at once, so each one's rows are fetched up front rather than on a
-        // hover a keyboard or a touch never sends. Without `true` a stage is
-        // prefetched only as far as its loading skeleton, which is the part
-        // nobody is waiting for.
-        prefetch
+        // Eagerly fetch the likely next stage, not six full candidate tables
+        // and their summary queries on every visit. Other stages warm when
+        // the recruiter points to or focuses them.
+        prefetch={key === (isStage(tab) ? nextStage(tab) : null)}
+        onMouseEnter={() => { if (key !== tab) router.prefetch(tabUrl(key)); }}
+        onFocus={() => { if (key !== tab) router.prefetch(tabUrl(key)); }}
         onClick={() => startTabNavigation(key)}
         aria-busy={loading}
         aria-current={tab === key ? "page" : undefined}

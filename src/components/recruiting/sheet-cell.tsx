@@ -17,10 +17,14 @@ export type SheetCellNode = HTMLElement & {
 // Cells are addressed through the DOM rather than a registry: columns differ
 // per tab and rows paginate, so a coordinate lookup that reads what is
 // actually rendered stays correct without a second source of truth.
-function sheetCells(from: HTMLElement) {
+function sheetCells(from: HTMLElement, row: number) {
   const grid = from.closest<HTMLElement>("[data-sheet-grid]");
   if (!grid) return [];
-  return Array.from(grid.querySelectorAll<HTMLElement>("[data-sheet-cell]"));
+  // A large stage can contain thousands of editable cells. Keyboard movement
+  // only needs one row, so avoid allocating and sorting the entire grid.
+  return Array.from(
+    grid.querySelectorAll<HTMLElement>(`[data-sheet-cell][data-row="${row}"]`),
+  );
 }
 
 function coordinates(cell: HTMLElement) {
@@ -28,12 +32,11 @@ function coordinates(cell: HTMLElement) {
 }
 
 function moveFocus(from: HTMLElement, rowStep: number, colStep: number) {
-  const cells = sheetCells(from);
   const { row, col } = coordinates(from);
   if (colStep !== 0) {
-    const sameRow = cells
-      .filter((cell) => coordinates(cell).row === row)
-      .sort((a, b) => coordinates(a).col - coordinates(b).col);
+    const sameRow = sheetCells(from, row).sort(
+      (a, b) => coordinates(a).col - coordinates(b).col,
+    );
     const index = sameRow.indexOf(from);
     const next = sameRow[index + colStep];
     if (next) {
@@ -45,7 +48,7 @@ function moveFocus(from: HTMLElement, rowStep: number, colStep: number) {
     return moveFocus(from, colStep > 0 ? 1 : -1, 0);
   }
   const targetRow = row + rowStep;
-  const candidates = cells.filter((cell) => coordinates(cell).row === targetRow);
+  const candidates = sheetCells(from, targetRow);
   if (!candidates.length) return false;
   const exact = candidates.find((cell) => coordinates(cell).col === col);
   const nearest =
