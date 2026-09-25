@@ -336,15 +336,17 @@ const listed = (raw: Record<string, string | undefined>) => {
 };
 
 describe("the order a stage list comes back in", () => {
-  // The default view listed the oldest profile first while saying "Newest
-  // first", which put anyone who had just been rated on the last page.
-  it("puts the newest first by default, and the oldest first when asked", () => {
+  // A list somebody is working through should not rearrange itself. The
+  // default is the order people were added, so a new profile lands at the end
+  // and everything above it stays where it was.
+  it("keeps the order profiles were added in by default", () => {
     expect(listed({})).toContainEqual({
-      method: "order", args: ["created_at", { ascending: false }],
-    });
-    expect(listed({ sort: "oldest" })).toContainEqual({
       method: "order", args: ["created_at", { ascending: true }],
     });
+    expect(listed({ sort: "newest" })).toContainEqual({
+      method: "order", args: ["created_at", { ascending: false }],
+    });
+    expect(roleCandidateListFilters({}).sort).toBe("oldest");
   });
   it("orders by when somebody joined the role, not when they last moved stage", () => {
     const ordered = listed({}).filter((call) => call.method === "order");
@@ -364,7 +366,7 @@ describe("the order a stage list comes back in", () => {
     });
     expect(roleCandidateListFilters({ sort: "updated" }).sort).toBe("updated");
     // An unknown sort is not an error, it is the default.
-    expect(roleCandidateListFilters({ sort: "sideways" }).sort).toBe("newest");
+    expect(roleCandidateListFilters({ sort: "sideways" }).sort).toBe("oldest");
   });
   it("still sorts by rating when a recruiter asks for that", () => {
     expect(listed({ sort: "rating_high" })).toContainEqual({

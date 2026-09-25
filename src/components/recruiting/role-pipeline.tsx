@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   Archive,
   ArrowLeft,
@@ -158,7 +158,7 @@ function shortProfileUrl(url: string) {
 export function RolePipeline({
   client,
   role,
-  roleCandidates,
+  roleCandidates: firstRows,
   counts,
   masterCandidates,
   masterRoleMemberships,
@@ -173,6 +173,7 @@ export function RolePipeline({
 }: {
   client: Client;
   role: Role;
+  /** The first slice of the list; the rest is fetched as it is scrolled to. */
   roleCandidates: RoleCandidate[];
   counts: Record<string, number>;
   masterCandidates: MasterCandidate[];
@@ -312,6 +313,52 @@ export function RolePipeline({
   const [navigatingTo, setNavigatingTo] = useState<Tab | null>(null);
   const path = `/roles/${role.id}`;
   const layout = useTableLayout(`${role.id}:${tab}`, stageDefaultsToCompact(tab));
+  // Paging put a button between a recruiter and the next fifty rows of the
+  // list they were already reading. The server still hands over the first
+  // slice; the rest arrives as it is scrolled to, and the whole thing stays
+  // one list.
+  const [laterRows, setLaterRows] = useState<RoleCandidate[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const roleCandidates = useMemo<RoleCandidate[]>(
+    () => (laterRows.length ? [...firstRows, ...laterRows] : firstRows),
+    [firstRows, laterRows],
+  );
+  // A different tab, filter or sort is a different list, so what was loaded
+  // for the old one is dropped rather than shown under the new heading.
+  const listKey = `${tab}:${params.toString()}`;
+  const [loadedListKey, setLoadedListKey] = useState(listKey);
+  if (loadedListKey !== listKey) {
+    setLoadedListKey(listKey);
+    if (laterRows.length) setLaterRows([]);
+  }
+  const moreToLoad = roleCandidates.length < total;
+  async function loadMore() {
+    if (loadingMore || !moreToLoad || !isStage(tab)) return;
+    setLoadingMore(true);
+    try {
+      const filters: Record<string, string> = {};
+      for (const key of ["q", "source", "rating", "entered_from", "entered_to", "sort"]) {
+        const value = params.get(key);
+        if (value) filters[key] = value;
+      }
+      const next = await act<RoleCandidate[]>("roleCandidatePage", {
+        clientId: client.id,
+        roleId: role.id,
+        stage: tab,
+        filters,
+        offset: roleCandidates.length,
+      });
+      // Rows can be added while somebody scrolls, which shifts the offsets
+      // under them; anything already on screen is not shown twice.
+      const seen = new Set(roleCandidates.map((row) => row.id));
+      const fresh = next.filter((row) => !seen.has(row.id));
+      if (fresh.length) setLaterRows((rows) => [...rows, ...fresh]);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
   const tableFrame = useRef<HTMLDivElement>(null);
   const [tableFrameWidth, setTableFrameWidth] = useState(0);
   useEffect(() => {
@@ -351,7 +398,7 @@ export function RolePipeline({
     params.get("rating"),
     params.get("entered_from"),
     params.get("entered_to"),
-    params.get("sort") && params.get("sort") !== "newest"
+    params.get("sort") && params.get("sort") !== "oldest"
       ? params.get("sort")
       : "",
   ].filter(Boolean).length;
@@ -798,8 +845,27 @@ export function RolePipeline({
         });
       case "source":
         return cell({
+          options: candidateSources.map((option) => candidateSourceLabels[option]),
           value: candidateSourceLabel(rc.source),
-          save: async () => {},
+          save: async (next) => {
+            const source = candidateSources.find(
+              (option) => candidateSourceLabels[option] === next,
+            );
+            if (!source || source === rc.source) return;
+            const result = await act<{ moved: boolean }>("candidateSource", {
+              clientId: client.id,
+              id: rc.id,
+              source,
+            });
+            // Naukri is not rated here, so this can also change where the row
+            // sits. Say so rather than letting the Status column change under
+            // somebody who was only correcting a column.
+            if (result.moved)
+              setMessage(
+                `${rc.candidates.full_name} moved to Profile shortlisted: Naukri profiles are not rated here.`,
+              );
+            refresh();
+          },
         });
       case "status":
         // Where this person currently sits. All profiles spans every stage,
@@ -1473,10 +1539,10 @@ export function RolePipeline({
                   <select
                     aria-label="Sort candidates"
                     name="sort"
-                    defaultValue={params.get("sort") ?? "newest"}
+                    defaultValue={params.get("sort") ?? "oldest"}
                   >
+                    <option value="oldest">Added order</option>
                     <option value="newest">Newest first</option>
-                    <option value="oldest">Oldest first</option>
                     <option value="updated">Last modified</option>
                     <option value="rating_high">Highest rating</option>
                     <option value="rating_low">Lowest rating</option>
@@ -1915,7 +1981,17 @@ export function RolePipeline({
       ) : (
         <>
           <div className="table-edit-hint">Click a cell to edit · Enter, Tab or click away to save · Esc to cancel. Added date and source are system managed.</div>
-          <div className="card table-wrap sheet-table-frame" ref={tableFrame}>
+          <div
+            className="card table-wrap sheet-table-frame"
+            ref={tableFrame}
+            onScroll={(event) => {
+              const frame = event.currentTarget;
+              // A screen's worth of warning, so the next rows are usually
+              // there before the bottom of the list is.
+              if (frame.scrollHeight - frame.scrollTop - frame.clientHeight < 400)
+                void loadMore();
+            }}
+          >
             <table
               className={`candidate-table sheet-table${canSelectCandidates ? " has-select" : ""}`}
               data-sheet-grid=""
@@ -2153,19 +2229,17 @@ export function RolePipeline({
           <div className="sheet-footer">
             <span>
               {total
-                ? `${(page - 1) * 50 + 1}–${Math.min(page * 50, total)} of ${total}`
+                ? moreToLoad
+                  ? `${roleCandidates.length} of ${total}`
+                  : `${total} candidate${total === 1 ? "" : "s"}`
                 : "0 candidates"}
             </span>
             <div className="row">
-              {page > 1 && (
-                <Link className="button small" href={stagePageUrl(page - 1)}>
-                  Previous
-                </Link>
-              )}
-              {page * 50 < total && (
-                <Link className="button small" href={stagePageUrl(page + 1)}>
-                  Next
-                </Link>
+              {loadingMore && <span className="muted">Loading…</span>}
+              {moreToLoad && !loadingMore && (
+                <button className="small" type="button" onClick={() => void loadMore()}>
+                  Load more
+                </button>
               )}
             </div>
           </div>

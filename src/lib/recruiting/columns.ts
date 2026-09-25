@@ -102,7 +102,7 @@ const specs: Spec[] = [
   // Status remains available in Columns but is outside the default matrix.
   { id: "status", label: "Status", kind: "text", editable: false, width: "md" },
   { id: "linkedin", label: "LinkedIn", kind: "text", editable: true, width: "sm" },
-  { id: "source", label: "Source", kind: "text", editable: false, width: "md" },
+  { id: "source", label: "Source", kind: "select", editable: true, width: "md" },
   {
     id: "rating",
     label: "Rating",

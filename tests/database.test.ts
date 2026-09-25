@@ -1943,6 +1943,37 @@ describe("six sources, and Naukri that skips the rating queue", () => {
     ]);
   });
 
+  // The single-cell version of the same correction, from the dropdown in the
+  // grid rather than the bulk dialog.
+  it("sets one row's source, moving it only when that source is Naukri", async () => {
+    const { cid, rid, rcId } = await pipeline("one-row-source");
+    const set = (source: string) =>
+      asUser(actor, () => rpc("set_candidate_source", [cid, rcId, source]));
+    expect(await set("google")).toEqual({ stage: "all_profiles", moved: false });
+    expect(
+      (await sql("select source,stage from public.role_candidates where id=$1", [rcId])).rows[0],
+    ).toEqual({ source: "google", stage: "all_profiles" });
+    expect(await set("naukri")).toEqual({ stage: "profile_shortlisted", moved: true });
+    expect(
+      (await sql("select source,stage from public.role_candidates where id=$1", [rcId])).rows[0],
+    ).toEqual({ source: "naukri", stage: "profile_shortlisted" });
+    // Already past the rating queue, so a further correction leaves it alone.
+    expect(await set("csv")).toEqual({ stage: "profile_shortlisted", moved: false });
+    expect(await set("naukri")).toEqual({ stage: "profile_shortlisted", moved: false });
+    await expect(set("pigeon")).rejects.toThrow("one of the listed sources");
+    // Recorded like any other edit to that row.
+    expect(
+      (await sql("select count(*)::int as n from private.candidate_edit_history where field='source' and candidate_id=(select candidate_id from public.role_candidates where id=$1)", [rcId]))
+        .rows[0].n,
+    ).toBeGreaterThan(0);
+  });
+  it("refuses a row on another client's role", async () => {
+    const { rcId } = await pipeline("one-row-source-guard");
+    const other = await client();
+    await expect(
+      asUser(actor, () => rpc("set_candidate_source", [other, rcId, "google"])),
+    ).rejects.toThrow("not found on this role");
+  });
   it("takes rows out of the rating queue when their source becomes Naukri", async () => {
     const cid = await client();
     const rid = await role(cid);

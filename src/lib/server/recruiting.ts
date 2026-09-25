@@ -48,9 +48,10 @@ export function roleCandidateListFilters(
   const rating = isRatingFilter(raw.rating) ? raw.rating : undefined;
   const enteredFrom = validDate(raw.entered_from);
   const enteredTo = validDate(raw.entered_to);
-  const sort = ["oldest", "updated", "rating_high", "rating_low"].includes(raw.sort ?? "")
+  // Anything unrecognised means the default: the order they were added.
+  const sort = ["newest", "updated", "rating_high", "rating_low"].includes(raw.sort ?? "")
     ? (raw.sort as RoleCandidateListFilters["sort"])
-    : "newest";
+    : "oldest";
   return {
     query: searchTerm(raw.q),
     source,

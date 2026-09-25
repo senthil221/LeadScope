@@ -612,6 +612,52 @@ export async function POST(request: Request) {
         result = rows.map((row) => row.id);
         break;
       }
+      // One row's source, from the dropdown in the grid.
+      case "candidateSource": {
+        const p = z
+          .object({ clientId: uuid, id: uuid, source: z.enum(candidateSources) })
+          .parse(payload);
+        result = checked(
+          await db.rpc("set_candidate_source", {
+            p_client: p.clientId,
+            p_id: p.id,
+            p_source: p.source,
+          }),
+        );
+        break;
+      }
+      // The next slice of the list a recruiter is scrolling. Same query and
+      // same shape as the page they are already looking at.
+      case "roleCandidatePage": {
+        const p = z
+          .object({
+            clientId: uuid,
+            roleId: uuid,
+            stage: z.enum(stages),
+            filters: z.record(z.string(), z.string().max(200)).default({}),
+            offset: z.number().int().min(0).max(100000),
+          })
+          .parse(payload);
+        const role = checked(
+          await db
+            .from("roles")
+            .select("id,rating_threshold")
+            .eq("id", p.roleId)
+            .eq("client_id", p.clientId)
+            .single(),
+        ) as { rating_threshold: number };
+        result = checked(
+          await roleCandidateListQuery(
+            db,
+            p.roleId,
+            p.stage,
+            role.rating_threshold,
+            roleCandidateListFilters(p.filters),
+            false,
+          ).range(p.offset, p.offset + 49),
+        );
+        break;
+      }
       case "duplicateReview": {
         const p = z.object({ clientId: uuid, roleId: uuid, status: z.enum(["pending","confirmed","separate"]), after: z.string().max(73).nullable().default(null) }).parse(payload);
         result = checked(await db.rpc("duplicate_review_page", { p_client: p.clientId, p_role: p.roleId, p_status: p.status, p_after: p.after }));
