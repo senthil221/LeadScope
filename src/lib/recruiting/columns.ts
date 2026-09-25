@@ -75,7 +75,10 @@ const rejectIds: CandidateColumnId[] = [
 
 export function defaultVisibleColumnIds(stage: Stage, available: CandidateColumn[]) {
   const shown = new Set<CandidateColumnId>(
-    stage === "all_profiles" ? triageIds
+    // Status earns its place on All profiles and nowhere else: that tab lists
+    // every stage, so it is the only view where the column says something the
+    // tab does not already say.
+    stage === "all_profiles" ? [...triageIds, "status"]
       : stage === "profile_shortlisted" ? [...triageIds, "phone", "alternate_phone"]
         : stage === "rejected" ? rejectIds : shortlistIds,
   );

@@ -27,7 +27,7 @@ describe("stage table defaults", () => {
 
   it("follows the supplied five-tab column matrix", () => {
     expect(visible("all_profiles")).toEqual([
-      "linkedin", "rating", "date_added", "source",
+      "linkedin", "rating", "date_added", "status", "source",
     ]);
     expect(visible("profile_shortlisted")).toEqual([
       "linkedin", "rating", "date_added", "source", "phone", "alternate_phone",
@@ -41,6 +41,11 @@ describe("stage table defaults", () => {
       expect(visible(stage)).toEqual(detail);
   });
 
+  it("shows Status only where a row's stage is not the tab it is on", () => {
+    expect(stages.filter((stage) => visible(stage).includes("status"))).toEqual([
+      "all_profiles",
+    ]);
+  });
   it("keeps Full name on the stages marked in the matrix", () => {
     expect(stages.filter((stage) => !stageShowsName(stage))).toEqual([
       "all_profiles", "profile_shortlisted",

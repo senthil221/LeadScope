@@ -321,9 +321,10 @@ export function RolePipeline({
     observer.observe(frame);
     return () => observer.disconnect();
   }, [tab]);
-  // v4 starts each tab from the supplied stage matrix; later choices stay
-  // independent per tab and earlier all-column defaults are left behind.
-  const columnStorageKey = `leadscope:role-columns:v4:${role.id}:${tab}`;
+  // v5 adds Status to the All profiles default. A saved v4 preference would
+  // pin the older set and hide a column that was just asked for, so the key
+  // moves and every tab starts from the current default again.
+  const columnStorageKey = `leadscope:role-columns:v5:${role.id}:${tab}`;
   // Rating is the only way out of All profiles. Later stages support both
   // direct row actions and batch actions.
   const isPipelineTab = isStage(tab) && tab !== "rejected";
