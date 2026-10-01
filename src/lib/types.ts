@@ -128,6 +128,11 @@ export type Role = {
   client_id: string;
   name: string;
   description: string;
+  recruiter_names?: string[];
+  ctc?: string;
+  role_brief?: string;
+  jd_path?: string | null;
+  jd_name?: string;
   rating_threshold: number;
   status: "open" | "on_hold" | "closed";
   archived: boolean;
@@ -168,6 +173,7 @@ export type RoleCandidate = {
   screening: Record<string, unknown>;
   custom: Record<string, string | number | boolean>;
   internal_notes: string;
+  follow_up_note?: string;
   client_notes: string;
   client_decision: "shortlisted" | "rejected" | "hold" | null;
   interview_at: string | null;
@@ -278,6 +284,7 @@ export type Preflight = {
   target: number;
 };
 export type PageData = {
+  blocklist?: { id: string; client_id: string | null; linkedin_url: string; note: string; created_at: string }[];
   prospects?: import("./prospects").Prospect[];
   reviewEvents?: ReviewEvent[];
   suppressionEvents?: SuppressionEvent[];

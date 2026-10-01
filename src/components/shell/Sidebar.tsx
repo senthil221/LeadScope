@@ -38,13 +38,15 @@ export function Sidebar({ data }: { data: PageData }) {
             Clients
           </Link>
           <Link className={itemClass(view, ["master-db"])} href="/master-db"><Database size={17} aria-hidden="true" />Master Database</Link>
+          <Link className={itemClass(view, ["all-roles", "roles", "role"])} href="/roles"><Briefcase size={17} aria-hidden="true" />Roles</Link>
+          <Link className={itemClass(view, ["blocklist"])} href="/blocklist"><ShieldCheck size={17} aria-hidden="true" />Blocklist</Link>
           {client && (
             <Link
-              className={itemClass(view, ["roles", "role"])}
+              className="shell-link"
               href={`/clients/${client.id}/roles`}
             >
               <Briefcase size={17} aria-hidden="true" />
-              Roles
+              Client roles
             </Link>
           )}
         </div>

@@ -4791,3 +4791,14 @@ input[aria-invalid="true"] { border-color: var(--danger); }
     transition: none !important;
   }
 }
+/* Role metadata stays collapsed above the sheet until the recruiter needs it. */
+.role-brief { margin: 0 0 12px; border: 1px solid var(--border, #dce3ef); border-radius: 8px; background: var(--surface, #fff); }
+.role-brief > summary { cursor: pointer; padding: 12px 16px; font-weight: 600; }
+.role-brief > summary .muted { font-weight: 400; margin-left: 12px; font-size: 12px; }
+.role-brief-content { padding: 16px; display: grid; gap: 16px; }
+.role-brief-content form, .role-jd { display: grid; gap: 12px; }
+.role-brief-content textarea { width: 100%; resize: vertical; }
+.role-jd { padding-top: 16px; border-top: 1px solid var(--border, #dce3ef); }
+.role-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.role-directory-filters { flex-wrap: wrap; margin-bottom: 16px; gap: 10px; }
+@media (max-width: 640px) { .role-directory-filters > input, .role-directory-filters > select { width: 100%; } .role-brief > summary .muted { display: block; margin: 4px 0 0; } }

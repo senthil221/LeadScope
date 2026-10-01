@@ -70,11 +70,13 @@ import { ColumnResizeHandle, useTableLayout } from "./table-layout";
 import styles from "./role-workspace.module.css";
 import { formatMobile } from "@/lib/recruiting/contact";
 import { TableDialog } from "./table-dialog";
+import { roleStageUrl } from "@/lib/recruiting/navigation";
 import { RoleToolsMenu } from "./role-tools-menu";
 
 // These views and dialogs are opened on demand. Keep their code out of the
 // spreadsheet's initial bundle, which every recruiter downloads on every role.
 const RoleFormDialog = dynamic(() => import("./role-form").then((m) => m.RoleFormDialog));
+const RoleBrief = dynamic(() => import("./role-brief").then((m) => m.RoleBrief));
 const AddCandidatesDialog = dynamic(() => import("./add-candidates").then((m) => m.AddCandidatesDialog));
 const RejectDialog = dynamic(() => import("./reject-dialog").then((m) => m.RejectDialog));
 const CandidatePanel = dynamic(() => import("./candidate-panel").then((m) => m.CandidatePanel));
@@ -104,7 +106,7 @@ function newDraft(): DraftRow {
 // through, and Rejects is where people leave it. Only the middle group is a
 // pipeline, so only the middle group is drawn as one.
 const flowStages = stages.filter(
-  (s) => s !== "all_profiles" && s !== "rejected",
+  (s) => s !== "all_profiles" && s !== "rejected" && s !== "later",
 );
 
 const date = (s: string | null | undefined) =>
@@ -399,10 +401,10 @@ export function RolePipeline({
   // v6 puts Source beside Rating. Each of these bumps exists because a saved
   // arrangement would otherwise pin the older one and hide what was just
   // asked for; every tab starts from the current default again.
-  const columnStorageKey = `leadscope:role-columns:v6:${role.id}:${tab}`;
+  const columnStorageKey = `leadscope:role-columns:${tab === "profile_shortlisted" ? "v7" : "v6"}:${role.id}:${tab}`;
   // Rating is the only way out of All profiles. Later stages support both
   // direct row actions and batch actions.
-  const isPipelineTab = isStage(tab) && tab !== "rejected";
+  const isPipelineTab = isStage(tab) && tab !== "rejected" && tab !== "later";
   const isFollowUpsTab = tab === "follow_ups";
   const canRejectFromTab = [
     "profile_shortlisted",
@@ -421,7 +423,8 @@ export function RolePipeline({
   // Deletion is the owner's alone. The RPCs refuse anyone else, so this only
   // decides whether the control is offered rather than whether it works.
   const canDeleteRows = canSelectCandidates && !role.archived && isOwner;
-  const showRowActions = Boolean(advanceTo || canRejectFromTab) || canDeleteRows;
+  const canMoveLater = tab === "profile_shortlisted" || tab === "later";
+  const showRowActions = Boolean(advanceTo || canRejectFromTab || canMoveLater) || canDeleteRows;
   const activeCandidateFilterCount = [
     params.get("rating"),
     params.get("entered_from"),
@@ -532,7 +535,7 @@ export function RolePipeline({
   const actionWidth = showRowActions
     ? Math.max(
         78,
-        (advanceTo ? 82 : 0) + (canRejectFromTab ? 66 : 0) + (canDeleteRows ? 34 : 0) + 16,
+        (advanceTo ? 82 : 0) + (canRejectFromTab ? 66 : 0) + (canMoveLater ? 100 : 0) + (canDeleteRows ? 34 : 0) + 16,
       )
     : 0;
   const fixedWidth = utilityWidth + nameWidth + actionWidth;
@@ -575,14 +578,7 @@ export function RolePipeline({
     setDataVersion((version) => version + 1);
     router.refresh();
   }
-  const tabUrl = (key: Tab) => {
-    const p = new URLSearchParams(params);
-    p.set("stage", key);
-    p.delete("page");
-    p.delete("bottom");
-    if (dataVersion) p.set("v", String(dataVersion));
-    return `${path}?${p}`;
-  };
+  const tabUrl = (key: Tab) => roleStageUrl(path, params.toString(), tab, key, dataVersion);
   function startTabNavigation(key: Tab) {
     if (key !== tab) {
       // The role workspace remains mounted between stages. Clear UI state that
@@ -976,6 +972,11 @@ export function RolePipeline({
           save: (next) =>
             act("clientNote", { clientId: client.id, id: rc.id, note: next }),
         });
+      case "follow_up_note":
+        return cell({
+          value: rc.follow_up_note ?? "",
+          save: (next) => act("followUpNote", { clientId: client.id, id: rc.id, note: next }),
+        });
       case "outcome":
         return cell({
           options: Object.values(outcomes),
@@ -1201,6 +1202,18 @@ export function RolePipeline({
       setBusy(false);
     }
   }
+  async function moveLater(ids: string[]) {
+    if (busy || role.archived || !canMoveLater) return;
+    setBusy(true);
+    setError("");
+    try {
+      await act("moveLater", { clientId: client.id, ids, restore: tab === "later" });
+      setSelected([]);
+      setMessage(tab === "later" ? "Returned to Profile shortlisted." : "Moved to Later for mobile lookup.");
+      refresh();
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  }
   async function moveCandidateToNextStage(roleCandidate: RoleCandidate) {
     if (busy || movingCandidateId || !advanceTo || role.archived) return;
     setMovingCandidateId(roleCandidate.id);
@@ -1331,6 +1344,8 @@ export function RolePipeline({
             </Link>
             <h1>{role.name}</h1>
             <span className={`badge ${role.status}`}>{role.status.replace("_", " ")}</span>
+            {(role.recruiter_names ?? []).map((name) => <span className="badge" key={name}>{name}</span>)}
+            {role.ctc && <span className="muted">CTC {role.ctc}</span>}
             {/* The whole-role picture belongs with the whole-role list. On a
                 stage tab it describes something other than what is on screen,
                 and the tab counts already say where everyone is.
@@ -1402,6 +1417,7 @@ export function RolePipeline({
         </div>
       )}
       <section className={styles.tablePanel} aria-label="Candidate workspace">
+      <RoleBrief role={role} onSaved={refresh} />
       <div className="role-tab-bar">
       <div className="role-stage-tabs" aria-label="Candidate stages">
         {stageTab("all_profiles", "All profiles", "stage-entry")}
@@ -1418,6 +1434,7 @@ export function RolePipeline({
         </div>
         <span className="stage-rail-divider" aria-hidden="true" />
         {stageTab("rejected", "Rejects", "stage-exit")}
+        {stageTab("later", "Later", "stage-exit")}
       </div>
       <nav className="role-secondary-nav" aria-label="Role tools">
         <RoleToolsMenu label={isFollowUpsTab ? "Views · Follow-ups" : tab === "master_db" ? "Views · Master DB" : tab === "analytics" ? "Views · Analytics" : "Views"} active={!isStage(tab)}>
@@ -1456,6 +1473,7 @@ export function RolePipeline({
           <button type="button" disabled={busy || role.archived} onClick={() => setBulkEditing([...selected])}>Bulk edit</button>
           {canDeleteRows && <button type="button" disabled={busy || role.archived} onClick={() => setDeleting([...selected])}><Trash2 size={15} /> Delete from role</button>}
           <button type="button" onClick={() => setSelected([])}>Clear selection</button>
+          {canMoveLater && <button disabled={busy || role.archived} onClick={() => void moveLater(selected)}>{tab === "later" ? "Return to Profile shortlisted" : "Move to Later"}</button>}
           {showRowActions && <>
           <input
             aria-label="Optional note"
@@ -2151,6 +2169,7 @@ export function RolePipeline({
                   {showRowActions && (
                     <td className="candidate-action-cell">
                       <div className="candidate-row-actions">
+                        {canMoveLater && <button className="small" disabled={busy || role.archived} onClick={() => void moveLater([rc.id])}>{tab === "later" ? "Return" : "Later"}</button>}
                         {advanceTo && (
                           <button
                             className="small primary"
@@ -2297,7 +2316,7 @@ export function RolePipeline({
         <div className="row"><button disabled={busy} onClick={async () => {
           setBusy(true); setError("");
           try {
-            await act("removeRoleCandidates", { clientId: client.id, roleId: role.id, ids: deleting, stage: isStage(tab) ? tab : null });
+            await act("removeRoleCandidates", { clientId: client.id, roleId: role.id, ids: deleting, stage: isStage(tab) && tab !== "all_profiles" ? tab : null });
             setSelected([]); setMasterSelected([]); setDeleting(null);
             setMessage("Rows deleted from this role. Restore them from Recently deleted.");
             refresh();
@@ -2321,7 +2340,7 @@ export function RolePipeline({
           clientId={client.id}
           roleId={role.id}
           roleName={role.name}
-          stage={isStage(tab) && tab !== "rejected" ? tab : "all_profiles"}
+          stage={isStage(tab) && tab !== "rejected" && tab !== "later" ? tab : "all_profiles"}
           onClose={() => setImporting(false)}
           onImported={summarize}
         />

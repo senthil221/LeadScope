@@ -1119,6 +1119,94 @@ async function pipeline(slug: string, threshold = 3) {
   return { cid, rid, candidateId, rcId };
 }
 
+describe("role metadata, Later and scoped blocklists", () => {
+  it("saves role metadata atomically and detects conflicting revisions", async () => {
+    const cid = await client();
+    const rid = await asUser(actor, () => rpc("save_role_details", [null, cid, "Tagged role", "", 3, "open", null, ["Priya", "Rahul"], "18-24 LPA", "Long brief\n".repeat(1000)]));
+    const saved = (await sql("select * from public.roles where id=$1", [rid])).rows[0];
+    expect(saved.recruiter_names).toEqual(["Priya", "Rahul"]);
+    expect(saved.ctc).toBe("18-24 LPA"); expect(saved.role_brief.length).toBeGreaterThan(4000);
+    await asUser(actor, () => rpc("save_role_details", [rid, cid, "Tagged role", "", 4, "open", 1, ["Priya"], "25 LPA", "Updated"]));
+    await expect(asUser(actor, () => rpc("save_role_details", [rid, cid, "Stale", "", 4, "open", 1, [], "", ""]))).rejects.toThrow("Another operator");
+    expect((await sql("select ctc from public.roles where id=$1", [rid])).rows[0].ctc).toBe("25 LPA");
+    await asUser(actor, () => rpc("save_role_details", [rid, cid, "Renamed", "", 4, "open", 2, ["Priya"], "26 LPA", null]));
+    expect((await sql("select role_brief from public.roles where id=$1", [rid])).rows[0].role_brief).toBe("Updated");
+  });
+  it("attaches a role-specific JD with revision checks", async () => {
+    const cid = await client(); const rid = await role(cid);
+    await expect(asUser(actor, () => rpc("save_role_jd", [rid, `roles/${randomUUID()}/jd.pdf`, "JD.pdf", 1]))).rejects.toThrow("Invalid JD");
+    await asUser(actor, () => rpc("save_role_jd", [rid, `roles/${rid}/jd.pdf`, "JD.pdf", 1]));
+    expect((await sql("select jd_name,revision from public.roles where id=$1", [rid])).rows[0]).toEqual({ jd_name: "JD.pdf", revision: 2 });
+    await expect(asUser(actor, () => rpc("save_role_jd", [rid, `roles/${rid}/other.pdf`, "Other.pdf", 1]))).rejects.toThrow("Role changed");
+  });
+  it("allows Later only from Profile shortlisted and preserves notes on return", async () => {
+    const p = await pipeline("later-branch");
+    await expect(asUser(actor, () => rpc("move_later", [p.cid, [p.rcId], false]))).rejects.toThrow("expected stage");
+    await asUser(actor, () => rpc("rate_candidate", [p.cid, p.rcId, 4]));
+    await asUser(actor, () => rpc("save_follow_up_note", [p.cid, p.rcId, "Find mobile next week"]));
+    const edits = await asUser(actor, () => rpc("candidate_edit_history_page", [p.cid, p.rid, p.candidateId, null]));
+    expect(edits.rows).toContainEqual(expect.objectContaining({ field: "follow_up_note", after: "Find mobile next week" }));
+    await asUser(actor, () => rpc("move_later", [p.cid, [p.rcId], false]));
+    expect((await sql("select stage,follow_up_note from public.role_candidates where id=$1", [p.rcId])).rows[0]).toEqual({ stage: "later", follow_up_note: "Find mobile next week" });
+    await expect(asUser(actor, () => rpc("move_stage", [p.cid, [p.rcId], "later", ""]))).rejects.toThrow("valid pipeline stage");
+    await asUser(actor, () => rpc("move_later", [p.cid, [p.rcId], true]));
+    expect((await sql("select stage from public.role_candidates where id=$1", [p.rcId])).rows[0].stage).toBe("profile_shortlisted");
+    const events = (await sql("select from_stage,to_stage from public.role_candidate_events where role_candidate_id=$1 and kind='stage' order by created_at", [p.rcId])).rows;
+    expect(events).toContainEqual({ from_stage: "profile_shortlisted", to_stage: "later" });
+    expect(events).toContainEqual({ from_stage: "later", to_stage: "profile_shortlisted" });
+  });
+  it("blocks new memberships only in the selected client and prevents transfers", async () => {
+    const p = await pipeline("client-block"); const other = await client(); const target = await role(other);
+    const url = "https://www.linkedin.com/in/client-block";
+    await asUser(actor, () => rpc("manage_recruiting_blocklist", [other, [url], "Do not contact", null]));
+    await expect(asUser(actor, () => rpc("push_profiles", [target, p.rid, [p.candidateId], null]))).rejects.toThrow("blocklisted");
+    expect((await sql("select count(*)::int n from public.role_candidates where candidate_id=$1", [p.candidateId])).rows[0].n).toBe(1);
+    const sameClient = await role(p.cid);
+    await asUser(actor, () => rpc("push_profiles", [sameClient, p.rid, [p.candidateId], null]));
+    const entry = (await sql("select id from public.recruiting_blocklist where client_id=$1", [other])).rows[0].id;
+    await asUser(actor, () => rpc("manage_recruiting_blocklist", [other, null, "", entry]));
+    await asUser(actor, () => rpc("push_profiles", [target, p.rid, [p.candidateId], null]));
+  });
+  it("enforces global blocks on imports and protects existing data", async () => {
+    const cid = await client(); const rid = await role(cid);
+    const url = "https://www.linkedin.com/in/global-block";
+    await asUser(actor, () => rpc("manage_recruiting_blocklist", [null, [url, url], "Global", null]));
+    await expect(asUser(actor, () => rpc("import_candidates", [cid, rid, JSON.stringify([linkedinRow("global-block")]), "linkedin", "all_profiles"]))).rejects.toThrow("blocklisted");
+    expect((await sql("select count(*)::int n from public.role_candidates where role_id=$1", [rid])).rows[0].n).toBe(0);
+    const p = await pipeline("identity-block");
+    await expect(asUser(actor, () => rpc("set_candidate_linkedin", [p.candidateId, url]))).rejects.toThrow("blocklisted");
+  });
+  it("keeps recruiter follow-up notes out of client share payloads", async () => {
+    const p = await pipeline("private-follow-up");
+    await asUser(actor, () => rpc("move_stage", [p.cid, [p.rcId], "recruiter_shortlisted", ""]));
+    await asUser(actor, () => rpc("save_follow_up_note", [p.cid, p.rcId, "Private recruiter detail"]));
+    const token = freshToken();
+    await asUser(actor, () => rpc("get_role_share_link", [p.cid, p.rid, token.token, token.hash]));
+    const shared = await rpc("read_shared_stage", [token.hash]);
+    expect(JSON.stringify(shared)).not.toContain("Private recruiter detail");
+    expect(JSON.stringify(shared)).not.toContain("follow_up_note");
+  });
+  it("refuses unapproved callers and hides blocklist rows through RLS", async () => {
+    await expect(asUser(outsider, () => rpc("manage_recruiting_blocklist", [null, ["https://www.linkedin.com/in/unauthorized"], "", null]))).rejects.toThrow();
+    await asUser(outsider, async () => { expect((await sql("select * from public.recruiting_blocklist")).rows).toEqual([]); });
+    const p = await pipeline("note-auth");
+    await expect(asUser(outsider, () => rpc("save_follow_up_note", [p.cid, p.rcId, "No"]))).rejects.toThrow();
+    await expect(asUser(outsider, () => rpc("move_later", [p.cid, [p.rcId], false]))).rejects.toThrow();
+  });
+  it("deletes selected later-stage rows from All Profiles with recoverable notes", async () => {
+    const p = await pipeline("delete-whole-role");
+    await sql("update public.user_profiles set is_owner=true where id=$1", [actor]);
+    try {
+      await asUser(actor, () => rpc("rate_candidate", [p.cid, p.rcId, 4]));
+      await asUser(actor, () => rpc("save_follow_up_note", [p.cid, p.rcId, "Preserve this"]));
+      const batch = await asUser(actor, () => rpc("remove_role_candidates", [p.cid, p.rid, [p.rcId], "all_profiles"]));
+      expect((await sql("select count(*)::int n from public.candidates where id=$1", [p.candidateId])).rows[0].n).toBe(1);
+      await asUser(actor, () => rpc("restore_role_candidates", [p.cid, p.rid, batch]));
+      expect((await sql("select follow_up_note from public.role_candidates where id=$1", [p.rcId])).rows[0].follow_up_note).toBe("Preserve this");
+    } finally { await sql("update public.user_profiles set is_owner=false where id=$1", [actor]); }
+  });
+});
+
 describe("edit history, duplicate review and bulk editing", () => {
   async function twoRows(slug: string) {
     const first = await pipeline(slug);

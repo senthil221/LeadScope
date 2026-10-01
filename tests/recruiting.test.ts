@@ -112,7 +112,8 @@ function checkList(column: string, sql = migration): string[] {
 
 describe("recruiting stages match the database constraint", () => {
   it("declares exactly the stages the role_candidates CHECK allows", () => {
-    expect(checkList("stage").sort()).toEqual([...stages].sort());
+    const latest = readFileSync(resolve("supabase/migrations/20261001154400_role_directory_brief_later_and_blocklists.sql"), "utf8");
+    expect(checkList("stage", latest).sort()).toEqual([...stages].sort());
   });
   it("declares exactly the sources the role_candidates CHECK allows", () => {
     expect(checkList("source", latestSourceMigration).sort()).toEqual(

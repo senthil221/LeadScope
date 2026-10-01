@@ -7,6 +7,8 @@ import { ClientsWorkspace } from "@/components/clients-workspace";
 import { RoleWorkspace } from "@/components/recruiting/role-workspace";
 import { RolesWorkspace } from "@/components/recruiting/roles-workspace";
 import { MasterWorkspace } from "@/components/recruiting/master-workspace";
+import { AllRolesWorkspace } from "@/components/recruiting/all-roles-workspace";
+import { BlocklistWorkspace } from "@/components/recruiting/blocklist-workspace";
 import { TeamWorkspace } from "@/components/recruiting/team-workspace";
 import { prospectFilters } from "@/lib/prospects";
 import { prospectQuery } from "@/lib/server/prospects";
@@ -77,13 +79,17 @@ async function loadRoleWorkspaceCounts(
   roleId: string,
   clientId: string,
 ) {
-  const compact = await db.rpc("role_workspace_counts", { p_role: roleId });
+  const [compact, later] = await Promise.all([
+    db.rpc("role_workspace_counts", { p_role: roleId }),
+    db.from("role_candidates").select("id", { count: "exact", head: true }).eq("role_id", roleId).eq("stage", "later"),
+  ]);
+  checked(later);
   if (!compact.error) {
     const summary =
       ((compact.data as RoleWorkspaceCount[] | null)?.[0] ??
         emptyRoleWorkspaceCount);
     return {
-      counts: roleCountRecord(summary),
+      counts: { ...roleCountRecord(summary), later: later.count ?? 0 },
       dashboard: { role_id: roleId, ...summary },
     };
   }
@@ -201,6 +207,7 @@ export default async function Page({
     email: user.email ?? "Agency operator",
     isOwner,
   };
+  if (path[0] === "roles" && !path[1]) data.view = "all-roles";
   try {
     const loads: (() => Promise<void>)[] = [];
     let clientId = filter.client;
@@ -520,12 +527,35 @@ export default async function Page({
       data.masterCandidates = checked(result);
       data.total = result.count ?? 0;
     }
+    if (data.view === "all-roles") {
+      data.page = Math.max(1, Math.min(100000, Math.floor(Number(filter.page) || 1)));
+      let query = db.from("roles").select("id,client_id,name,description,rating_threshold,status,archived,revision,created_at,updated_at,recruiter_names,ctc,jd_name", { count: "exact" });
+      if (filter.archived !== "1") query = query.eq("archived", false);
+      if (filter.client) query = query.eq("client_id", uuid.parse(filter.client));
+      if (filter.q?.trim()) {
+        const term = filter.q.trim().slice(0, 120).replace(/[^\p{L}\p{N} @.+-]/gu, " ");
+        query = query.or(`name.ilike.%${term}%,description.ilike.%${term}%,ctc.ilike.%${term}%`);
+      }
+      if (filter.recruiter?.trim()) query = query.contains("recruiter_names", [filter.recruiter.trim().slice(0, 120)]);
+      const response = await query.order("created_at", { ascending: false }).order("id").range((data.page - 1) * 50, data.page * 50 - 1);
+      data.roles = checked(response);
+      data.total = response.count ?? 0;
+    }
+    if (data.view === "blocklist") {
+      data.page = Math.max(1, Math.min(100000, Math.floor(Number(filter.page) || 1)));
+      let query = db.from("recruiting_blocklist").select("id,client_id,linkedin_url,note,created_at", { count: "exact" });
+      query = filter.client ? query.eq("client_id", uuid.parse(filter.client)) : query.is("client_id", null);
+      if (filter.q?.trim()) query = query.ilike("linkedin_url", `%${filter.q.trim().slice(0, 200).replace(/[\\%_]/g, "\\$&")}%`);
+      const response = await query.order("created_at", { ascending: false }).order("id").range((data.page - 1) * 50, data.page * 50 - 1);
+      data.blocklist = checked(response);
+      data.total = response.count ?? 0;
+    }
     if (data.view === "roles") {
       loads.push(async () => {
         const [roles, dashboardCounts] = await Promise.all([
           db
             .from("roles")
-            .select("*")
+            .select("id,client_id,name,description,rating_threshold,status,archived,revision,created_at,updated_at,recruiter_names,ctc,jd_name")
             .eq("client_id", clientId!)
             .order("created_at", { ascending: false }),
           db.rpc("role_dashboard_counts", { p_client: clientId! }),
@@ -625,6 +655,8 @@ export default async function Page({
         "role",
         "team",
         "master-db",
+        "all-roles",
+        "blocklist",
       ].includes(data.view)
     )
       notFound();
@@ -642,6 +674,8 @@ export default async function Page({
   const routeKey = `${path.join("/")}:${filter.page ?? ""}:${filter.status ?? ""}:${filter.campaign ?? ""}:${filter.q ?? ""}:${filter.contact ?? ""}:${filter.stage ?? ""}`;
   const roleRouteKey = `${path.join("/")}:${filter.page ?? ""}:${filter.q ?? ""}:${filter.source ?? ""}:${filter.source_detail ?? ""}:${filter.rating ?? ""}:${filter.entered_from ?? ""}:${filter.entered_to ?? ""}:${filter.sort ?? ""}`;
   if (data.view === "master-db") return <MasterWorkspace key={routeKey} data={data} />;
+  if (data.view === "all-roles") return <AllRolesWorkspace key={`${routeKey}:${filter.archived}:${filter.recruiter}:${filter.client}`} data={data} />;
+  if (data.view === "blocklist") return <BlocklistWorkspace key={`${routeKey}:${filter.client}`} data={data} />;
   if (data.view === "team") return <TeamWorkspace key={routeKey} data={data} />;
   if (data.view === "clients") return <ClientsWorkspace key={routeKey} data={data} />;
   if (data.view === "role") return <RoleWorkspace key={roleRouteKey} data={data} />;

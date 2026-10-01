@@ -30,7 +30,7 @@ describe("stage table defaults", () => {
       "linkedin", "rating", "source", "date_added", "status",
     ]);
     expect(visible("profile_shortlisted")).toEqual([
-      "linkedin", "rating", "source", "date_added", "phone", "alternate_phone",
+      "linkedin", "rating", "source", "date_added", "phone", "alternate_phone", "follow_up_note",
     ]);
     const detail = [
       "date_added", "linkedin", "phone", "alternate_phone", "email", "location",

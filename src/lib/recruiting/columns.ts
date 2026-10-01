@@ -20,6 +20,7 @@ export type CandidateColumnId =
   | "highest_qualification"
   | "resume"
   | "notes"
+  | "follow_up_note"
   | "reject_type"
   | "reject_reason"
   | "offer_details"
@@ -79,7 +80,8 @@ export function defaultVisibleColumnIds(stage: Stage, available: CandidateColumn
     // every stage, so it is the only view where the column says something the
     // tab does not already say.
     stage === "all_profiles" ? [...triageIds, "status"]
-      : stage === "profile_shortlisted" ? [...triageIds, "phone", "alternate_phone"]
+      : stage === "profile_shortlisted" ? [...triageIds, "phone", "alternate_phone", "follow_up_note"]
+        : stage === "later" ? [...triageIds, "phone", "alternate_phone", "follow_up_note"]
         : stage === "rejected" ? rejectIds : shortlistIds,
   );
   const showCustom = !triageStages.includes(stage);
@@ -142,6 +144,7 @@ const specs: Spec[] = [
   { id: "highest_qualification", label: "Qualification", kind: "text", editable: true, width: "md" },
   { id: "resume", label: "Resume", kind: "text", editable: false, width: "xs" },
   { id: "notes", label: "Notes", kind: "text", editable: true, width: "lg" },
+  { id: "follow_up_note", label: "Follow Up Note", kind: "text", editable: true, width: "lg", placeholder: "Add recruiter follow-up note" },
 ];
 
 // Outcome columns remain available in Columns but only rejection details are

@@ -7,6 +7,7 @@ import { campaignSchema, configSchema, uuid } from "@/lib/domain";
 import { generateQueries, normalizeQuery, signature } from "@/lib/queries";
 import { canonicalLinkedIn } from "@/lib/urls";
 import { parseExcludedUrls } from "@/lib/exclusions";
+import { normalizeIdentity } from "@/lib/recruiting/identity";
 import {
   isMobileNumber,
   mobileDigits,
@@ -106,6 +107,9 @@ export async function POST(request: Request) {
             clientId: uuid,
             name: z.string().trim().min(1).max(120),
             description: z.string().max(4000).default(""),
+            recruiterNames: z.array(z.string().trim().min(1).max(120)).max(20).default([]),
+            ctc: z.string().trim().max(200).default(""),
+            roleBrief: z.string().max(50000).optional(),
             ratingThreshold: z
               .number()
               .min(0)
@@ -117,7 +121,7 @@ export async function POST(request: Request) {
           .parse(payload);
         result = {
           id: checked(
-            await db.rpc("save_role", {
+            await db.rpc("save_role_details", {
               p_id: p.id ?? null,
               p_client: p.clientId,
               p_name: p.name,
@@ -125,6 +129,9 @@ export async function POST(request: Request) {
               p_threshold: p.ratingThreshold,
               p_status: p.status,
               p_revision: p.expectedRevision ?? null,
+              p_recruiters: [...new Set(p.recruiterNames)],
+              p_ctc: p.ctc,
+              p_brief: p.roleBrief ?? null,
             }),
           ),
         };
@@ -140,6 +147,26 @@ export async function POST(request: Request) {
             p_archived: p.archived,
           }),
         );
+        break;
+      }
+      case "moveLater": {
+        const p = z.object({ clientId: uuid, ids: z.array(uuid).min(1).max(200), restore: z.boolean().default(false) }).parse(payload);
+        checked(await db.rpc("move_later", { p_client: p.clientId, p_ids: [...new Set(p.ids)], p_restore: p.restore }));
+        break;
+      }
+      case "followUpNote": {
+        const p = z.object({ clientId: uuid, id: uuid, note: z.string().max(4000) }).parse(payload);
+        checked(await db.rpc("save_follow_up_note", { p_client: p.clientId, p_id: p.id, p_note: p.note }));
+        break;
+      }
+      case "blocklist": {
+        const p = z.object({ clientId: uuid.nullable().default(null), urls: z.array(z.string().max(500)).max(200).default([]), note: z.string().max(4000).default(""), removeId: uuid.optional() }).parse(payload);
+        const urls = p.urls.map((url) => {
+          const normalized = normalizeIdentity("linkedin", url);
+          if (!normalized) throw new AppError(`Invalid LinkedIn profile URL: ${url}`);
+          return normalized.value;
+        });
+        result = { changed: checked(await db.rpc("manage_recruiting_blocklist", { p_client: p.clientId, p_urls: urls, p_note: p.note, p_remove: p.removeId ?? null })) };
         break;
       }
       case "importCandidates": {

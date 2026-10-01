@@ -36,6 +36,9 @@ export function RoleFormDialog({
         clientId,
         name: data.get("name"),
         description: data.get("description"),
+        recruiterNames: String(data.get("recruiters") ?? "").split(",").map((name) => name.trim()).filter(Boolean),
+        ctc: data.get("ctc"),
+        roleBrief: role === "new" ? "" : role.role_brief,
         ratingThreshold: Number(data.get("ratingThreshold")),
         status: String(data.get("status")),
         expectedRevision: role === "new" ? undefined : role.revision,
@@ -76,6 +79,14 @@ export function RoleFormDialog({
             maxLength={4000}
             defaultValue={role === "new" ? "" : role.description}
           />
+        </label>
+        <label>
+          Recruiter tags <span className="optional">comma separated names</span>
+          <input name="recruiters" maxLength={2400} defaultValue={role === "new" ? "" : (role.recruiter_names ?? []).join(", ")} placeholder="e.g. Priya, Rahul" />
+        </label>
+        <label>
+          Role CTC <span className="optional">budget or range</span>
+          <input name="ctc" maxLength={200} defaultValue={role === "new" ? "" : role.ctc ?? ""} placeholder="e.g. ₹18–24 LPA, fixed + variable" />
         </label>
         <label>
           Rating floor

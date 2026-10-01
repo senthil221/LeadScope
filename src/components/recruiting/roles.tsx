@@ -80,6 +80,7 @@ export function RolesPage({
           <p className="muted">See role progress, open work, and the next hiring action in one place.</p>
         </div>
         <div className="header-actions">
+          <Link className="button" href={`/blocklist?client=${client.id}`}>Client blocklist</Link>
           <button className="primary" onClick={() => setForm("new")}>
             <Plus size={17} />
             New role
@@ -177,6 +178,7 @@ export function RolesPage({
                       {role.description && (
                         <small>{role.description.slice(0, 100)}</small>
                       )}
+                      <div className="role-tags">{(role.recruiter_names ?? []).map((name) => <span className="badge" key={name}>{name}</span>)}{role.ctc && <span className="muted">CTC {role.ctc}</span>}</div>
                     </td>
                     <td>
                       {(() => {

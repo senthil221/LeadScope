@@ -84,6 +84,13 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
       setBusy(false);
     }
   }
+  async function toggleArchive(id: string, archived: boolean) {
+    if (busy) return;
+    setBusy(true); setError("");
+    try { await act("archive", { kind: "client", id, archived }); router.refresh(); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  }
 
   return (
     <AppShell data={data}>
@@ -225,6 +232,7 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
                     </td>
                     <td><time dateTime={client.created_at}>{date(client.created_at)}</time></td>
                     <td>
+                      <button className="small" disabled={busy} onClick={() => void toggleArchive(client.id, !client.archived)}>{client.archived ? "Restore" : "Archive"}</button>
                       <Link href={`/clients/${client.id}`} className="table-row-action" aria-label={`Open ${client.name}`}>
                         <ArrowRight size={18} />
                       </Link>
