@@ -4801,4 +4801,9 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .role-jd { padding-top: 16px; border-top: 1px solid var(--border, #dce3ef); }
 .role-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
 .role-directory-filters { flex-wrap: wrap; margin-bottom: 16px; gap: 10px; }
+.page-header.role-directory-header { align-items: flex-start; }
+.role-directory-filters label.row { flex-direction: row; align-items: center; gap: 6px; margin: 0; white-space: nowrap; }
+.role-directory-filters input[type="checkbox"] { width: auto; margin: 0; }
+@media (max-width: 900px) { .role-directory-header .header-actions { align-self: stretch; justify-content: flex-start; } }
+@media (max-width: 640px) { .role-directory-filters input[type="search"] { width: 100%; } }
 @media (max-width: 640px) { .role-directory-filters > input, .role-directory-filters > select { width: 100%; } .role-brief > summary .muted { display: block; margin: 4px 0 0; } }

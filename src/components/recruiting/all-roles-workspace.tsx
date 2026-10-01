@@ -17,7 +17,7 @@ export function AllRolesWorkspace({ data }: { data: PageData }) {
   const clients = new Map(data.clients.map((c) => [c.id, c]));
   function pageUrl(page: number) { const p = new URLSearchParams(params); p.set("page", String(page)); return `/roles?${p}`; }
   return <AppShell data={data}>
-    <header className="page-header"><div><div className="eyebrow">Agency workspace</div><h1>Roles <span className="count">{data.total ?? 0}</span></h1><p className="muted">Every role across your clients, with recruiter ownership and hiring budget.</p></div>
+    <header className="page-header role-directory-header"><div><div className="eyebrow">Agency workspace</div><h1>Roles <span className="count">{data.total ?? 0}</span></h1><p className="muted">Every role across your clients, with recruiter ownership and hiring budget.</p></div>
       <div className="header-actions"><select aria-label="Client for new role" value={newClient} onChange={(e) => setNewClient(e.target.value)}>{data.clients.filter((c) => !c.archived).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select><button className="primary" disabled={!newClient} onClick={() => setForm("new")}>New role</button></div>
     </header>
     <form className="directory-controls role-directory-filters" method="get" action="/roles">
