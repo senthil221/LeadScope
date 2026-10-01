@@ -198,7 +198,7 @@ export default async function SharePage({
                           {shown("linkedin") && row.linkedin && <a className={styles.profileLink} href={row.linkedin} rel="noreferrer" target="_blank">LinkedIn <ExternalLink size={11} aria-hidden="true" /></a>}
                         </th>
                         {shown("client_notes") && <td className={styles.feedback}>
-                          {canEditNotes ? <SharedFieldCell token={token} roleCandidateId={row.id} column="client_notes" value={row.client_notes} kind="text" multiline label={`Feedback for ${name}`} /> : <span className={styles.noteText}>{row.client_notes || "No notes yet"}</span>}
+                          {canEditNotes ? <SharedFieldCell key={`${row.id}:${row.client_notes ?? ""}`} token={token} roleCandidateId={row.id} column="client_notes" value={row.client_notes} kind="text" multiline label={`Feedback for ${name}`} /> : <span className={styles.noteText}>{row.client_notes || "No notes yet"}</span>}
                         </td>}
                         {factKeys.map((key) => {
                           const value = cell(row, key, data.fields);
