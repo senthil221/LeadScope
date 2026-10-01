@@ -26,7 +26,6 @@ import type {
   Role,
   RoleCandidate,
   RoleField,
-  ShareLink,
   StageDurationRow,
   StageFunnelRow,
   SourcePerformanceRow,
@@ -80,6 +79,7 @@ const AddCandidatesDialog = dynamic(() => import("./add-candidates").then((m) =>
 const RejectDialog = dynamic(() => import("./reject-dialog").then((m) => m.RejectDialog));
 const CandidatePanel = dynamic(() => import("./candidate-panel").then((m) => m.CandidatePanel));
 const RoleFieldsDialog = dynamic(() => import("./role-fields-dialog").then((m) => m.RoleFieldsDialog));
+const PushProfilesDialog = dynamic(() => import("./push-profiles-dialog").then((m) => m.PushProfilesDialog));
 const ShareDialog = dynamic(() => import("./share-dialog").then((m) => m.ShareDialog));
 const RoleAnalytics = dynamic(() => import("./role-analytics").then((m) => m.RoleAnalytics));
 const DeletedCandidates = dynamic(() => import("./deleted-candidates").then((m) => m.DeletedCandidates));
@@ -170,7 +170,6 @@ export function RolePipeline({
   total,
   page,
   roleFields,
-  shareLinks,
   stageFunnel,
   stageDurations,
   sourcePerformance,
@@ -186,7 +185,6 @@ export function RolePipeline({
   total: number;
   page: number;
   roleFields: RoleField[];
-  shareLinks: ShareLink[];
   stageFunnel: StageFunnelRow[];
   stageDurations: StageDurationRow[];
   sourcePerformance: SourcePerformanceRow[];
@@ -264,6 +262,7 @@ export function RolePipeline({
   const [panelId, setPanelId] = useState<string | null>(null);
   const [managingFields, setManagingFields] = useState(false);
   const [sharing, setSharing] = useState<"client" | null>(null);
+  const [pushingProfiles, setPushingProfiles] = useState<{ membershipIds?: string[] } | null>(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [savingFollowUpId, setSavingFollowUpId] = useState<string | null>(null);
@@ -325,7 +324,7 @@ export function RolePipeline({
   const [laterRows, setLaterRows] = useState<RoleCandidate[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
   const loadingMoreRef = useRef(false);
-  const [nextOffset, setNextOffset] = useState(firstRows.length);
+  const [nextOffset, setNextOffset] = useState((page - 1) * 50 + firstRows.length);
   const roleCandidates = useMemo<RoleCandidate[]>(
     () => (laterRows.length ? [...firstRows, ...laterRows] : firstRows),
     [firstRows, laterRows],
@@ -341,7 +340,7 @@ export function RolePipeline({
   }, [listKey]);
   if (loadedListKey !== listKey) {
     setLoadedListKey(listKey);
-    setNextOffset(firstRows.length);
+    setNextOffset((page - 1) * 50 + firstRows.length);
     setLoadingMore(false);
     if (laterRows.length) setLaterRows([]);
   }
@@ -383,6 +382,12 @@ export function RolePipeline({
     }
   }
   const tableFrame = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (params.get("bottom") !== "1") return;
+    const frame = tableFrame.current;
+    const timer = requestAnimationFrame(() => frame?.scrollTo({ top: frame.scrollHeight, behavior: "smooth" }));
+    return () => cancelAnimationFrame(timer);
+  }, [params]);
   const [tableFrameWidth, setTableFrameWidth] = useState(0);
   useEffect(() => {
     const frame = tableFrame.current;
@@ -574,6 +579,7 @@ export function RolePipeline({
     const p = new URLSearchParams(params);
     p.set("stage", key);
     p.delete("page");
+    p.delete("bottom");
     if (dataVersion) p.set("v", String(dataVersion));
     return `${path}?${p}`;
   };
@@ -1418,14 +1424,14 @@ export function RolePipeline({
         <Link className={isFollowUpsTab ? "selected" : ""} aria-current={isFollowUpsTab ? "page" : undefined} href={tabUrl("follow_ups")}>
           Follow-ups
         </Link>
-        <Link className={tab === "master_db" ? "selected" : ""} aria-current={tab === "master_db" ? "page" : undefined} href={tabUrl("master_db")}>
-          Master DB
-        </Link>
+
         <Link className={tab === "analytics" ? "selected" : ""} aria-current={tab === "analytics" ? "page" : undefined} href={tabUrl("analytics")}>
           Analytics
         </Link>
         </RoleToolsMenu>
         <RoleToolsMenu label="Actions">
+        <button type="button" onClick={() => setPushingProfiles({})}>Push profiles to role</button>
+        <button type="button" onClick={() => setSharing("client")}>Share with client</button>
         <button type="button" onClick={() => setShowHistory(true)}>Edit history</button>
         <button type="button" onClick={() => setShowDuplicates(true)}>Duplicate review</button>
         {isOwner && <button type="button" onClick={() => setShowDeleted(true)}><Trash2 size={14} /> Recently deleted</button>}
@@ -1446,6 +1452,7 @@ export function RolePipeline({
               {selectingAll ? "Selecting…" : `Select all ${total}`}
             </button>
           )}
+          <button type="button" onClick={() => setPushingProfiles({ membershipIds: selected })}>Push to role</button>
           <button type="button" disabled={busy || role.archived} onClick={() => setBulkEditing([...selected])}>Bulk edit</button>
           {canDeleteRows && <button type="button" disabled={busy || role.archived} onClick={() => setDeleting([...selected])}><Trash2 size={15} /> Delete from role</button>}
           <button type="button" onClick={() => setSelected([])}>Clear selection</button>
@@ -1653,7 +1660,6 @@ export function RolePipeline({
           )}
           {tab === "recruiter_shortlisted" && (
             <>
-              <button onClick={() => setSharing("client")}>Manage links</button>
               <button
                 className="primary"
                 disabled={!total || role.archived}
@@ -1664,6 +1670,7 @@ export function RolePipeline({
               </button>
             </>
           )}
+          {tab === "all_profiles" && <button type="button" onClick={() => { if (moreToLoad) router.push(stagePageUrl(Math.ceil(total / 50)) + "&bottom=1"); else tableFrame.current?.scrollTo({ top: tableFrame.current.scrollHeight, behavior: "smooth" }); }}><ChevronDown size={15} />Scroll to bottom</button>}
           {tab === "all_profiles" && !role.archived && (
             <button onClick={() => setApplying(true)}>
               <SlidersHorizontal size={15} />
@@ -2262,11 +2269,12 @@ export function RolePipeline({
             <span>
               {total
                 ? moreToLoad
-                  ? `${roleCandidates.length} of ${total}`
-                  : `${total} candidate${total === 1 ? "" : "s"}`
+                  ? `${(page - 1) * 50 + 1}–${(page - 1) * 50 + roleCandidates.length} of ${total}`
+                  : page > 1 ? `${(page - 1) * 50 + 1}–${total} of ${total}` : `${total} candidate${total === 1 ? "" : "s"}`
                 : "0 candidates"}
             </span>
             <div className="row">
+              {page > 1 && <Link className="button small" href={stagePageUrl(1).replace(/&bottom=1/, "")}>Back to top</Link>}
               {loadingMore && <span className="muted">Loading…</span>}
               {moreToLoad && !loadingMore && (
                 <button className="small" type="button" onClick={() => void loadMore()}>
@@ -2382,14 +2390,12 @@ export function RolePipeline({
           onChanged={() => refresh()}
         />
       )}
-      {sharing && tab === "recruiter_shortlisted" && (
+      {pushingProfiles && <PushProfilesDialog sourceRoleId={role.id} membershipIds={pushingProfiles.membershipIds} onClose={() => setPushingProfiles(null)} onPushed={(result) => { setPushingProfiles(null); setMessage(result.added + " profiles added with blank ratings. " + result.alreadyInRole + " already in the target role."); }} />}
+      {sharing && (
         <ShareDialog
           clientId={client.id}
           roleId={role.id}
-          links={shareLinks}
-          fields={roleFields}
           onClose={() => setSharing(null)}
-          onChanged={() => refresh()}
         />
       )}
       {applying && (

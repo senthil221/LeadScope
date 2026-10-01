@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import { integrationDb } from "@/lib/server/db";
 import { setup } from "@/lib/server/config";
 import { stageLabels, isStage } from "@/lib/recruiting/stages";
+import { clientShareLabels } from "@/lib/recruiting/share-columns";
+import { candidateSourceLabel } from "@/lib/recruiting/stages";
+import { ShareRefresh } from "@/components/recruiting/share-refresh";
 import { SharedFieldCell } from "@/components/recruiting/shared-field-cell";
 import Image from "next/image";
 import { ExternalLink } from "lucide-react";
@@ -19,6 +22,7 @@ export const runtime = "nodejs";
 
 type SharedRow = {
   id: string;
+  [key: string]: unknown;
   full_name?: string;
   linkedin?: string;
   headline?: string;
@@ -44,19 +48,7 @@ type SharedStage = {
 };
 
 
-const staticLabels: Record<string, string> = {
-  stage_entered_at: "Date added",
-  full_name: "Full name",
-  linkedin: "LinkedIn",
-  headline: "Headline",
-  current_designation: "Designation",
-  current_company: "Company",
-  location: "Location",
-  total_experience_years: "Experience",
-  rating: "Rating",
-  client_notes: "Notes",
-};
-
+const staticLabels = clientShareLabels;
 
 function formatDate(s: string | null | undefined) {
   if (!s) return "Not provided";
@@ -77,7 +69,9 @@ function cell(row: SharedRow, key: string, fields: SharedField[]): string {
   }
   const value = (row as Record<string, unknown>)[key];
   if (value == null || value === "") return "Not provided";
-  if (key === "stage_entered_at") return formatDate(String(value));
+  if (["created_at", "stage_entered_at", "interview_at", "follow_up_at", "offer_sent_on", "offer_response_due_at", "expected_start_at"].includes(key)) return formatDate(String(value));
+  if (key === "stage" && isStage(String(value))) return stageLabels[String(value) as keyof typeof stageLabels];
+  if (key === "source") return candidateSourceLabel(String(value));
   if (key === "total_experience_years") return `${value} yrs`;
   if (key === "rating") return `${value} / 5`;
   return String(value);
@@ -143,14 +137,10 @@ export default async function SharePage({
     );
   }
 
-  const stageName = isStage(data.stage) ? stageLabels[data.stage] : data.stage;
   const shown = (key: string) => data.visibleColumns.includes(key);
   const canEditNotes = data.editableColumns.includes("client_notes");
-  const identityKeys = new Set(["full_name", "linkedin", "current_designation", "current_company", "client_notes"]);
-  const preferredOrder = ["rating", "location", "total_experience_years", "stage_entered_at", "headline"];
-  const factKeys = preferredOrder
-    .filter((key) => shown(key) && !identityKeys.has(key))
-    .concat(data.fields.filter((field) => shown(field.key)).map((field) => field.key));
+  const identityKeys = new Set(["full_name", "linkedin", "client_notes"]);
+  const factKeys = data.visibleColumns.filter((key) => !identityKeys.has(key));
   const labelFor = (key: string) => staticLabels[key] ?? data.fields.find((field) => field.key === key)?.label ?? key;
 
   return (
@@ -170,7 +160,7 @@ export default async function SharePage({
             <p className={styles.eyebrow}>{data.clientName} / Candidate shortlist</p>
             <h1 id="review-title">{data.roleName}</h1>
           </div>
-          <span className={styles.stage}>{stageName}</span>
+          <span className={styles.stage}>Client shortlist</span>
         </section>
         <section className={styles.sheet} aria-label="Candidate review sheet">
           <div className={styles.toolbar}>
@@ -212,6 +202,7 @@ export default async function SharePage({
                         </td>}
                         {factKeys.map((key) => {
                           const value = cell(row, key, data.fields);
+                          if (key === "resume" && row.resume) return <td key={key}><a href={`/api/share/${token}?resume=${row.id}`} target="_blank" rel="noreferrer">Open resume</a></td>;
                           return <td key={key}><span className={value === "Not provided" ? styles.missing : styles.value} title={value}>{value}</span></td>;
                         })}
                       </tr>
@@ -223,7 +214,7 @@ export default async function SharePage({
           ) : (
             <div className={styles.empty}><h2>No candidates shared yet</h2><p>Your recruiter will add profiles to this shortlist shortly.</p></div>
           )}
-          <div className={styles.sheetFooter}><span>{data.rows.length} {data.rows.length === 1 ? "profile" : "profiles"} shared</span><span>Scroll across to view all columns</span></div>
+          <div className={styles.sheetFooter}><span>{data.rows.length} {data.rows.length === 1 ? "profile" : "profiles"} shared</span><ShareRefresh /></div>
         </section>
         <footer className={styles.footer}><span>Prepared by {data.clientName}&rsquo;s recruiting team</span><span>Powered by <strong>Leadvance Recruiting</strong></span></footer>
       </div>

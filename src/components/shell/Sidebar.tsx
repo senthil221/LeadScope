@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { Briefcase, LogOut, Settings, ShieldCheck, Users } from "lucide-react";
+import { Database, Briefcase, LogOut, Settings, ShieldCheck, Users } from "lucide-react";
 import type { PageData } from "@/lib/types";
 import logo from "@/assets/brand/leadvance-recruiting.png";
 import { ClientSwitcher } from "./ClientSwitcher";
@@ -37,6 +37,7 @@ export function Sidebar({ data }: { data: PageData }) {
             <Users size={17} aria-hidden="true" />
             Clients
           </Link>
+          <Link className={itemClass(view, ["master-db"])} href="/master-db"><Database size={17} aria-hidden="true" />Master Database</Link>
           {client && (
             <Link
               className={itemClass(view, ["roles", "role"])}

@@ -20,7 +20,6 @@ export function RoleWorkspace({ data }: { data: PageData }) {
         total={data.total ?? 0}
         page={data.page ?? 1}
         roleFields={data.roleFields ?? []}
-        shareLinks={data.shareLinks ?? []}
         stageFunnel={data.roleStageFunnel ?? []}
         stageDurations={data.roleStageDurations ?? []}
         sourcePerformance={data.roleSourcePerformance ?? []}

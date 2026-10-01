@@ -1,213 +1,32 @@
 "use client";
-
-import { useState } from "react";
-import { CircleHelp, X } from "lucide-react";
-import type { RoleField, ShareLink } from "@/lib/types";
-import { act as sharedAct } from "@/lib/client/act";
-
-function act<T>(action: string, payload: unknown): Promise<T> {
-  return sharedAct<T>(action, payload, "Could not save. Try again.");
-}
-
-const shareColumns = [
-  "stage_entered_at",
-  "full_name",
-  "linkedin",
-  "headline",
-  "current_designation",
-  "current_company",
-  "location",
-  "total_experience_years",
-  "rating",
-  "client_notes",
-];
-
-function status(link: ShareLink): { label: string; badge: string } {
-  if (link.revoked_at) return { label: "Revoked", badge: "rejected" };
-  if (link.expires_at && new Date(link.expires_at) <= new Date())
-    return { label: "Expired", badge: "suppressed" };
-  return { label: "Active", badge: "accepted" };
-}
-
-const date = (value: string | null) =>
-  value
-    ? new Date(value).toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
-    : "Not provided";
-
-function defaultExpiry() {
-  const expiry = new Date();
-  expiry.setDate(expiry.getDate() + 14);
-  return [
-    expiry.getFullYear(),
-    String(expiry.getMonth() + 1).padStart(2, "0"),
-    String(expiry.getDate()).padStart(2, "0"),
-  ].join("-");
-}
-
-export function ShareDialog({
-  clientId,
-  roleId,
-  links,
-  fields,
-  onClose,
-  onChanged,
-}: {
-  clientId: string;
-  roleId: string;
-  links: ShareLink[];
-  fields: RoleField[];
-  onClose: () => void;
-  onChanged: () => void;
+import { useEffect, useState } from "react";
+import { X, Copy, ExternalLink } from "lucide-react";
+import { act } from "@/lib/client/act";
+export function ShareDialog({ clientId, roleId, onClose }: {
+  clientId: string; roleId: string; onClose: () => void;
 }) {
-  const [expiresAt, setExpiresAt] = useState(defaultExpiry);
-  const [busy, setBusy] = useState(false);
+  const [url, setUrl] = useState("");
   const [error, setError] = useState("");
-  const [justCreated, setJustCreated] = useState<{ url: string; copied: boolean } | null>(null);
-
-  function shareUrl(token: string) {
-    return `${window.location.origin}/share/${token}`;
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    let active = true;
+    act<{ token: string }>("getRoleShareLink", { clientId, roleId })
+      .then((result) => { if (active) setUrl(window.location.origin + "/share/" + result.token); })
+      .catch((reason) => { if (active) setError((reason as Error).message); });
+    return () => { active = false; };
+  }, [clientId, roleId]);
+  async function copy() {
+    try { await navigator.clipboard.writeText(url); setCopied(true); }
+    catch { setError("Select the link below and copy it manually."); }
   }
-
-  async function copy(url: string) {
-    try {
-      await navigator.clipboard.writeText(url);
-      setJustCreated((current) => (current ? { ...current, copied: true } : current));
-    } catch {
-      // The full URL remains visible for browsers that block clipboard access.
-    }
-  }
-
-  async function create() {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      const result = await act<{ token: string }>("createShareLink", {
-        clientId,
-        roleId,
-        visibleColumns: [...shareColumns, ...fields.map((field) => field.key)],
-        expiresAt: expiresAt ? new Date(`${expiresAt}T23:59:59`).toISOString() : null,
-      });
-      setJustCreated({ url: shareUrl(result.token), copied: false });
-      onChanged();
-    } catch (reason) {
-      setError((reason as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function revoke(id: string) {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      await act("revokeShareLink", { id });
-      onChanged();
-    } catch (reason) {
-      setError((reason as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function regenerate(id: string) {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      const result = await act<{ token: string }>("regenerateShareLink", { id });
-      setJustCreated({ url: shareUrl(result.token), copied: false });
-      onChanged();
-    } catch (reason) {
-      setError((reason as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <dialog open className="modal">
-      <div className="modal-heading">
-        <h2>Share with client</h2>
-        <button aria-label="Close" onClick={onClose}>
-          <X size={18} />
-        </button>
-      </div>
-      {error && <p className="error" role="alert">{error}</p>}
-      {justCreated ? (
-        <div className="notice">
-          <CircleHelp size={18} />
-          <div>
-            <strong>Copy this link now. It will not be shown again.</strong>
-            <p className="muted">
-              Your client can view Recruiter Shortlisted candidates and their custom columns.
-              They can edit Notes only.
-            </p>
-            <div className="row">
-              <input readOnly value={justCreated.url} onFocus={(event) => event.currentTarget.select()} />
-              <button type="button" onClick={() => void copy(justCreated.url)}>
-                {justCreated.copied ? "Copied" : "Copy"}
-              </button>
-            </div>
-            <button type="button" onClick={() => setJustCreated(null)}>Done</button>
-          </div>
-        </div>
-      ) : (
-        <>
-          <p className="muted">
-            This link shares every available recruiter-shortlist column, including custom
-            columns. It never shows pipeline actions, rejection controls, or other tabs.
-          </p>
-          <label>
-            Expires <span className="optional">optional</span>
-            <input
-              type="date"
-              disabled={busy}
-              value={expiresAt}
-              onChange={(event) => setExpiresAt(event.target.value)}
-            />
-          </label>
-          <button className="primary wide" disabled={busy} onClick={() => void create()}>
-            {busy ? "Creating…" : "Create client link"}
-          </button>
-        </>
-      )}
-      {links.length > 0 && (
-        <>
-          <h3>Existing client links</h3>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr><th>Link</th><th>Access</th><th>State</th><th>Last viewed</th><th /></tr>
-              </thead>
-              <tbody>
-                {links.map((link) => {
-                  const current = status(link);
-                  return (
-                    <tr key={link.id}>
-                      <td><code>{link.token_prefix}…</code><small>Created {date(link.created_at)}</small></td>
-                      <td>View candidates · edit Notes</td>
-                      <td><span className={`badge ${current.badge}`}>{current.label}</span></td>
-                      <td>{date(link.last_viewed_at)}</td>
-                      <td>
-                        <div className="row">
-                          {!link.revoked_at && <button className="small" disabled={busy} onClick={() => void revoke(link.id)}>Revoke</button>}
-                          <button className="small" disabled={busy} onClick={() => void regenerate(link.id)}>Regenerate</button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-    </dialog>
-  );
+  return <dialog open className="modal" aria-labelledby="share-title">
+    <div className="modal-heading"><h2 id="share-title">Share with client</h2><button aria-label="Close" onClick={onClose}><X size={18} /></button></div>
+    <p className="muted">One permanent link for this role. Recruiter shortlisted, client shortlisted and offer sent profiles stay in the live sheet. All candidate and custom columns are visible. Internal notes remain private.</p>
+    <p className="muted">Clients can add feedback. Profile details, ratings and new custom columns update automatically.</p>
+    {error && <p className="error" role="alert">{error}</p>}
+    {url ? <><label>Role&apos;s client link<input readOnly value={url} onFocus={(event) => event.currentTarget.select()} /></label>
+      <div className="row"><button className="primary" onClick={() => void copy()}><Copy size={15} />{copied ? "Copied" : "Copy link"}</button>
+      <a className="button" href={url} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Open client sheet</a></div>
+    </> : !error && <p role="status">Loading role link…</p>}
+  </dialog>;
 }

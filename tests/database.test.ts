@@ -3478,6 +3478,64 @@ function freshToken() {
   const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
   return { token, hash: hashOf(token), prefix: token.slice(0, 8) };
 }
+
+describe("persistent role sharing and profile transfers", () => {
+  async function roleLink(cid: string, rid: string) {
+    const token = freshToken();
+    return asUser(actor, () => rpc("get_role_share_link", [cid, rid, token.token, token.hash]));
+  }
+  it("returns one permanent token per role", async () => {
+    const { cid, rid } = await pipeline("permanent-role-link");
+    const first = await roleLink(cid, rid), second = await roleLink(cid, rid);
+    expect(second).toEqual(first);
+    const expiry = await sql("select expires_at from public.role_share_links where id=$1", [first.id]);
+    expect(expiry.rows[0].expires_at).toBeNull();
+    const otherRole = await role(cid);
+    expect((await roleLink(cid, otherRole)).token).not.toBe(first.token);
+    await expect(asUser(outsider, () => rpc("get_role_share_link", [cid, rid, freshToken().token, freshToken().hash]))).rejects.toThrow();
+    await expect(asUser(actor, () => sql("select * from private.role_client_links"))).rejects.toThrow("permission denied");
+  });
+  it("shares all current columns and new custom fields without internal notes, including advanced stages", async () => {
+    const { cid, rid, rcId, candidateId } = await pipeline("live-role-sheet");
+    await asUser(actor, () => rpc("move_stage", [cid, [rcId], "recruiter_shortlisted", ""]));
+    const link = await roleLink(cid, rid);
+    await sql("update public.candidates set phone='9158198424',alternate_phone='9158198425',email='share@example.com',current_ctc='20 LPA',highest_qualification='MBA' where id=$1", [candidateId]);
+    await sql("update public.role_candidates set internal_notes='Private recruiter note',rating=4.7 where id=$1", [rcId]);
+    const field = await asUser(actor, () => rpc("add_role_field", [cid, rid, "Availability", "text", "[]"]));
+    const key = (await sql("select key from public.role_fields where id=$1", [field])).rows[0].key;
+    await sql("update public.role_candidates set custom=jsonb_build_object($2::text,'Immediate') where id=$1", [rcId, key]);
+    let sheet = await rpc("read_shared_stage", [hashOf(link.token)]);
+    expect(sheet.visibleColumns).toEqual(expect.arrayContaining(["phone", "alternate_phone", "email", "current_ctc", "highest_qualification", "resume", key]));
+    expect(sheet.rows[0]).toMatchObject({ phone: "9158198424", alternate_phone: "9158198425", rating: 4.7, custom: { [key]: "Immediate" } });
+    expect(sheet.rows[0]).not.toHaveProperty("internal_notes");
+    expect(sheet.visibleColumns).not.toContain("internal_notes");
+    await asUser(actor, () => rpc("move_stage", [cid, [rcId], "client_shortlisted", ""]));
+    await rpc("write_shared_cell", [hashOf(link.token), rcId, "client_notes", JSON.stringify("Client feedback")]);
+    sheet = await rpc("read_shared_stage", [hashOf(link.token)]);
+    expect(sheet.rows[0]).toMatchObject({ stage: "client_shortlisted", client_notes: "Client feedback" });
+    const other = await pipeline("other-role-private");
+    await expect(rpc("write_shared_cell", [hashOf(link.token), other.rcId, "client_notes", JSON.stringify("Wrong role")])).rejects.toThrow("not found");
+    await expect(rpc("write_shared_cell", [hashOf(link.token), rcId, "rating", "5"])).rejects.toThrow("Notes only");
+  });
+  it("pushes only profiles above the source-role rating and creates blank target ratings, idempotently", async () => {
+    const { cid, rid, candidateId, rcId } = await pipeline("role-transfer");
+    const equal = await person("role-transfer-equal"), blank = await person("role-transfer-blank");
+    await asUser(actor, () => rpc("add_candidates_to_role", [cid, rid, [equal, blank], "linkedin"]));
+    await sql("update public.role_candidates set rating=case when candidate_id=$2 then 4.7 when candidate_id=$3 then 4.5 else null end where role_id=$1", [rid, candidateId, equal]);
+    const targetClient = await client(), target = await role(targetClient);
+    const result = await asUser(actor, () => rpc("push_profiles", [target, rid, null, 4.5]));
+    expect(result).toEqual({ added: 1, alreadyInRole: 0, matched: 1 });
+    expect((await sql("select candidate_id,rating,stage from public.role_candidates where role_id=$1", [target])).rows).toEqual([{ candidate_id: candidateId, rating: null, stage: "all_profiles" }]);
+    await sql("update public.role_candidates set rating=2.3 where role_id=$1", [target]);
+    expect(await asUser(actor, () => rpc("push_profiles", [target, rid, [candidateId], null]))).toMatchObject({ added: 0, alreadyInRole: 1 });
+    expect((await sql("select rating from public.role_candidates where role_id=$1", [target])).rows[0].rating).toBe("2.3");
+    expect((await sql("select rating from public.role_candidates where id=$1", [rcId])).rows[0].rating).toBe("4.7");
+    expect(await asUser(actor, () => rpc("push_profiles", [target, null, [blank], null]))).toMatchObject({ added: 1 });
+    await expect(asUser(outsider, () => rpc("push_profiles", [target, rid, null, null]))).rejects.toThrow();
+    await expect(asUser(actor, () => rpc("push_profiles", [rid, rid, null, null]))).rejects.toThrow("different target");
+    await expect(asUser(actor, () => rpc("push_profiles", [target, rid, [randomUUID()], null]))).rejects.toThrow("no longer in this role");
+  });
+});
 // The RPC no longer generates or returns a token: the app does that in Node
 // (see route.ts), matching what this test does here for exactly the same
 // reason (see the migration's own comment on create_share_link).

@@ -768,34 +768,34 @@ export async function POST(request: Request) {
         );
         break;
       }
+      case "getRoleShareLink":
       case "createShareLink": {
-        const p = z
-          .object({
-            clientId: uuid,
-            roleId: uuid,
-            visibleColumns: z.array(z.string().min(1).max(50)).min(1).max(30),
-            expiresAt: z.string().datetime().nullable().default(null),
-          })
-          .parse(payload);
-        // Generated and hashed here, matching signature() in queries.ts: the
-        // raw token never touches SQL and is returned to the browser exactly
-        // once, by this response.
+        const p = z.object({ clientId: uuid, roleId: uuid }).parse(payload);
         const token = randomBytes(32).toString("hex");
-        const tokenHash = createHash("sha256").update(token).digest("hex");
-        const id = checked(
-          await db.rpc("create_share_link", {
-            p_client: p.clientId,
-            p_role: p.roleId,
-            p_stage: "recruiter_shortlisted",
-            p_visible_columns: p.visibleColumns,
-            p_editable_columns: ["client_notes"],
-            p_expires_at: p.expiresAt,
-            p_token_hash: tokenHash,
-            p_token_prefix: token.slice(0, 8),
-            p_allow_decisions: false,
-          }),
-        );
-        result = { id, token };
+        result = checked(await db.rpc("get_role_share_link", {
+          p_client: p.clientId, p_role: p.roleId, p_token: token,
+          p_hash: createHash("sha256").update(token).digest("hex"),
+        }));
+        break;
+      }
+      case "profilePushTargets": {
+        const p = z.object({ sourceRoleId: uuid.optional() }).parse(payload);
+        const rows = checked(await db.from("roles").select("id,name,client_id,clients!inner(name)").eq("archived", false).eq("status", "open").order("name")) as unknown as { id: string; name: string; clients: { name: string } }[];
+        result = rows.filter((role) => role.id !== p.sourceRoleId).map((role) => ({ id: role.id, name: role.name, clientName: role.clients.name }));
+        break;
+      }
+      case "pushProfiles": {
+        const p = z.object({ targetRoleId: uuid, sourceRoleId: uuid.optional(), candidateIds: z.array(uuid).min(1).max(200).optional(), membershipIds: z.array(uuid).min(1).max(200).optional(), aboveRating: z.number().min(0).max(5).multipleOf(0.1).nullable().default(null) }).parse(payload);
+        if (!p.sourceRoleId && !p.candidateIds) throw new AppError("Select profiles from Master Database.");
+        let candidates = p.candidateIds;
+        if (p.membershipIds) {
+          if (!p.sourceRoleId || p.candidateIds) throw new AppError("Choose one source selection.");
+          const ids = [...new Set(p.membershipIds)];
+          const rows = checked(await db.from("role_candidates").select("candidate_id").eq("role_id", p.sourceRoleId).in("id", ids)) as { candidate_id: string }[];
+          if (rows.length !== ids.length) throw new AppError("Some selected profiles are no longer in this role. Reload and try again.");
+          candidates = rows.map((row) => row.candidate_id);
+        }
+        result = checked(await db.rpc("push_profiles", { p_target: p.targetRoleId, p_source: p.sourceRoleId ?? null, p_candidates: candidates ?? null, p_above: p.aboveRating }));
         break;
       }
       case "revokeShareLink": {
@@ -804,18 +804,7 @@ export async function POST(request: Request) {
         break;
       }
       case "regenerateShareLink": {
-        const p = z.object({ id: uuid }).parse(payload);
-        const token = randomBytes(32).toString("hex");
-        const tokenHash = createHash("sha256").update(token).digest("hex");
-        checked(
-          await db.rpc("regenerate_share_link", {
-            p_id: p.id,
-            p_token_hash: tokenHash,
-            p_token_prefix: token.slice(0, 8),
-          }),
-        );
-        result = { token };
-        break;
+        throw new AppError("Client links are permanent. Open Share with client to copy the role link.");
       }
       case "duplicate": {
         const p = z.object({ id: uuid }).parse(payload);

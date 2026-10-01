@@ -6,6 +6,7 @@ import { Workspace } from "@/components/workspace";
 import { ClientsWorkspace } from "@/components/clients-workspace";
 import { RoleWorkspace } from "@/components/recruiting/role-workspace";
 import { RolesWorkspace } from "@/components/recruiting/roles-workspace";
+import { MasterWorkspace } from "@/components/recruiting/master-workspace";
 import { TeamWorkspace } from "@/components/recruiting/team-workspace";
 import { prospectFilters } from "@/lib/prospects";
 import { prospectQuery } from "@/lib/server/prospects";
@@ -280,6 +281,7 @@ export default async function Page({
       data.runQueries = checked(queries);
       data.campaign = checked(campaign);
     }
+    if (path[0] === "roles" && path[1] && filter.stage === "master_db") redirect("/master-db");
     if (path[0] === "roles" && path[1]) {
       data.view = "role";
       const roleWithClient = checked(initialRole!) as Role & { clients: Client };
@@ -293,55 +295,7 @@ export default async function Page({
           data.role!.client_id,
         );
         const stageParam = filter.stage ?? "all_profiles";
-        if (stageParam === "master_db") {
-          const page = Math.max(
-            1,
-            Math.min(100000, Math.floor(Number(filter.page) || 1)),
-          );
-          data.page = page;
-          let q = db
-            .from("candidates")
-            .select("*,candidate_identities(kind,normalized_value)", { count: "exact" });
-          if (filter.q?.trim()) {
-            const term = filter.q
-              .trim()
-              .slice(0, 200)
-              .replace(/[\\%_,]/g, "\\$&");
-            q = q.or(
-              [
-                `full_name.ilike.%${term}%`,
-                `headline.ilike.%${term}%`,
-                `current_company.ilike.%${term}%`,
-                `email.ilike.%${term}%`,
-              ].join(","),
-            );
-          }
-          q = q.not("master_qualified_at", "is", null);
-          const [result, roleCounts] = await Promise.all([
-            q
-              .order("created_at", { ascending: false })
-              .order("id")
-              .range((page - 1) * 50, page * 50 - 1),
-            workspaceCounts,
-          ]);
-          data.masterCandidates = checked(result);
-          data.total = result.count ?? 0;
-          data.roleCandidateCounts = roleCounts.counts;
-          data.roleDashboardCounts = [roleCounts.dashboard];
-          const candidateIds = data.masterCandidates.map((candidate) => candidate.id);
-          // The membership id and stage come back too: the master list offers
-          // removal from the role, which addresses the membership rather than
-          // the shared person.
-          data.masterRoleMemberships = candidateIds.length
-            ? checked(
-                await db
-                  .from("role_candidates")
-                  .select("id,candidate_id,stage")
-                  .eq("role_id", data.role!.id)
-                  .in("candidate_id", candidateIds),
-              )
-            : [];
-        } else if (stageParam === "analytics") {
+        if (stageParam === "analytics") {
           const [funnel, durations, roleCounts, sourcePerformance] = await Promise.all([
             db
               .from("role_stage_funnel")
@@ -397,18 +351,7 @@ export default async function Page({
             candidateFilters,
             hasRoleCandidateListFilters(candidateFilters),
           );
-          const shareLinksQuery =
-            stage === "recruiter_shortlisted"
-              ? db
-                  .from("role_share_links")
-                  .select(
-                    "id,stage,token_prefix,visible_columns,allow_decisions,expires_at,revoked_at,created_at,last_viewed_at",
-                  )
-                  .eq("role_id", data.role!.id)
-                  .eq("stage", stage)
-                  .order("created_at", { ascending: false })
-              : null;
-          const [rows, roleCounts, fields, shareLinks] = await Promise.all([
+          const [rows, roleCounts, fields] = await Promise.all([
             candidateQuery.range((page - 1) * 50, page * 50 - 1),
             workspaceCounts,
             db
@@ -417,7 +360,6 @@ export default async function Page({
               .eq("role_id", data.role!.id)
               .eq("archived", false)
               .order("ordinal"),
-            shareLinksQuery,
           ]);
           data.roleCandidates = checked(rows) as unknown as RoleCandidate[];
           // Without filters the query skips the exact count and the per-stage
@@ -431,9 +373,7 @@ export default async function Page({
           data.roleCandidateCounts = roleCounts.counts;
           data.roleDashboardCounts = [roleCounts.dashboard];
           data.roleFields = checked(fields);
-          // token_hash is never selected; the app has no use for it and a
-          // hash of a never-reused secret has no reason to leave the database.
-          data.shareLinks = shareLinks ? checked(shareLinks) : [];
+
         }
       });
     }
@@ -569,6 +509,17 @@ export default async function Page({
         data.dispatched = metric.dispatched;
       });
     }
+    if (data.view === "master-db") {
+      data.page = Math.max(1, Math.min(100000, Math.floor(Number(filter.page) || 1)));
+      let query = db.from("candidates").select("*,candidate_identities(kind,normalized_value)", { count: "exact" });
+      if (filter.q?.trim()) {
+        const term = filter.q.trim().slice(0, 200).replace(/[^\p{L}\p{N} @.+-]/gu, " ");
+        query = query.or(["full_name", "headline", "current_company", "email", "phone"].map((key) => key + ".ilike.%" + term + "%").join(","));
+      }
+      const result = await query.order("created_at", { ascending: false }).order("id").range((data.page - 1) * 50, data.page * 50 - 1);
+      data.masterCandidates = checked(result);
+      data.total = result.count ?? 0;
+    }
     if (data.view === "roles") {
       loads.push(async () => {
         const [roles, dashboardCounts] = await Promise.all([
@@ -673,6 +624,7 @@ export default async function Page({
         "roles",
         "role",
         "team",
+        "master-db",
       ].includes(data.view)
     )
       notFound();
@@ -687,16 +639,9 @@ export default async function Page({
       );
     throw error;
   }
-  // This agency works one open role at a time, so a client with a single open
-  // role opens straight into the candidate grid instead of a list of one.
-  // ?list=1 asks for the list itself, and is what the role's back button
-  // links to, so going back does not immediately come back here.
-  if (data.view === "roles" && filter.list !== "1") {
-    const open = (data.roles ?? []).filter((role) => !role.archived);
-    if (open.length === 1) redirect(`/roles/${open[0].id}`);
-  }
   const routeKey = `${path.join("/")}:${filter.page ?? ""}:${filter.status ?? ""}:${filter.campaign ?? ""}:${filter.q ?? ""}:${filter.contact ?? ""}:${filter.stage ?? ""}`;
   const roleRouteKey = `${path.join("/")}:${filter.page ?? ""}:${filter.q ?? ""}:${filter.source ?? ""}:${filter.source_detail ?? ""}:${filter.rating ?? ""}:${filter.entered_from ?? ""}:${filter.entered_to ?? ""}:${filter.sort ?? ""}`;
+  if (data.view === "master-db") return <MasterWorkspace key={routeKey} data={data} />;
   if (data.view === "team") return <TeamWorkspace key={routeKey} data={data} />;
   if (data.view === "clients") return <ClientsWorkspace key={routeKey} data={data} />;
   if (data.view === "role") return <RoleWorkspace key={roleRouteKey} data={data} />;
