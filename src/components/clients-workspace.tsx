@@ -261,7 +261,7 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
           >
             <label>
               Client name
-              <input name="name" required maxLength={120} autoFocus disabled={busy} />
+              <input name="name" required maxLength={120} data-dialog-autofocus disabled={busy} />
             </label>
             <label>
               <span>Notes <span className="optional">optional</span></span>

@@ -8,7 +8,8 @@ import type { PageData } from "@/lib/types";
 import { formatMobile } from "@/lib/recruiting/contact";
 import styles from "./master-workspace.module.css";
 import { formatRecruitingDate } from "@/lib/recruiting/display";
-const PushProfilesDialog = dynamic(() => import("./push-profiles-dialog").then((m) => m.PushProfilesDialog));
+import { DialogLoading } from "./table-dialog";
+const PushProfilesDialog = dynamic(() => import("./push-profiles-dialog").then((m) => m.PushProfilesDialog), { loading: DialogLoading });
 
 export function MasterWorkspace({ data }: { data: PageData }) {
   const params = useSearchParams();

@@ -36,6 +36,7 @@ import type { Client, PageData, Run } from "@/lib/types";
 import { ProspectSheet } from "./prospect-sheet";
 import { ExcludedProfiles } from "./excluded-profiles";
 import { AppShell } from "./shell/AppShell";
+import { TableDialog } from "./recruiting/table-dialog";
 
 async function act<T = { id: string }>(
   action: string,
@@ -481,10 +482,10 @@ export function Workspace({ data }: { data: PageData }) {
             <SettingsPage data={data} {...actions} />
           )}
       {clientForm && (
-        <dialog open className="modal">
+        <TableDialog titleId="workspace-client-title" busy={busy} onClose={() => setClientForm(null)}>
           <div className="modal-heading">
-            <h2>{clientForm === "new" ? "Create client" : "Edit client"}</h2>
-            <button aria-label="Close" onClick={() => setClientForm(null)}>
+            <h2 id="workspace-client-title">{clientForm === "new" ? "Create client" : "Edit client"}</h2>
+            <button aria-label="Close" disabled={busy} onClick={() => setClientForm(null)}>
               <X size={18} />
             </button>
           </div>
@@ -513,16 +514,18 @@ export function Workspace({ data }: { data: PageData }) {
                 name="name"
                 required
                 maxLength={120}
-                autoFocus
+                data-dialog-autofocus
+                disabled={busy}
                 defaultValue={clientForm === "new" ? "" : clientForm.name}
               />
             </label>
             <label>
-              Notes <span className="optional">optional</span>
+              <span>Notes <span className="optional">optional</span></span>
               <textarea
                 name="notes"
                 rows={4}
                 maxLength={4000}
+                disabled={busy}
                 defaultValue={clientForm === "new" ? "" : clientForm.notes}
               />
             </label>
@@ -530,7 +533,7 @@ export function Workspace({ data }: { data: PageData }) {
               {busy ? "Saving…" : "Save client"}
             </button>
           </form>
-        </dialog>
+        </TableDialog>
       )}
     </AppShell>
   );

@@ -71,29 +71,29 @@ import { act as sharedAct } from "@/lib/client/act";
 import { ColumnResizeHandle, useTableLayout } from "./table-layout";
 import styles from "./role-workspace.module.css";
 import { formatMobile } from "@/lib/recruiting/contact";
-import { TableDialog } from "./table-dialog";
+import { DialogLoading, TableDialog } from "./table-dialog";
 import { roleStageUrl } from "@/lib/recruiting/navigation";
 import { RoleToolsMenu } from "./role-tools-menu";
 import { formatRecruitingDate } from "@/lib/recruiting/display";
 
 // These views and dialogs are opened on demand. Keep their code out of the
 // spreadsheet's initial bundle, which every recruiter downloads on every role.
-const RoleFormDialog = dynamic(() => import("./role-form").then((m) => m.RoleFormDialog));
-const RoleBrief = dynamic(() => import("./role-brief").then((m) => m.RoleBrief));
-const AddCandidatesDialog = dynamic(() => import("./add-candidates").then((m) => m.AddCandidatesDialog));
-const RejectDialog = dynamic(() => import("./reject-dialog").then((m) => m.RejectDialog));
-const CandidatePanel = dynamic(() => import("./candidate-panel").then((m) => m.CandidatePanel));
-const RoleFieldsDialog = dynamic(() => import("./role-fields-dialog").then((m) => m.RoleFieldsDialog));
-const PushProfilesDialog = dynamic(() => import("./push-profiles-dialog").then((m) => m.PushProfilesDialog));
-const ShareDialog = dynamic(() => import("./share-dialog").then((m) => m.ShareDialog));
-const RoleAnalytics = dynamic(() => import("./role-analytics").then((m) => m.RoleAnalytics));
-const DeletedCandidates = dynamic(() => import("./deleted-candidates").then((m) => m.DeletedCandidates));
-const BulkEditDialog = dynamic(() => import("./bulk-edit-dialog").then((m) => m.BulkEditDialog));
-const EditHistoryDialog = dynamic(() => import("./edit-history").then((m) => m.EditHistoryDialog));
-const DuplicateReview = dynamic(() => import("./duplicate-review").then((m) => m.DuplicateReview));
-const XraySearchDialog = dynamic(() => import("./xray-search-dialog").then((m) => m.XraySearchDialog));
-const MobileWaterfallDialog = dynamic(() => import("./mobile-waterfall-dialog").then((m) => m.MobileWaterfallDialog));
-const MobileLookupActivity = dynamic(() => import("./mobile-lookup-activity").then((m) => m.MobileLookupActivity));
+const RoleFormDialog = dynamic(() => import("./role-form").then((m) => m.RoleFormDialog), { loading: DialogLoading });
+const RoleBrief = dynamic(() => import("./role-brief").then((m) => m.RoleBrief), { loading: () => <div className="role-brief role-brief-loading" role="status">Loading role brief…</div> });
+const AddCandidatesDialog = dynamic(() => import("./add-candidates").then((m) => m.AddCandidatesDialog), { loading: DialogLoading });
+const RejectDialog = dynamic(() => import("./reject-dialog").then((m) => m.RejectDialog), { loading: DialogLoading });
+const CandidatePanel = dynamic(() => import("./candidate-panel").then((m) => m.CandidatePanel), { loading: DialogLoading });
+const RoleFieldsDialog = dynamic(() => import("./role-fields-dialog").then((m) => m.RoleFieldsDialog), { loading: DialogLoading });
+const PushProfilesDialog = dynamic(() => import("./push-profiles-dialog").then((m) => m.PushProfilesDialog), { loading: DialogLoading });
+const ShareDialog = dynamic(() => import("./share-dialog").then((m) => m.ShareDialog), { loading: DialogLoading });
+const RoleAnalytics = dynamic(() => import("./role-analytics").then((m) => m.RoleAnalytics), { loading: () => <div className="empty" role="status">Loading analytics…</div> });
+const DeletedCandidates = dynamic(() => import("./deleted-candidates").then((m) => m.DeletedCandidates), { loading: DialogLoading });
+const BulkEditDialog = dynamic(() => import("./bulk-edit-dialog").then((m) => m.BulkEditDialog), { loading: DialogLoading });
+const EditHistoryDialog = dynamic(() => import("./edit-history").then((m) => m.EditHistoryDialog), { loading: DialogLoading });
+const DuplicateReview = dynamic(() => import("./duplicate-review").then((m) => m.DuplicateReview), { loading: DialogLoading });
+const XraySearchDialog = dynamic(() => import("./xray-search-dialog").then((m) => m.XraySearchDialog), { loading: DialogLoading });
+const MobileWaterfallDialog = dynamic(() => import("./mobile-waterfall-dialog").then((m) => m.MobileWaterfallDialog), { loading: DialogLoading });
+const MobileLookupActivity = dynamic(() => import("./mobile-lookup-activity").then((m) => m.MobileLookupActivity), { loading: () => null });
 
 function act<T = { id: string }>(action: string, payload: unknown = {}): Promise<T> {
   return sharedAct<T>(action, payload);

@@ -1,6 +1,10 @@
 "use client";
 import { useEffect, useRef, type ReactNode } from "react";
 
+export function DialogLoading() {
+  return <div className="dialog-loading" role="status"><span className="spinner" aria-hidden="true" />Opening panel…</div>;
+}
+
 export function TableDialog({ titleId, busy = false, wide = false, className = "", onClose, children }: {
   titleId: string; busy?: boolean; wide?: boolean; className?: string; onClose: () => void; children: ReactNode;
 }) {

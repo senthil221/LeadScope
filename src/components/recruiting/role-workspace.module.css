@@ -14,6 +14,7 @@
 .workspace[data-expanded="true"] :global(.role-workspace-header) { margin-bottom: 12px; }
 .workspace[data-expanded="true"] :global(.role-workspace-header h1) { font-size: 20px; }
 .workspace[data-expanded="true"] .tablePanel { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.workspace[data-expanded="true"] .tablePanel:has(:global(.role-analytics)) { flex: none; }
 .workspace[data-expanded="true"] :global(.sheet-table-frame) { flex: 1 1 auto; min-height: 180px; max-height: none; }
 .workspace :global(.role-back) { display: inline-flex; align-items: center; gap: 6px; align-self: center; margin-right: 4px; padding: 5px 10px 5px 7px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: #43536b; font-size: 12px; font-weight: 600; text-decoration: none; white-space: nowrap; }
 .workspace :global(.role-back:hover) { background: #eff6ff; border-color: #b8cef0; color: #1d4ed8; }
@@ -218,6 +219,7 @@
 /* Final workspace hierarchy: data stays compact, context stays legible. */
 .workspace :global(.table-edit-hint), .workspace :global(.edit-history-heading time) { font-size: 12px; }
 .workspace :global(.role-brief) { margin: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 10px 10px 0 0; }
+.workspace :global(.role-brief.role-brief-loading) { min-height: 41px; padding: 10px 14px; color: var(--muted); font-size: 12px; }
 .workspace :global(.role-stage-tabs .stage-later) { background: #fffbeb !important; color: #92400e; }
 .workspace :global(.role-stage-tabs .stage-later.selected) { background: #fef3c7 !important; color: #78350f; }
 .workspace :global(.role-stage-tabs .stage-later.selected span) { background: #fde68a !important; color: #78350f !important; }

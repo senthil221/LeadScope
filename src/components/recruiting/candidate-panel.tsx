@@ -638,7 +638,7 @@ export function CandidatePanel({
           </div>
           <div className="candidate-offer-grid">
             <label>
-              Offer amount <span className="optional">optional</span>
+              <span>Offer amount <span className="optional">optional</span></span>
               <input
                 type="number"
                 min={0}
@@ -649,7 +649,7 @@ export function CandidatePanel({
               />
             </label>
             <label>
-              Currency <span className="optional">optional</span>
+              <span>Currency <span className="optional">optional</span></span>
               <input
                 maxLength={10}
                 placeholder="USD"
@@ -659,7 +659,7 @@ export function CandidatePanel({
               />
             </label>
             <label>
-              Sent on <span className="optional">optional</span>
+              <span>Sent on <span className="optional">optional</span></span>
               <input
                 type="date"
                 disabled={savingOffer}
@@ -668,7 +668,7 @@ export function CandidatePanel({
               />
             </label>
             <label>
-              Response due <span className="optional">optional</span>
+              <span>Response due <span className="optional">optional</span></span>
               <input
                 type="date"
                 disabled={savingOffer}
@@ -677,7 +677,7 @@ export function CandidatePanel({
               />
             </label>
             <label>
-              Expected start <span className="optional">optional</span>
+              <span>Expected start <span className="optional">optional</span></span>
               <input
                 type="date"
                 disabled={savingOffer}
@@ -687,7 +687,7 @@ export function CandidatePanel({
             </label>
           </div>
           <label>
-            Offer notes <span className="optional">optional, never shared</span>
+            <span>Offer notes <span className="optional">optional, never shared</span></span>
             <textarea
               rows={2}
               maxLength={4000}
@@ -749,7 +749,7 @@ export function CandidatePanel({
         </div>
         <p className="muted">This note is visible to the client through their shared link.</p>
         <label>
-          Note <span className="optional">optional</span>
+          <span>Note <span className="optional">optional</span></span>
           <textarea
             disabled={savingClientNotes}
             maxLength={4000}
@@ -814,7 +814,7 @@ export function CandidatePanel({
           <summary>Professional and contact details</summary>
           <div className="candidate-drawer-grid">
           <label>
-            Headline <span className="optional">optional</span>
+            <span>Headline <span className="optional">optional</span></span>
             <input
               maxLength={300}
               disabled={savingDetails}
@@ -823,7 +823,7 @@ export function CandidatePanel({
             />
           </label>
           <label>
-            Current company <span className="optional">optional</span>
+            <span>Current company <span className="optional">optional</span></span>
             <input
               maxLength={200}
               disabled={savingDetails}
@@ -832,7 +832,7 @@ export function CandidatePanel({
             />
           </label>
           <label>
-            Current designation <span className="optional">optional</span>
+            <span>Current designation <span className="optional">optional</span></span>
             <input
               maxLength={200}
               disabled={savingDetails}
@@ -843,7 +843,7 @@ export function CandidatePanel({
             />
           </label>
           <label>
-            Location <span className="optional">optional</span>
+            <span>Location <span className="optional">optional</span></span>
             <input
               maxLength={200}
               disabled={savingDetails}
@@ -852,7 +852,7 @@ export function CandidatePanel({
             />
           </label>
           <label>
-            Experience (years) <span className="optional">optional</span>
+            <span>Experience (years) <span className="optional">optional</span></span>
             <input
               type="number"
               min={0}
@@ -889,7 +889,7 @@ export function CandidatePanel({
             />
           </div>
           <label>
-            Email <span className="optional">optional</span>
+            <span>Email <span className="optional">optional</span></span>
             <input
               aria-invalid={Boolean(
                 details.email.trim() && !normalizeCandidateEmail(details.email),
@@ -994,7 +994,7 @@ export function CandidatePanel({
         ] as const
       ).map((key) => (
         <label key={key}>
-          {screeningLabels[key]} <span className="optional">optional</span>
+          <span>{screeningLabels[key]} <span className="optional">optional</span></span>
           <input
             disabled={savingScreening}
             value={screening[key] ?? ""}
@@ -1003,7 +1003,7 @@ export function CandidatePanel({
         </label>
       ))}
       <label>
-        Follow-up date <span className="optional">optional</span>
+        <span>Follow-up date <span className="optional">optional</span></span>
         <input
           type="date"
           disabled={savingScreening}
@@ -1013,7 +1013,7 @@ export function CandidatePanel({
       </label>
       </div>
       <label>
-        Experience notes <span className="optional">optional</span>
+        <span>Experience notes <span className="optional">optional</span></span>
         <textarea
           rows={2}
           maxLength={2000}
@@ -1025,7 +1025,7 @@ export function CandidatePanel({
         />
       </label>
       <label>
-        Recruiter assessment <span className="optional">optional</span>
+        <span>Recruiter assessment <span className="optional">optional</span></span>
         <textarea
           rows={2}
           maxLength={2000}
@@ -1037,7 +1037,7 @@ export function CandidatePanel({
         />
       </label>
       <label>
-        Internal notes <span className="optional">optional, never shared</span>
+        <span>Internal notes <span className="optional">optional, never shared</span></span>
         <textarea
           rows={3}
           maxLength={4000}
