@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
 import { Download, X } from "lucide-react";
+import { TableDialog } from "./table-dialog";
 import readXlsxFile from "read-excel-file/browser";
 import {
   buildImportRow,
@@ -349,20 +350,21 @@ export function AddCandidatesDialog({
   }
 
   return (
-    <dialog open className="modal import-modal">
+    <TableDialog titleId="add-candidates-title" className="import-modal" busy={busy} onClose={onClose}>
       <div className="modal-heading">
-        <h2>Add candidates</h2>
-        <button aria-label="Close" onClick={onClose}>
+        <h2 id="add-candidates-title">Add candidates</h2>
+        <button aria-label="Close" disabled={busy} onClick={onClose}>
           <X size={18} />
         </button>
       </div>
-      <div className="tabs" role="tablist">
+      <div className="tabs" role="tablist" aria-label="Import method">
         {(Object.keys(modeLabels) as Mode[]).map((key) => (
           <button
             key={key}
             type="button"
             role="tab"
             aria-selected={mode === key}
+            disabled={busy}
             className={mode === key ? "selected" : ""}
             onClick={() => switchMode(key)}
           >
@@ -805,6 +807,6 @@ export function AddCandidatesDialog({
           </button>
         </>
       )}
-    </dialog>
+    </TableDialog>
   );
 }

@@ -74,6 +74,7 @@ import { formatMobile } from "@/lib/recruiting/contact";
 import { TableDialog } from "./table-dialog";
 import { roleStageUrl } from "@/lib/recruiting/navigation";
 import { RoleToolsMenu } from "./role-tools-menu";
+import { formatRecruitingDate } from "@/lib/recruiting/display";
 
 // These views and dialogs are opened on demand. Keep their code out of the
 // spreadsheet's initial bundle, which every recruiter downloads on every role.
@@ -114,14 +115,7 @@ const flowStages = stages.filter(
   (s) => s !== "all_profiles" && s !== "rejected" && s !== "later",
 );
 
-const date = (s: string | null | undefined) =>
-  s
-    ? new Date(s).toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
-    : "Not provided";
+const date = formatRecruitingDate;
 
 function candidateEmptyMessage(tab: Tab, query = "") {
   if (query) return "No candidates match this search.";
@@ -145,12 +139,7 @@ function followUpStatus(value: string) {
 }
 
 function followUpDate(value: string | null) {
-  if (!value) return "Not provided";
-  return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return formatRecruitingDate(value);
 }
 
 function linkedInUrl(candidate: RoleCandidate["candidates"]) {
@@ -2417,9 +2406,9 @@ export function RolePipeline({
         />
       )}
       {applying && (
-        <dialog open className="modal">
+        <TableDialog titleId="apply-threshold-title" busy={applyBusy} onClose={() => setApplying(false)}>
           <div className="modal-heading">
-            <h2>Apply rating threshold</h2>
+            <h2 id="apply-threshold-title">Apply rating threshold</h2>
           </div>
           <p className="muted">
             Moves every candidate still in All profiles whose manually entered rating already
@@ -2448,7 +2437,7 @@ export function RolePipeline({
               Cancel
             </button>
           </div>
-        </dialog>
+        </TableDialog>
       )}
     </div>
   );

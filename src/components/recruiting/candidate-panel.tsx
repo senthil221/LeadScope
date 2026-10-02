@@ -27,6 +27,7 @@ import {
   normalizeCandidatePhone,
 } from "@/lib/recruiting/contact";
 import { MobileField } from "./mobile-field";
+import { TableDialog } from "./table-dialog";
 import { act as sharedAct } from "@/lib/client/act";
 
 function act<T = { ok: true }>(action: string, payload: unknown): Promise<T> {
@@ -483,28 +484,23 @@ export function CandidatePanel({
       onNavigate(id);
   }
 
+  const drawerBusy = savingDetails || savingScreening || savingClientNotes || savingOffer || uploading || advancing || restoring;
   return (
-    <dialog
-      open
-      className="modal candidate-drawer"
-      onCancel={(event) => {
-        event.preventDefault();
-        onClose();
-      }}
-    >
+    <TableDialog titleId="candidate-panel-title" className="candidate-drawer" onClose={onClose}
+      busy={drawerBusy}>
       <div className="modal-heading candidate-drawer-heading">
         <div>
           <span className="badge candidate-stage-badge">
             {stageLabels[currentStage]}
           </span>
-          <h2>{c.full_name}</h2>
+          <h2 id="candidate-panel-title">{c.full_name}</h2>
           {(c.headline || c.current_company) && (
             <p className="candidate-drawer-subtitle">
               {[c.headline, c.current_company].filter(Boolean).join(" · ")}
             </p>
           )}
         </div>
-        <button aria-label="Close" onClick={onClose}>
+        <button aria-label="Close" disabled={drawerBusy} onClick={onClose}>
           <X size={18} />
         </button>
       </div>
@@ -1133,6 +1129,6 @@ export function CandidatePanel({
           }}
         />
       )}
-    </dialog>
+    </TableDialog>
   );
 }

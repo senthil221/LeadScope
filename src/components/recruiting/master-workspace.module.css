@@ -1,0 +1,29 @@
+.sheet { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); overflow: hidden; box-shadow: var(--shadow-sm); }
+.sheet :global(.sheet-toolbar) { margin: 0; padding: 12px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; }
+.sheet :global(.sheet-toolbar input) { flex: 1 1 260px; width: 260px; max-width: 520px; min-width: 0; min-height: 36px; }
+.sheet :global(.sheet-toolbar a) { color: var(--brand-ink); font-size: 12px; padding: 8px; }
+.sheet :global(.bulk-bar) { margin: 0; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--brand-line); border-radius: 0; }
+.sheet :global(.notice) { margin: 0; padding: 12px; }
+.frame { min-width: 0; overflow: auto; margin: 0; border: 0; border-radius: 0; max-height: max(240px, calc(100dvh - 330px)); scrollbar-gutter: auto; }
+.frame:focus-visible { outline-offset: -2px; }
+.frame :global(.master-table) { table-layout: fixed; min-width: 100%; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
+.frame :global(.master-table th), .frame :global(.master-table td) { width: auto; min-width: 0; padding: 8px 10px; height: 36px; border-right: 1px solid var(--line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; background: #fff; }
+.frame :global(.master-table th) { position: sticky; top: 0; z-index: 3; background: #f1f5fa; color: #526278; font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; border-bottom-color: var(--line-strong); }
+.frame :global(.master-table th:first-child), .frame :global(.master-table td:first-child) { position: sticky; left: 0; z-index: 2; text-align: center; padding: 0; }
+.frame :global(.master-table th:nth-child(2)), .frame :global(.master-table td:nth-child(2)) { position: sticky; left: 42px; z-index: 2; box-shadow: 1px 0 0 var(--line-strong); }
+.frame :global(.master-table th:first-child), .frame :global(.master-table th:nth-child(2)) { z-index: 4; }
+.frame :global(.master-table td:nth-child(2)) { font-weight: 550; }
+.frame :global(.master-table td a) { color: var(--brand-ink); font-size: 12px; }
+.frame :global(.master-table td a:hover) { text-decoration: underline; }
+.frame :global(.master-table input[type="checkbox"]) { width: 15px; height: 15px; margin: 0; vertical-align: middle; }
+.frame :global(.master-table .muted) { color: #65748a; font-size: 12px; }
+.frame :global(.master-table tbody tr:hover td) { background: #f7faff; }
+.frame :global(.master-table .selected-row td) { background: #eff6ff; }
+.sheet :global(.sheet-footer) { margin: 0; min-height: 46px; padding: 8px 12px; border-top: 1px solid var(--line-strong); border-radius: 0; background: #f8fafc; font-size: 12px; }
+@media (max-width: 640px) {
+  .frame { max-height: 55dvh; }
+  .sheet :global(.sheet-toolbar) { flex-wrap: wrap; }
+  .sheet :global(.sheet-toolbar input) { flex-basis: calc(100% - 90px); width: 0; }
+  .frame :global(.master-table td:nth-child(2)) { position: static; }
+  .frame :global(.master-table th:nth-child(2)) { left: auto; z-index: 3; }
+}

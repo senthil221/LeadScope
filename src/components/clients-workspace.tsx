@@ -7,6 +7,8 @@ import { ArrowRight, FolderOpen, Plus, X } from "lucide-react";
 import { AppShell } from "@/components/shell/AppShell";
 import type { PageData } from "@/lib/types";
 import { act as sharedAct } from "@/lib/client/act";
+import { TableDialog } from "./recruiting/table-dialog";
+import { formatRecruitingDate } from "@/lib/recruiting/display";
 
 function act<T>(action: string, payload: unknown): Promise<T> {
   return sharedAct<T>(action, payload, "Could not save the client.");
@@ -20,8 +22,7 @@ const pipelineColumns = [
   { key: "offer_sent", label: "Offer" },
 ] as const;
 
-const date = (value: string) =>
-  new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+const date = formatRecruitingDate;
 
 // The directory is a standalone recruiting entry point. It intentionally
 // contains only client discovery and creation, keeping campaign tooling out
@@ -245,9 +246,9 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
         </div>
       )}
       {creating && (
-        <dialog open className="modal">
+        <TableDialog titleId="client-form-title" busy={busy} onClose={() => setCreating(false)}>
           <div className="modal-heading">
-            <h2>Create client</h2>
+            <h2 id="client-form-title">Create client</h2>
             <button aria-label="Close" disabled={busy} onClick={() => setCreating(false)}>
               <X size={18} />
             </button>
@@ -263,14 +264,14 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
               <input name="name" required maxLength={120} autoFocus disabled={busy} />
             </label>
             <label>
-              Notes <span className="optional">optional</span>
+              <span>Notes <span className="optional">optional</span></span>
               <textarea name="notes" rows={4} maxLength={4000} disabled={busy} />
             </label>
             <button disabled={busy} className="primary wide">
               {busy ? "Creating…" : "Create client"}
             </button>
           </form>
-        </dialog>
+        </TableDialog>
       )}
     </AppShell>
   );

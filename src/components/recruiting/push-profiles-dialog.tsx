@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { act } from "@/lib/client/act";
+import { TableDialog } from "./table-dialog";
 
 type Target = { id: string; name: string; clientName: string };
 export type PushResult = { added: number; alreadyInRole: number; matched: number };
@@ -36,7 +37,7 @@ export function PushProfilesDialog({ sourceRoleId, candidateIds, membershipIds, 
     } catch (reason) { setError((reason as Error).message); }
     finally { setBusy(false); }
   }
-  return <dialog open className="modal" aria-labelledby="push-title">
+  return <TableDialog titleId="push-title" busy={busy} onClose={onClose}>
     <div className="modal-heading"><h2 id="push-title">Push profiles to a role</h2><button aria-label="Close" disabled={busy} onClick={onClose}><X size={18} /></button></div>
     <p className="muted">{candidateIds || membershipIds ? `${(candidateIds ?? membershipIds)!.length} selected profiles` : "Profiles across every stage of this role"}. New entries start in All profiles with a blank role rating. Existing entries are skipped.</p>
     {error && <p className="error" role="alert">{error}</p>}
@@ -52,5 +53,5 @@ export function PushProfilesDialog({ sourceRoleId, candidateIds, membershipIds, 
       </label>}
       <button className="primary wide" disabled={busy || !target} type="submit">{busy ? "Pushing…" : "Push profiles"}</button>
     </form>
-  </dialog>;
+  </TableDialog>;
 }

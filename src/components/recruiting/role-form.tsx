@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { X } from "lucide-react";
 import type { Role } from "@/lib/types";
 import { act as sharedAct } from "@/lib/client/act";
+import { TableDialog } from "./table-dialog";
 
 function act<T = { id: string }>(action: string, payload: unknown = {}): Promise<T> {
   return sharedAct<T>(action, payload);
@@ -52,27 +53,27 @@ export function RoleFormDialog({
   }
 
   return (
-    <dialog open className="modal">
+    <TableDialog titleId="role-form-title" className="role-form-modal" busy={busy} onClose={onClose}>
       <div className="modal-heading">
-        <h2>{role === "new" ? "Create role" : "Edit role"}</h2>
-        <button aria-label="Close" onClick={onClose}>
+        <h2 id="role-form-title">{role === "new" ? "Create role" : "Edit role"}</h2>
+        <button aria-label="Close" disabled={busy} onClick={onClose}>
           <X size={18} />
         </button>
       </div>
-      <form onSubmit={save}>
+      <form onSubmit={save} aria-busy={busy}>
         <label>
           Role name
           <input
             name="name"
             required
             maxLength={120}
-            autoFocus
+            data-dialog-autofocus
             defaultValue={role === "new" ? "" : role.name}
             placeholder="e.g. Senior backend engineer"
           />
         </label>
         <label>
-          Description <span className="optional">optional</span>
+          <span>Description <span className="optional">optional</span></span>
           <textarea
             name="description"
             rows={3}
@@ -81,14 +82,14 @@ export function RoleFormDialog({
           />
         </label>
         <label>
-          Recruiter tags <span className="optional">comma separated names</span>
+          <span>Recruiter tags <span className="optional">comma separated names</span></span>
           <input name="recruiters" maxLength={2400} defaultValue={role === "new" ? "" : (role.recruiter_names ?? []).join(", ")} placeholder="e.g. Priya, Rahul" />
         </label>
         <label>
-          Role CTC <span className="optional">budget or range</span>
+          <span>Role CTC <span className="optional">budget or range</span></span>
           <input name="ctc" maxLength={200} defaultValue={role === "new" ? "" : role.ctc ?? ""} placeholder="e.g. ₹18–24 LPA, fixed + variable" />
         </label>
-        <label>
+        <div className="form-grid role-form-pair"><label>
           Rating floor
           <input
             type="number"
@@ -106,7 +107,7 @@ export function RoleFormDialog({
             <option value="on_hold">On hold</option>
             <option value="closed">Closed</option>
           </select>
-        </label>
+        </label></div>
         <p className="muted">
           Candidates with a manually entered rating at or above this threshold
           move to Profile shortlisted. Changing this later never moves existing
@@ -121,6 +122,6 @@ export function RoleFormDialog({
           {busy ? "Saving…" : "Save role"}
         </button>
       </form>
-    </dialog>
+    </TableDialog>
   );
 }

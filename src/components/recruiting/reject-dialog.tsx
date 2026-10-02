@@ -3,6 +3,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { rejectionTypes, type RejectionType } from "@/lib/recruiting/stages";
 import { act as sharedAct } from "@/lib/client/act";
+import { TableDialog } from "./table-dialog";
 
 function act(action: string, payload: unknown): Promise<void> {
   return sharedAct<void>(action, payload, "Could not reject. Try again.");
@@ -53,10 +54,10 @@ export function RejectDialog({
   }
 
   return (
-    <dialog open className="modal reject-modal">
+    <TableDialog titleId="reject-title" className="reject-modal" busy={busy} onClose={onClose}>
       <div className="modal-heading">
-        <h2>{title}</h2>
-        <button aria-label="Close" onClick={onClose}>
+        <h2 id="reject-title">{title}</h2>
+        <button aria-label="Close" disabled={busy} onClick={onClose}>
           <X size={18} />
         </button>
       </div>
@@ -108,6 +109,6 @@ export function RejectDialog({
           Cancel
         </button>
       </div>
-    </dialog>
+    </TableDialog>
   );
 }

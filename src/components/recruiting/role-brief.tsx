@@ -27,7 +27,7 @@ export function RoleBrief({ role, onSaved }: { role: Role; onSaved: () => void }
       <div className="role-jd">
         <strong>Job description</strong>
         {role.jd_path && <a className="button small" href={`/api/role-jd?roleId=${role.id}`} target="_blank" rel="noreferrer">Open {role.jd_name || "JD"}</a>}
-        <label>Attach or replace JD <span className="optional">PDF or Word, up to 10 MB</span>
+        <label><span>Attach or replace JD <span className="optional">PDF or Word, up to 10 MB</span></span>
           <input type="file" accept=".pdf,.doc,.docx" disabled={busy || role.archived} onChange={async (event) => {
             const file = event.target.files?.[0]; event.target.value = "";
             if (!file || busy) return;

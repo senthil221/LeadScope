@@ -1,8 +1,10 @@
 "use client";
+import { TableDialog } from "./table-dialog";
 
 import { useState } from "react";
 import { ShieldCheck, X } from "lucide-react";
 import { act as sharedAct } from "@/lib/client/act";
+import { formatRecruitingDate } from "@/lib/recruiting/display";
 
 export type Operator = {
   id: string;
@@ -18,14 +20,7 @@ function act<T = void>(action: string, payload: unknown = {}): Promise<T> {
   return sharedAct<T>(action, payload, "Could not save. Try again.");
 }
 
-const when = (value: string | null) =>
-  value
-    ? new Date(value).toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
-    : "Never";
+const when = (value: string | null) => value ? formatRecruitingDate(value) : "Never";
 
 export function TeamPage({
   operators,
@@ -164,10 +159,10 @@ export function TeamPage({
       </div>
 
       {confirming && (
-        <dialog open className="modal">
+        <TableDialog titleId="remove-access-title" busy={busyId === confirming.id} onClose={() => setConfirming(null)}>
           <div className="modal-heading">
-            <h2>Remove access for {confirming.email}?</h2>
-            <button aria-label="Close" onClick={() => setConfirming(null)}>
+            <h2 id="remove-access-title">Remove access for {confirming.email}?</h2>
+            <button aria-label="Close" disabled={busyId === confirming.id} onClick={() => setConfirming(null)}>
               <X size={18} />
             </button>
           </div>
@@ -188,7 +183,7 @@ export function TeamPage({
               Cancel
             </button>
           </div>
-        </dialog>
+        </TableDialog>
       )}
     </section>
   );

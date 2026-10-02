@@ -3,6 +3,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import type { RoleField } from "@/lib/types";
 import { act as sharedAct } from "@/lib/client/act";
+import { TableDialog } from "./table-dialog";
 
 function act(action: string, payload: unknown): Promise<{ id: string }> {
   return sharedAct<{ id: string }>(action, payload, "Could not save. Try again.");
@@ -77,10 +78,10 @@ export function RoleFieldsDialog({
   }
 
   return (
-    <dialog open className="modal">
+    <TableDialog titleId="role-fields-title" busy={busy} onClose={onClose}>
       <div className="modal-heading">
-        <h2>Custom columns</h2>
-        <button aria-label="Close" onClick={onClose}>
+        <h2 id="role-fields-title">Custom columns</h2>
+        <button aria-label="Close" disabled={busy} onClick={onClose}>
           <X size={18} />
         </button>
       </div>
@@ -170,6 +171,6 @@ export function RoleFieldsDialog({
       >
         {busy ? "Adding…" : "Add column"}
       </button>
-    </dialog>
+    </TableDialog>
   );
 }

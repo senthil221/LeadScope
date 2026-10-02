@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { PushProfilesDialog } from "../src/components/recruiting/push-profiles-dialog";
 import { act } from "../src/lib/client/act";
 vi.mock("../src/lib/client/act", () => ({ act: vi.fn() }));
+beforeAll(() => {
+  Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true, value() { this.setAttribute("open", ""); } });
+  Object.defineProperty(HTMLDialogElement.prototype, "close", { configurable: true, value() { this.removeAttribute("open"); } });
+});
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 const targets = [{ id: "target", name: "Engineer", clientName: "Client B" }];
 describe("push profiles", () => {

@@ -33,13 +33,13 @@ export function Sidebar({ data }: { data: PageData }) {
       <nav className="shell-nav" aria-label="Primary">
         <div className="shell-group">
           <span className="shell-label">Workspace</span>
-          <Link className={itemClass(view, ["clients"])} href="/clients">
+          <Link className={itemClass(view, ["clients"])} aria-current={view === "clients" ? "page" : undefined} href="/clients">
             <Users size={17} aria-hidden="true" />
             Clients
           </Link>
-          <Link className={itemClass(view, ["master-db"])} href="/master-db"><Database size={17} aria-hidden="true" />Master Database</Link>
-          <Link className={itemClass(view, ["all-roles", "roles", "role"])} href="/roles"><Briefcase size={17} aria-hidden="true" />Roles</Link>
-          <Link className={itemClass(view, ["blocklist"])} href="/blocklist"><ShieldCheck size={17} aria-hidden="true" />Blocklist</Link>
+          <Link className={itemClass(view, ["master-db"])} aria-current={view === "master-db" ? "page" : undefined} href="/master-db"><Database size={17} aria-hidden="true" />Master Database</Link>
+          <Link className={itemClass(view, ["all-roles", "roles", "role"])} aria-current={["all-roles", "roles", "role"].includes(view) ? "page" : undefined} href="/roles"><Briefcase size={17} aria-hidden="true" />Roles</Link>
+          <Link className={itemClass(view, ["blocklist"])} aria-current={view === "blocklist" ? "page" : undefined} href="/blocklist"><ShieldCheck size={17} aria-hidden="true" />Blocklist</Link>
           {client && (
             <Link
               className="shell-link"
@@ -55,7 +55,7 @@ export function Sidebar({ data }: { data: PageData }) {
         {/* Owner only. The route refuses anyone else on its own, so this is
             about not advertising a door that will not open. */}
         {data.isOwner && (
-          <Link className={itemClass(view, ["team"])} href="/team">
+          <Link className={itemClass(view, ["team"])} aria-current={view === "team" ? "page" : undefined} href="/team">
             <ShieldCheck size={17} aria-hidden="true" />
             Access
           </Link>

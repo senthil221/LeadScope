@@ -10,6 +10,7 @@ import Image from "next/image";
 import { ExternalLink } from "lucide-react";
 import logo from "@/assets/brand/leadvance-recruiting.png";
 import styles from "./share-page.module.css";
+import { formatRecruitingDate } from "@/lib/recruiting/display";
 
 export const metadata = { title: "Candidate review | Leadvance Recruiting" };
 
@@ -50,14 +51,7 @@ type SharedStage = {
 
 const staticLabels = clientShareLabels;
 
-function formatDate(s: string | null | undefined) {
-  if (!s) return "Not provided";
-  return new Date(s).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
+const formatDate = formatRecruitingDate;
 function cell(row: SharedRow, key: string, fields: SharedField[]): string {
   const field = fields.find((f) => f.key === key);
   if (field) {

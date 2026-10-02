@@ -71,6 +71,7 @@
 .workspace :global(.role-summary span:not(:last-child))::after { content: "·"; margin-left: 6px; color: var(--line-strong); }
 .workspace :global(.role-summary strong) { color: var(--ink); font-weight: 650; }
 .tablePanel { min-width: 0; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); box-shadow: 0 2px 5px rgb(15 23 42 / 3%); }
+.tablePanel > :not(:global(.sheet-table-frame)) { flex-shrink: 0; }
 .workspace :global(.role-tab-bar) { gap: 0; margin: 0; padding: 0 14px; border-bottom: 1px solid var(--line); }
 .workspace :global(.role-stage-tabs) { flex: 1 1 auto; flex-wrap: wrap; overflow: visible; min-width: 0; padding: 8px 0; border: 0; border-radius: 0; gap: 10px; }
 .workspace :global(.role-stage-tabs a) { padding: 7px 10px; font-weight: 500; }
@@ -213,4 +214,23 @@
   .workspace :global(.sheet-input) { font-size: 16px; }
   .workspace :global(button), .workspace :global(.button) { min-height: 40px; }
   .workspace :global(.candidate-toolbar .candidate-search-input) { min-height: 40px; }
+}
+/* Final workspace hierarchy: data stays compact, context stays legible. */
+.workspace :global(.table-edit-hint), .workspace :global(.edit-history-heading time) { font-size: 12px; }
+.workspace :global(.role-brief) { margin: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 10px 10px 0 0; }
+.workspace :global(.role-stage-tabs .stage-later) { background: #fffbeb !important; color: #92400e; }
+.workspace :global(.role-stage-tabs .stage-later.selected) { background: #fef3c7 !important; color: #78350f; }
+.workspace :global(.role-stage-tabs .stage-later.selected span) { background: #fde68a !important; color: #78350f !important; }
+.workspace :global(.candidate-drawer.table-dialog) { box-shadow: -12px 0 32px rgb(15 23 42 / .14); }
+.workspace :global(.candidate-drawer h2) { overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .workspace[data-expanded="true"] { padding: 10px; }
+  .workspace[data-expanded="true"] .tablePanel { flex: none; }
+  .workspace[data-expanded="true"] :global(.sheet-table-frame) { flex: none; height: min(55dvh, 420px); }
+  .workspace :global(.role-stage-tabs) { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+  .workspace :global(.role-stage-tabs a) { flex-shrink: 0; white-space: nowrap; }
+  .workspace :global(.stage-flow) { flex: 0 0 auto; flex-wrap: nowrap; }
+  .workspace :global(.stage-rail-divider) { flex: 0 0 1px; }
+  .workspace :global(.role-tools-popover) { max-width: calc(100vw - 40px); }
+  .workspace :global(.role-summary) { margin: 8px 0 0; padding-left: 0; border-left: 0; }
 }

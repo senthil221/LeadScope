@@ -28,13 +28,13 @@ export function AllRolesWorkspace({ data }: { data: PageData }) {
       <button>Apply</button><Link href="/roles">Clear</Link>
     </form>
     {error && <p className="error" role="alert">{error}</p>}
-    <div className="card table-wrap"><table><thead><tr><th>Role</th><th>Client</th><th>Recruiter tags</th><th>CTC</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+    <div className="card table-wrap role-directory-table"><table><thead><tr><th>Role</th><th>Client</th><th>Recruiter tags</th><th>CTC</th><th>Status</th><th>Actions</th></tr></thead><tbody>
       {(data.roles ?? []).map((role) => <tr key={role.id}>
         <td><Link className="strong" href={`/roles/${role.id}`}>{role.name}</Link>{role.description && <small>{role.description.slice(0, 100)}</small>}</td>
         <td><Link className="badge" href={`/clients/${role.client_id}/roles`}>{clients.get(role.client_id)?.name ?? "Client"}</Link>{clients.get(role.client_id)?.archived && <small>Client archived</small>}</td>
         <td><div className="role-tags">{(role.recruiter_names ?? []).map((name) => <span className="badge" key={name}>{name}</span>)}{!role.recruiter_names?.length && <span className="muted">Unassigned</span>}</div></td>
         <td>{role.ctc || <span className="muted">Not specified</span>}</td>
-        <td><span className={`badge ${role.status}`}>{role.archived ? "Archived" : role.status.replace("_", " ")}</span></td>
+        <td><span className={`badge ${role.status}`}>{role.archived ? "Archived" : ({ open: "Open", on_hold: "On hold", closed: "Closed" })[role.status]}</span></td>
         <td><div className="row"><button className="small" disabled={busy || clients.get(role.client_id)?.archived} onClick={() => setForm(role)}>Edit</button><button className="small" disabled={busy} onClick={async () => {
           setBusy(true); setError("");
           try { await act("archiveRole", { id: role.id, archived: !role.archived }); router.refresh(); }

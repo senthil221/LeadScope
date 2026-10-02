@@ -37,13 +37,14 @@ export function RoleAnalytics({
   const rejected = byStage.get("rejected");
 
   return (
-    <div className="card table-wrap">
-      <h3>Pipeline funnel</h3>
+    <div className="role-analytics">
+      <section className="card table-wrap" aria-labelledby="funnel-heading">
+      <div className="analytics-heading"><h2 id="funnel-heading">Pipeline funnel</h2>
       <p className="muted">
         Ever reached counts a candidate once, the first time they arrived at a
         stage, even if they later moved on or were rejected. Conversion
         compares that to the stage before it in the pipeline.
-      </p>
+      </p></div>
       <table>
         <thead>
           <tr>
@@ -81,11 +82,12 @@ export function RoleAnalytics({
           </tr>
         </tbody>
       </table>
-      <h3>Source performance</h3>
+      </section><section className="card table-wrap" aria-labelledby="source-heading">
+      <div className="analytics-heading"><h2 id="source-heading">Source performance</h2>
       <p className="muted">
         Counts show candidates from each source who ever reached a stage, even
         if they later moved on or were rejected.
-      </p>
+      </p></div>
       <table>
         <thead>
           <tr>
@@ -113,13 +115,14 @@ export function RoleAnalytics({
         </tbody>
       </table>
       {!sourcePerformance.length && (
-        <p className="muted">Source performance will appear after candidates are added.</p>
+        <p className="muted analytics-empty">Source performance will appear after candidates are added.</p>
       )}
-      <h3>Median time in stage</h3>
+      </section><section className="card table-wrap" aria-labelledby="duration-heading">
+      <div className="analytics-heading"><h2 id="duration-heading">Median time in stage</h2>
       <p className="muted">
         Only completed stays count. A candidate still sitting in a stage
         today has not finished that stay yet.
-      </p>
+      </p></div>
       <table>
         <thead>
           <tr>
@@ -141,6 +144,7 @@ export function RoleAnalytics({
           })}
         </tbody>
       </table>
+      </section>
     </div>
   );
 }
