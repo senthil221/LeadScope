@@ -19,6 +19,7 @@ ENV HOSTNAME=0.0.0.0
 RUN useradd --system --uid 1001 --create-home nextjs
 COPY --from=builder --chown=nextjs:nextjs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nextjs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nextjs /app/scripts/mobile-worker.mjs ./scripts/mobile-worker.mjs
 USER nextjs
 EXPOSE 3000
 CMD ["node", "server.js"]

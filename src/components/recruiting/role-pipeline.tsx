@@ -15,6 +15,8 @@ import {
   Maximize2,
   Minimize2,
   Plus,
+  Phone,
+  Search,
   Rows3,
   Trash2,
   SlidersHorizontal,
@@ -88,6 +90,9 @@ const DeletedCandidates = dynamic(() => import("./deleted-candidates").then((m) 
 const BulkEditDialog = dynamic(() => import("./bulk-edit-dialog").then((m) => m.BulkEditDialog));
 const EditHistoryDialog = dynamic(() => import("./edit-history").then((m) => m.EditHistoryDialog));
 const DuplicateReview = dynamic(() => import("./duplicate-review").then((m) => m.DuplicateReview));
+const XraySearchDialog = dynamic(() => import("./xray-search-dialog").then((m) => m.XraySearchDialog));
+const MobileWaterfallDialog = dynamic(() => import("./mobile-waterfall-dialog").then((m) => m.MobileWaterfallDialog));
+const MobileLookupActivity = dynamic(() => import("./mobile-lookup-activity").then((m) => m.MobileLookupActivity));
 
 function act<T = { id: string }>(action: string, payload: unknown = {}): Promise<T> {
   return sharedAct<T>(action, payload);
@@ -228,6 +233,9 @@ export function RolePipeline({
   const [selectingAll, setSelectingAll] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showDuplicates, setShowDuplicates] = useState(false);
+  const [showXray, setShowXray] = useState(false);
+  const [mobileLookup, setMobileLookup] = useState<{ candidateId?: string; memberships?: string[] } | null>(null);
+  const [mobileActivityVersion, setMobileActivityVersion] = useState(0);
   useEffect(() => {
     if (!expanded) return;
     const previous = document.body.style.overflow;
@@ -1035,23 +1043,8 @@ export function RolePipeline({
       // Grouped to read, stored bare. A cell opened for editing shows the ten
       // digits, which is what a save sends and what the column holds.
       case "phone":
-        return cell({
-          value: rc.candidates.phone ?? "",
-          display: formatMobile,
-          save: (next) =>
-            act("candidateField", { id: rc.candidate_id, field: "phone", value: next }),
-        });
       case "alternate_phone":
-        return cell({
-          value: rc.candidates.alternate_phone ?? "",
-          display: formatMobile,
-          save: (next) =>
-            act("candidateField", {
-              id: rc.candidate_id,
-              field: "alternate_phone",
-              value: next,
-            }),
-        });
+        return <td className={`sheet-td w-${column.width}${pinnedClass}`} key={column.id}><div className="phone-sheet-cell"><SheetCell col={colIndex} row={rowIndex} kind={column.kind} label={`${column.label}, row ${rowIndex + 1}`} placeholder={column.placeholder} readOnly={locked} value={(column.id === "phone" ? rc.candidates.phone : rc.candidates.alternate_phone) ?? ""} display={formatMobile} save={(next) => act("candidateField", { id: rc.candidate_id, field: column.id, value: next })} /><button type="button" className="phone-lookup-trigger" aria-label={`Find mobile numbers for ${rc.candidates.full_name}`} title="Mobile number waterfall" disabled={locked} onClick={() => setMobileLookup({ candidateId: rc.candidate_id })}><Phone size={12} /></button></div></td>;
       case "email":
         return candidateField("email", rc.candidates.email ?? "");
       case "location":
@@ -1437,6 +1430,7 @@ export function RolePipeline({
         {stageTab("later", "Later", "stage-exit")}
       </div>
       <nav className="role-secondary-nav" aria-label="Role tools">
+        <MobileLookupActivity roleId={role.id} version={mobileActivityVersion} onUpdate={refresh} onOpen={() => setMobileLookup({})} />
         <RoleToolsMenu label={isFollowUpsTab ? "Views · Follow-ups" : tab === "master_db" ? "Views · Master DB" : tab === "analytics" ? "Views · Analytics" : "Views"} active={!isStage(tab)}>
         <Link className={isFollowUpsTab ? "selected" : ""} aria-current={isFollowUpsTab ? "page" : undefined} href={tabUrl("follow_ups")}>
           Follow-ups
@@ -1447,6 +1441,8 @@ export function RolePipeline({
         </Link>
         </RoleToolsMenu>
         <RoleToolsMenu label="Actions">
+        {tab === "all_profiles" && !role.archived && <button type="button" onClick={() => setShowXray(true)}><Search size={14} /> Google X-Ray search</button>}
+        <button type="button" onClick={() => setMobileLookup({ memberships: [...selected] })}><Phone size={14} /> Mobile waterfall</button>
         <button type="button" onClick={() => setPushingProfiles({})}>Push profiles to role</button>
         <button type="button" onClick={() => setSharing("client")}>Share with client</button>
         <button type="button" onClick={() => setShowHistory(true)}>Edit history</button>
@@ -1470,6 +1466,7 @@ export function RolePipeline({
             </button>
           )}
           <button type="button" onClick={() => setPushingProfiles({ membershipIds: selected })}>Push to role</button>
+          <button type="button" disabled={role.archived || selected.length > 200} onClick={() => setMobileLookup({ memberships: [...selected] })}><Phone size={14} /> Find mobiles</button>
           <button type="button" disabled={busy || role.archived} onClick={() => setBulkEditing([...selected])}>Bulk edit</button>
           {canDeleteRows && <button type="button" disabled={busy || role.archived} onClick={() => setDeleting([...selected])}><Trash2 size={15} /> Delete from role</button>}
           <button type="button" onClick={() => setSelected([])}>Clear selection</button>
@@ -2307,6 +2304,8 @@ export function RolePipeline({
       </section>
       {bulkEditing && <BulkEditDialog clientId={client.id} roleId={role.id} roleName={role.name} ids={bulkEditing} stage={isStage(tab) && tab !== "all_profiles" ? tab : null} fields={roleFields} onClose={() => setBulkEditing(null)} onSaved={(count) => { setBulkEditing(null); setSelected([]); setMessage(`Updated ${count} rows. Changes are recorded in Edit history.`); refresh(); }} />}
       {showHistory && <EditHistoryDialog clientId={client.id} roleId={role.id} onClose={() => setShowHistory(false)} />}
+      {showXray && <XraySearchDialog roleId={role.id} roleName={role.name} onClose={() => setShowXray(false)} onImported={refresh} />}
+      {mobileLookup && <MobileWaterfallDialog roleId={role.id} candidateId={mobileLookup.candidateId} memberships={mobileLookup.memberships} onClose={() => { setMobileLookup(null); refresh(); }} onSaved={refresh} onQueued={() => setMobileActivityVersion((previous) => previous + 1)} />}
       {showDuplicates && <DuplicateReview clientId={client.id} roleId={role.id} onClose={() => setShowDuplicates(false)} />}
       {showDeleted && <DeletedCandidates clientId={client.id} roleId={role.id} archived={role.archived} onClose={() => setShowDeleted(false)} onRestored={() => refresh()} />}
       {deleting && <TableDialog titleId="delete-rows-title" busy={busy} onClose={() => setDeleting(null)}>

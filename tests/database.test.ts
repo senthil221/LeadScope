@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, afterAll, describe, expect, it } from "vitest";
 import { Client as PgClient } from "pg";
 import EmbeddedPostgres from "embedded-postgres";
 import { randomUUID, createHash } from "node:crypto";
@@ -1118,6 +1118,97 @@ async function pipeline(slug: string, threshold = 3) {
   ).rows[0].id as string;
   return { cid, rid, candidateId, rcId };
 }
+
+describe("durable mobile waterfall and role X-Ray", () => {
+  beforeEach(async () => { await sql("update public.mobile_waterfall_jobs set status='cancelled',lease_token=null,lease_until=null where status not in ('complete','no_mobile','failed','cancelled')"); });
+  async function lookup(slug: string, collectAll = false) {
+    const data = await pipeline(slug);
+    await asUser(actor, () => rpc("start_mobile_waterfall", [data.rid, [data.candidateId], collectAll]));
+    const job = await rpc("claim_mobile_waterfall");
+    return { ...data, job };
+  }
+  it("starts only explicitly and deduplicates active lookups across roles", async () => {
+    const data = await pipeline("mobile-explicit");
+    expect((await sql("select count(*) from public.mobile_waterfall_jobs where candidate_id=$1", [data.candidateId])).rows[0].count).toBe("0");
+    expect(await asUser(actor, () => rpc("start_mobile_waterfall", [data.rid, [data.candidateId], false]))).toMatchObject({ queued: 1 });
+    const otherRole = await role(data.cid);
+    await asUser(actor, () => rpc("add_candidates_to_role", [data.cid, otherRole, [data.candidateId], "master_db"]));
+    expect(await asUser(actor, () => rpc("start_mobile_waterfall", [otherRole, [data.candidateId], false]))).toMatchObject({ queued: 0, alreadyRunning: 1 });
+    await expect(asUser(actor, () => rpc("start_mobile_waterfall", [data.rid, [randomUUID()], false]))).rejects.toThrow("belonging to this role");
+  });
+  it("leases prevent duplicate processing and reject stale writes", async () => {
+    const { job } = await lookup("mobile-leases");
+    expect(await rpc("claim_mobile_waterfall")).toBeNull();
+    expect(await rpc("save_mobile_waterfall", [job.id, randomUUID(), JSON.stringify({ status: "complete" })])).toBe(false);
+    expect(await rpc("save_mobile_waterfall", [job.id, job.lease_token, JSON.stringify({ status: "waiting", attempt_state: "pending", provider_index: 2, request_id: "1039995589705121900", delay: 30 })])).toBe(true);
+    await sql("update public.mobile_waterfall_jobs set next_at=now() where id=$1", [job.id]);
+    const resumed = await rpc("claim_mobile_waterfall");
+    expect(resumed.request_id).toBe("1039995589705121900"); expect(resumed.attempt_state).toBe("pending");
+    expect(resumed.lease_token).not.toBe(job.lease_token);
+  });
+  it("never resubmits an uncertain paid dispatch and accepts a late SignalHire callback", async () => {
+    const { job } = await lookup("mobile-crash");
+    await rpc("save_mobile_waterfall", [job.id, job.lease_token, JSON.stringify({ status: "running", provider_index: 1, attempt_state: "dispatching" })]);
+    await sql("update public.mobile_waterfall_jobs set lease_until=now()-interval '1 second' where id=$1", [job.id]);
+    expect(await rpc("claim_mobile_waterfall")).toBeNull();
+    expect((await sql("select status,error_code from public.mobile_waterfall_jobs where id=$1", [job.id])).rows[0]).toMatchObject({ status: "needs_review", error_code: "dispatch_outcome_unknown" });
+    await rpc("save_mobile_callback", [job.id, JSON.stringify([{ number: "9876543210", provider: "signalhire" }]), null]);
+    const recovered = await rpc("claim_mobile_waterfall");
+    expect(recovered.callback_result.results[0].number).toBe("9876543210");
+    await expect(asUser(outsider, () => rpc("control_mobile_waterfall", [recovered.role_id, job.id, "retry"]))).rejects.toThrow();
+  });
+  it("stores every mobile, fills empty cells and preserves existing recruiter data and role ratings", async () => {
+    const { job, candidateId, rid, rcId, cid } = await lookup("mobile-fill");
+    await sql("update public.candidates set phone='9999999999' where id=$1", [candidateId]);
+    await asUser(actor, () => rpc("rate_candidate", [cid, rcId, 4.7]));
+    const numbers = [{ number: "9876543210", provider: "signalhire" }, { number: "9876543211", provider: "signalhire" }, { number: "+14155550116", provider: "signalhire" }];
+    await rpc("save_mobile_waterfall", [job.id, job.lease_token, JSON.stringify({ status: "complete", results: numbers, provider_index: 2 })]);
+    expect((await sql("select phone,alternate_phone from public.candidates where id=$1", [candidateId])).rows[0]).toEqual({ phone: "9999999999", alternate_phone: "9876543210" });
+    expect((await sql("select count(*) from public.candidate_mobile_numbers where candidate_id=$1", [candidateId])).rows[0].count).toBe("3");
+    expect(Number((await sql("select rating from public.role_candidates where id=$1", [rcId])).rows[0].rating)).toBe(4.7);
+    const history = await asUser(actor, () => rpc("mobile_waterfall_status", [rid, candidateId, 1]));
+    expect(history.jobs[0].results).toHaveLength(3); expect(history.jobs[0].lease_token).toBeUndefined(); expect(history.jobs[0].identifier).toBeUndefined();
+    expect(await asUser(actor, () => rpc("mobile_waterfall_summary", [rid]))).toMatchObject({ active: 0, review: 0, resultVersion: expect.any(String) });
+  });
+  it("cancels queued work when a role is archived and protects an edited identity", async () => {
+    const { job, candidateId, rid } = await lookup("mobile-identity");
+    await sql("update public.candidate_identities set normalized_value='https://www.linkedin.com/in/mobile-renamed' where candidate_id=$1 and kind='linkedin'", [candidateId]);
+    expect(await rpc("save_mobile_waterfall", [job.id, job.lease_token, JSON.stringify({ status: "complete", results: [{ number: "9876543210", provider: "database" }] })])).toBe(false);
+    expect((await sql("select phone from public.candidates where id=$1", [candidateId])).rows[0].phone).toBeNull();
+    await asUser(actor, () => rpc("start_mobile_waterfall", [rid, [candidateId], false]));
+    await asUser(actor, () => rpc("archive_role", [rid, true]));
+    expect(await rpc("claim_mobile_waterfall")).toBeNull();
+  });
+  it("denies queue mutation and provider operations to browser and anonymous roles", async () => {
+    const { rid } = await pipeline("mobile-authority");
+    await expect(asUser(outsider, () => rpc("mobile_waterfall_status", [rid, null, 1]))).rejects.toThrow();
+    await expect(asUser(actor, () => sql("select * from public.mobile_waterfall_jobs"))).rejects.toThrow("permission denied");
+    await expect(asUser(actor, () => rpc("claim_mobile_waterfall"))).rejects.toThrow("permission denied");
+    await expect(asUser(actor, () => sql("insert into public.candidate_mobile_numbers(candidate_id,number,provider) values($1,'9876543210','apollo')", [randomUUID()]))).rejects.toThrow("permission denied");
+    await sql("begin"); await sql("set local role anon"); await expect(sql("select public.mobile_waterfall_status($1,null,1)", [rid])).rejects.toThrow(); await sql("rollback");
+  });
+  it("ignores returned results if the role was archived during a provider request", async () => {
+    const { job, candidateId, rid } = await lookup("mobile-archive-inflight");
+    await asUser(actor, () => rpc("archive_role", [rid, true]));
+    expect(await rpc("save_mobile_waterfall", [job.id, job.lease_token, JSON.stringify({ status: "complete", results: [{ number: "9876543210", provider: "signalhire" }] })])).toBe(false);
+    expect((await sql("select phone from public.candidates where id=$1", [candidateId])).rows[0].phone).toBeNull();
+  });
+  it("reserves X-Ray searches idempotently and imports saved results with blocklist protection", async () => {
+    const cid = await client(), rid = await role(cid), token = randomUUID();
+    const query = 'site:linkedin.com/in/ ("cold email" OR "cold call") "B2B" "Chennai"';
+    const reserved = await asUser(actor, () => rpc("reserve_role_xray", [rid, query, "in", 1, token]));
+    const reused = await asUser(actor, () => rpc("reserve_role_xray", [rid, query, "in", 1, token])); expect(reused.id).toBe(reserved.id); expect(reused.existing).toBe(true);
+    const good = "https://www.linkedin.com/in/xray-good", blocked = "https://www.linkedin.com/in/xray-blocked";
+    await sql("update public.role_xray_searches set status='complete',results=$2 where id=$1", [reserved.id, JSON.stringify([{ url: good, name: "X-Ray Person", title: "SDR" }, { url: blocked, name: "Blocked Person", title: "SDR" }])]);
+    await asUser(actor, () => rpc("manage_recruiting_blocklist", [cid, [blocked], "Blocked", null]));
+    const imported = await asUser(actor, () => rpc("import_role_xray", [rid, reserved.id, [good, blocked]])); expect(imported.created).toBe(1); expect(imported.blocked).toBe(1);
+    const rows = (await sql("select source,stage,rating from public.role_candidates where role_id=$1", [rid])).rows;
+    expect(rows).toEqual([{ source: "google", stage: "all_profiles", rating: null }]);
+    expect((await asUser(actor, () => rpc("import_role_xray", [rid, reserved.id, [good]]))).created).toBe(0);
+    await expect(asUser(actor, () => rpc("import_role_xray", [rid, reserved.id, ["https://www.linkedin.com/in/forged"]]))).rejects.toThrow("saved search results");
+    await expect(asUser(outsider, () => rpc("reserve_role_xray", [rid, query, "in", 1, randomUUID()]))).rejects.toThrow();
+  });
+});
 
 describe("role metadata, Later and scoped blocklists", () => {
   it("saves role metadata atomically and detects conflicting revisions", async () => {

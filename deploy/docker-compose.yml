@@ -1,5 +1,6 @@
 services:
   leadscope:
+    image: deploy-leadscope
     build:
       context: ..
       dockerfile: Dockerfile
@@ -20,3 +21,16 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+  mobile-worker:
+    image: deploy-leadscope
+    container_name: leadscope-mobile-worker
+    command: ["node", "scripts/mobile-worker.mjs"]
+    env_file:
+      - .env
+    environment:
+      MOBILE_WORKER_URL: http://leadscope:3000
+    depends_on:
+      leadscope:
+        condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 128m
