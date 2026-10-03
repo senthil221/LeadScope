@@ -4,6 +4,15 @@ export type MobileProvider = (typeof mobileProviders)[number];
 export const mobileProviderLabels = { database: "Our database", signalhire: "SignalHire", apollo: "Apollo", bettercontact: "BetterContact" };
 export type MobileResult = { number: string; provider: MobileProvider };
 export type MobileJob = { id: string; candidate_id: string; candidate_name: string; status: string; provider_index: number; collect_all: boolean; results: MobileResult[]; steps: { provider: MobileProvider; outcome: string; count: number }[]; error_code: string | null; created_at: string; updated_at: string };
+export type MobileLookupCell = { candidate_id: string; status: string; identifier: string; checked_at: string; phone_count: number };
+export function hasZeroMobileResult(lookup: MobileLookupCell | undefined, linkedin: string | undefined) {
+  return Boolean(lookup && lookup.status === "no_mobile" && lookup.phone_count === 0 && lookup.identifier === linkedin);
+}
+export function emptyMobileResultLabel(status: string) {
+  if (status === "no_mobile") return "0 phones found";
+  if (["failed", "cancelled", "needs_review"].includes(status)) return "Lookup incomplete";
+  return "No mobiles returned yet";
+}
 /** Preserve international numbers; India retains the app's existing ten-digit format. */
 export function directMobile(value: unknown): string | null {
   if (typeof value !== "string" || /[a-z]/i.test(value)) return null;

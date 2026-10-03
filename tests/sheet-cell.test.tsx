@@ -12,6 +12,25 @@ function setup(props: Partial<Parameters<typeof SheetCell>[0]> = {}) {
   return { save, cell: screen.getByRole("gridcell", { name: "Name" }) };
 }
 describe("spreadsheet editing and persistence", () => {
+  it("shows the zero-result status without making it an editable phone value", async () => {
+    const { save, cell } = setup({ value: "", emptyContent: <span>0 phones found</span>, emptyTitle: "All sources checked" });
+    expect(cell.textContent).toBe("0 phones found"); expect(cell.title).toBe("All sources checked");
+    fireEvent.click(cell);
+    const editor = screen.getByRole("textbox", { name: "Name" });
+    expect((editor as HTMLInputElement).value).toBe("");
+    fireEvent.keyDown(editor, { key: "Enter" });
+    expect(save).not.toHaveBeenCalled();
+    fireEvent.click(cell);
+    const phone = screen.getByRole("textbox", { name: "Name" });
+    fireEvent.change(phone, { target: { value: "9876543210" } });
+    fireEvent.keyDown(phone, { key: "Enter" });
+    await waitFor(() => expect(save).toHaveBeenCalledExactlyOnceWith("9876543210"));
+    expect(cell.textContent).toContain("9876543210"); expect(cell.textContent).not.toContain("0 phones found");
+  });
+  it("always displays an existing phone ahead of a zero-result indicator", () => {
+    const { cell } = setup({ value: "9876543210", emptyContent: <span>0 phones found</span> });
+    expect(cell.textContent).toBe("9876543210");
+  });
   it("moves through the current and next row without leaving the grid", () => {
     render(<div data-sheet-grid>
       <SheetCell row={0} col={0} label="First name" value="A" save={async () => {}} />

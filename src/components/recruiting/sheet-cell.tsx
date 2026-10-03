@@ -70,6 +70,8 @@ export function SheetCell({
   options = [],
   readOnly = false,
   placeholder = "",
+  emptyContent,
+  emptyTitle,
   label,
   display,
   save,
@@ -82,6 +84,8 @@ export function SheetCell({
   options?: string[];
   readOnly?: boolean;
   placeholder?: string;
+  emptyContent?: ReactNode;
+  emptyTitle?: string;
   label: string;
   display?: (value: string) => ReactNode;
   save: (value: string) => Promise<void>;
@@ -403,7 +407,7 @@ export function SheetCell({
       ref={rootRef}
       role="gridcell"
       tabIndex={editing ? -1 : 0}
-      title={error || current || undefined}
+      title={error || current || emptyTitle || undefined}
       aria-busy={status === "saving"}
     >
       {editing ? (
@@ -450,7 +454,7 @@ export function SheetCell({
         )
       ) : (
         <span className="sheet-value">
-          {current ? (display ? display(current) : current) : (
+          {current ? (display ? display(current) : current) : emptyContent ?? (
             <span className="sheet-placeholder">{placeholder || (readOnly ? "Not set" : "Click to add")}</span>
           )}
         </span>

@@ -75,6 +75,7 @@ import { DialogLoading, TableDialog } from "./table-dialog";
 import { roleStageUrl } from "@/lib/recruiting/navigation";
 import { RoleToolsMenu } from "./role-tools-menu";
 import { formatRecruitingDate } from "@/lib/recruiting/display";
+import { hasZeroMobileResult, type MobileLookupCell } from "@/lib/recruiting/mobile-waterfall";
 
 // These views and dialogs are opened on demand. Keep their code out of the
 // spreadsheet's initial bundle, which every recruiter downloads on every role.
@@ -226,6 +227,7 @@ export function RolePipeline({
   const [showXray, setShowXray] = useState(false);
   const [mobileLookup, setMobileLookup] = useState<{ candidateId?: string; memberships?: string[] } | null>(null);
   const [mobileActivityVersion, setMobileActivityVersion] = useState(0);
+  const [mobileCellStates, setMobileCellStates] = useState<{ roleId: string; cells: Record<string, MobileLookupCell> }>({ roleId: role.id, cells: {} });
   useEffect(() => {
     if (!expanded) return;
     const previous = document.body.style.overflow;
@@ -1034,7 +1036,12 @@ export function RolePipeline({
       // digits, which is what a save sends and what the column holds.
       case "phone":
       case "alternate_phone":
-        return <td className={`sheet-td w-${column.width}${pinnedClass}`} key={column.id}><div className="phone-sheet-cell"><SheetCell col={colIndex} row={rowIndex} kind={column.kind} label={`${column.label}, row ${rowIndex + 1}`} placeholder={column.placeholder} readOnly={locked} value={(column.id === "phone" ? rc.candidates.phone : rc.candidates.alternate_phone) ?? ""} display={formatMobile} save={(next) => act("candidateField", { id: rc.candidate_id, field: column.id, value: next })} /><button type="button" className="phone-lookup-trigger" aria-label={`Find mobile numbers for ${rc.candidates.full_name}`} title="Mobile number waterfall" disabled={locked} onClick={() => setMobileLookup({ candidateId: rc.candidate_id })}><Phone size={12} /></button></div></td>;
+        {
+          const lookup = mobileCellStates.roleId === role.id ? mobileCellStates.cells[rc.candidate_id] : undefined;
+          const zeroPhones = hasZeroMobileResult(lookup, linkedInUrl(rc.candidates));
+          const checkedTitle = zeroPhones && lookup ? `0 direct mobiles found. All sources checked ${new Date(lookup.checked_at).toLocaleString()}. Click to add a number manually, or open lookup history.` : undefined;
+          return <td className={`sheet-td w-${column.width}${pinnedClass}`} key={column.id}><div className="phone-sheet-cell"><SheetCell col={colIndex} row={rowIndex} kind={column.kind} label={`${column.label}, row ${rowIndex + 1}`} placeholder={column.placeholder} emptyContent={zeroPhones ? <span className="phone-empty-result">0 phones found</span> : undefined} emptyTitle={checkedTitle} readOnly={locked} value={(column.id === "phone" ? rc.candidates.phone : rc.candidates.alternate_phone) ?? ""} display={formatMobile} save={(next) => act("candidateField", { id: rc.candidate_id, field: column.id, value: next })} /><button type="button" className="phone-lookup-trigger" aria-label={`Find mobile numbers for ${rc.candidates.full_name}`} title={zeroPhones ? "View previous lookup: 0 phones found" : "Mobile number waterfall"} disabled={locked} onClick={() => setMobileLookup({ candidateId: rc.candidate_id })}><Phone size={12} /></button></div></td>;
+        }
       case "email":
         return candidateField("email", rc.candidates.email ?? "");
       case "location":
@@ -1420,7 +1427,7 @@ export function RolePipeline({
         {stageTab("later", "Later", "stage-exit")}
       </div>
       <nav className="role-secondary-nav" aria-label="Role tools">
-        <MobileLookupActivity roleId={role.id} version={mobileActivityVersion} onUpdate={refresh} onOpen={() => setMobileLookup({})} />
+        <MobileLookupActivity roleId={role.id} candidateIds={roleCandidates.map((rc) => rc.candidate_id)} version={mobileActivityVersion} onUpdate={refresh} onStates={(cells) => setMobileCellStates({ roleId: role.id, cells: Object.fromEntries(cells.map((cell) => [cell.candidate_id, cell])) })} onOpen={() => setMobileLookup({})} />
         <RoleToolsMenu label={isFollowUpsTab ? "Views · Follow-ups" : tab === "master_db" ? "Views · Master DB" : tab === "analytics" ? "Views · Analytics" : "Views"} active={!isStage(tab)}>
         <Link className={isFollowUpsTab ? "selected" : ""} aria-current={isFollowUpsTab ? "page" : undefined} href={tabUrl("follow_ups")}>
           Follow-ups

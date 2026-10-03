@@ -1170,6 +1170,40 @@ describe("durable mobile waterfall and role X-Ray", () => {
     expect(history.jobs[0].results).toHaveLength(3); expect(history.jobs[0].lease_token).toBeUndefined(); expect(history.jobs[0].identifier).toBeUndefined();
     expect(await asUser(actor, () => rpc("mobile_waterfall_summary", [rid]))).toMatchObject({ active: 0, review: 0, resultVersion: expect.any(String) });
   });
+  it("persists an empty completed lookup for the sheet without writing a fake phone", async () => {
+    const { job, candidateId, rid } = await lookup("mobile-zero-result");
+    const before = await asUser(actor, () => rpc("mobile_waterfall_summary", [rid]));
+    await rpc("save_mobile_waterfall", [job.id, job.lease_token, JSON.stringify({ status: "no_mobile", results: [], provider_index: 4 })]);
+    const result = await asUser(actor, () => rpc("mobile_waterfall_table_status", [rid, [candidateId, randomUUID()]]));
+    expect(result.cells).toEqual([{ candidate_id: candidateId, status: "no_mobile", identifier: job.identifier, checked_at: expect.any(String), phone_count: 0 }]);
+    expect(result.resultVersion).not.toBe(before.resultVersion);
+    expect((await sql("select phone,alternate_phone from public.candidates where id=$1", [candidateId])).rows[0]).toEqual({ phone: null, alternate_phone: null });
+    expect(await asUser(actor, () => rpc("mobile_waterfall_table_status", [randomUUID(), [candidateId]]))).toMatchObject({ cells: [] });
+  });
+  it("uses the latest lookup and excludes stale LinkedIn identities and foreign profiles", async () => {
+    const { job, candidateId, rid } = await lookup("mobile-zero-latest");
+    await rpc("save_mobile_waterfall", [job.id, job.lease_token, JSON.stringify({ status: "no_mobile", provider_index: 4 })]);
+    await asUser(actor, () => rpc("start_mobile_waterfall", [rid, [candidateId], false]));
+    const next = await rpc("claim_mobile_waterfall");
+    expect((await asUser(actor, () => rpc("mobile_waterfall_table_status", [rid, [candidateId]]))).cells[0].status).toBe("running");
+    await rpc("save_mobile_waterfall", [next.id, next.lease_token, JSON.stringify({ status: "failed", provider_index: 4 })]);
+    expect((await asUser(actor, () => rpc("mobile_waterfall_table_status", [rid, [candidateId]]))).cells[0].status).toBe("failed");
+    const foreign = await pipeline("mobile-zero-foreign");
+    expect((await asUser(actor, () => rpc("mobile_waterfall_table_status", [rid, [foreign.candidateId]]))).cells).toEqual([]);
+    await sql("update public.candidate_identities set normalized_value='https://www.linkedin.com/in/changed-zero-result' where candidate_id=$1 and kind='linkedin'", [candidateId]);
+    expect((await asUser(actor, () => rpc("mobile_waterfall_table_status", [rid, [candidateId]]))).cells).toEqual([]);
+  });
+  it("bounds phone-cell state reads and denies unapproved and anonymous callers", async () => {
+    const { rid, candidateId } = await pipeline("mobile-zero-access");
+    await expect(asUser(actor, () => rpc("mobile_waterfall_table_status", [rid, []]))).rejects.toThrow("between 1 and 200");
+    await expect(asUser(actor, () => rpc("mobile_waterfall_table_status", [rid, Array.from({ length: 201 }, () => randomUUID())]))).rejects.toThrow("between 1 and 200");
+    await expect(asUser(outsider, () => rpc("mobile_waterfall_table_status", [rid, [candidateId]]))).rejects.toThrow();
+    await sql("begin"); await sql("set local role anon");
+    await expect(sql("select public.mobile_waterfall_table_status($1,$2)", [rid, [candidateId]])).rejects.toThrow("permission denied"); await sql("rollback");
+    const wrappers = (await sql("select n.nspname,p.prosecdef,p.proconfig from pg_proc p join pg_namespace n on n.oid=p.pronamespace where p.proname='mobile_waterfall_table_status'")).rows;
+    expect(wrappers.find((row) => row.nspname === "public").prosecdef).toBe(false);
+    expect(wrappers.find((row) => row.nspname === "private").proconfig).toContain('search_path=""');
+  });
   it("cancels queued work when a role is archived and protects an edited identity", async () => {
     const { job, candidateId, rid } = await lookup("mobile-identity");
     await sql("update public.candidate_identities set normalized_value='https://www.linkedin.com/in/mobile-renamed' where candidate_id=$1 and kind='linkedin'", [candidateId]);

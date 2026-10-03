@@ -55,6 +55,9 @@ export async function dispatchMobile(provider: Exclude<MobileProvider, "database
   if (provider === "apollo") {
     const url = new URL("https://api.apollo.io/api/v1/people/match");
     url.searchParams.set("linkedin_url", job.identifier);
+    // Send the stored matching context too, without requesting more enrichment.
+    if (job.candidate.name.trim()) url.searchParams.set("name", job.candidate.name.trim());
+    if (job.candidate.company.trim()) url.searchParams.set("organization_name", job.candidate.company.trim());
     url.searchParams.set("reveal_phone_number", "true");
     url.searchParams.set("reveal_personal_emails", "false");
     url.searchParams.set("run_waterfall_phone", "false");
@@ -65,7 +68,7 @@ export async function dispatchMobile(provider: Exclude<MobileProvider, "database
     if (raw.person == null) return { numbers: [], code: "not_found" };
     throw new MobileProviderError("missing_request_id", "uncertain");
   }
-  const [first_name, ...last] = job.candidate.name.split(/\s+/);
+  const [first_name, ...last] = job.candidate.name.trim().split(/\s+/);
   const raw = await providerFetch("https://app.bettercontact.rocks/api/v2/async", key, "X-API-Key", { data: [{ first_name, last_name: last.join(" "), company: job.candidate.company, linkedin_url: job.identifier, custom_fields: { job_id: job.id } }], enrich_email_address: false, enrich_phone_number: true, enrich_profile: false, verify_catch_all: false });
   if (!raw.id) throw new MobileProviderError("missing_request_id", "uncertain");
   return { numbers: [], requestId: String(raw.id), pending: true, delay: 30 };

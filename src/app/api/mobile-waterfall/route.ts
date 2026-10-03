@@ -6,7 +6,14 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const { db } = await admin(); const params = new URL(request.url).searchParams;
-    if (params.get("summary") === "1") return Response.json(checked(await db.rpc("mobile_waterfall_summary", { p_role: z.uuid().parse(params.get("role")) })), { headers: { "Cache-Control": "no-store" } });
+    if (params.get("summary") === "1") {
+      const p_role = z.uuid().parse(params.get("role"));
+      const candidates = params.get("candidates");
+      const result = candidates === null
+        ? await db.rpc("mobile_waterfall_summary", { p_role })
+        : await db.rpc("mobile_waterfall_table_status", { p_role, p_ids: [...new Set(z.array(z.uuid()).min(1).max(200).parse(candidates.split(",")))] });
+      return Response.json(checked(result), { headers: { "Cache-Control": "no-store" } });
+    }
     const p = z.object({ role: z.uuid(), candidate: z.uuid().nullable(), page: z.coerce.number().int().min(1).max(10000) }).parse({ role: params.get("role"), candidate: params.get("candidate"), page: params.get("page") ?? 1 });
     const result = checked(await db.rpc("mobile_waterfall_status", { p_role: p.role, p_candidate: p.candidate, p_page: p.page }));
     return Response.json({ ...result, providers: mobileSetup() }, { headers: { "Cache-Control": "no-store" } });

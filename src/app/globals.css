@@ -4867,6 +4867,7 @@ input[type="date"][value=""]:not(:focus) { color: #778396; font-style: italic; }
 .mobile-result button { padding: 4px 6px; min-height: 24px; }
 .phone-sheet-cell { display: flex; align-items: center; min-width: 0; }
 .phone-sheet-cell > [data-sheet-cell] { flex: 1; min-width: 0; }
+.phone-empty-result { color: #87551c; font-size: 11px; font-weight: 500; font-style: normal; white-space: nowrap; }
 .phone-sheet-cell .phone-lookup-trigger { flex-shrink: 0; padding: 4px; min-height: 22px; border: 0; background: transparent; color: #6680a5; margin-right: 4px; }
 .phone-sheet-cell .phone-lookup-trigger:hover, .phone-sheet-cell .phone-lookup-trigger:focus-visible { background: #e8efff; color: #2459e7; }
 @media(max-width: 700px) { .enrichment-input-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .mobile-provider-rail { grid-template-columns: repeat(2,minmax(0,1fr)); } .mobile-provider-rail > span:nth-child(-n+2) { border-bottom: 1px solid var(--line); } }

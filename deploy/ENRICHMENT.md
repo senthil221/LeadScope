@@ -14,6 +14,17 @@ the first source that returns mobiles, retaining all of its mobile numbers.
 Check every source also collects additional mobiles from subsequent providers.
 Apollo's email and phone waterfalls are explicitly disabled.
 
+Completed lookups with no direct mobiles show **0 phones found** in empty Mobile
+and Alternate cells, with the checked time on hover. This uses saved lookup state,
+not a fake phone value. A newer lookup supersedes the previous result; errors,
+incomplete lookups and changed LinkedIn identities do not receive a zero marker.
+Existing phone values stay visible and blank cells remain manually editable.
+
+SignalHire receives the canonical LinkedIn URL. Apollo receives that URL and the
+stored name and company when available. BetterContact receives the LinkedIn URL,
+first/last name and stored company. Missing company details are never invented,
+and the worker does not spend extra credits enriching profile context.
+
 BetterContact requests mobile enrichment only. Email enrichment, profile
 enrichment and catch-all email verification are explicitly disabled. Apollo
 requests phones with personal-email reveal and both Apollo waterfalls disabled.

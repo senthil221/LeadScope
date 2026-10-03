@@ -47,4 +47,16 @@ describe("server waterfall processing", () => {
     claim({ provider_index: 1 }); mocks.rpc.mockImplementation(async (name: string) => ({ data: name === "claim_mobile_waterfall" ? { ...base, provider_index: 1 } : false, error: null })); await processMobileJob();
     expect(mocks.dispatch).not.toHaveBeenCalled();
   });
+  it("marks zero mobiles only after the final source completes without errors", async () => {
+    claim({ provider_index: 3, attempt_state: "pending", request_id: "saved-id", steps: ["database", "signalhire", "apollo"].map((provider) => ({ provider, outcome: "checked", count: 0 })) });
+    mocks.poll.mockResolvedValue({ numbers: [] });
+    await processMobileJob();
+    expect(patches()[0]).toMatchObject({ status: "no_mobile", provider_index: 4, results: [] });
+    expect(patches()[0].steps).toHaveLength(4); expect(mocks.dispatch).not.toHaveBeenCalled();
+  });
+  it("keeps an empty result with a provider error distinguishable from zero phones", async () => {
+    claim({ provider_index: 3, attempt_state: "pending", request_id: "saved-id", steps: [{ provider: "signalhire", outcome: "error", count: 0 }] });
+    mocks.poll.mockResolvedValue({ numbers: [] }); await processMobileJob();
+    expect(patches()[0]).toMatchObject({ status: "failed", results: [] });
+  });
 });
