@@ -49,7 +49,19 @@ describe("Provider request contracts (mock transport only)", () => {
     const result = await dispatchMobile("apollo", { id: "job", identifier: "https://www.linkedin.com/in/person", candidate: { name: "Test Person", company: "Acme" } });
     const url = new URL(fetcher.mock.calls[0][0]);
     expect(url.searchParams.get("run_waterfall_phone")).toBe("false"); expect(url.searchParams.get("run_waterfall_email")).toBe("false"); expect(url.searchParams.get("poll_only")).toBe("true");
+    expect(url.searchParams.get("reveal_phone_number")).toBe("true"); expect(url.searchParams.get("reveal_personal_emails")).toBe("false");
     expect(result.requestId).toBe("1039995589705121900");
+  });
+  it("requests only mobile enrichment from BetterContact with every optional enrichment disabled", async () => {
+    const fetcher = mockProvider({ id: "mobile-request" });
+    await dispatchMobile("bettercontact", { id: "job", identifier: "https://www.linkedin.com/in/person", candidate: { name: "Test Person", company: "Acme" } });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls[0][0]).toBe("https://app.bettercontact.rocks/api/v2/async");
+    const payload = JSON.parse(fetcher.mock.calls[0][1].body);
+    expect(payload).toEqual({
+      data: [{ first_name: "Test", last_name: "Person", company: "Acme", linkedin_url: "https://www.linkedin.com/in/person", custom_fields: { job_id: "job" } }],
+      enrich_email_address: false, enrich_phone_number: true, enrich_profile: false, verify_catch_all: false,
+    });
   });
   it("does not treat a pending Apollo 404 as no-mobile", async () => {
     mockProvider({ error_code: "result_pending", retry_after_seconds: 40 }, 404);

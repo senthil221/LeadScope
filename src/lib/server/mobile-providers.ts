@@ -66,7 +66,7 @@ export async function dispatchMobile(provider: Exclude<MobileProvider, "database
     throw new MobileProviderError("missing_request_id", "uncertain");
   }
   const [first_name, ...last] = job.candidate.name.split(/\s+/);
-  const raw = await providerFetch("https://app.bettercontact.rocks/api/v2/async", key, "X-API-Key", { data: [{ first_name, last_name: last.join(" "), company: job.candidate.company, linkedin_url: job.identifier, custom_fields: { job_id: job.id } }], enrich_email_address: false, enrich_phone_number: true, enrich_profile: false });
+  const raw = await providerFetch("https://app.bettercontact.rocks/api/v2/async", key, "X-API-Key", { data: [{ first_name, last_name: last.join(" "), company: job.candidate.company, linkedin_url: job.identifier, custom_fields: { job_id: job.id } }], enrich_email_address: false, enrich_phone_number: true, enrich_profile: false, verify_catch_all: false });
   if (!raw.id) throw new MobileProviderError("missing_request_id", "uncertain");
   return { numbers: [], requestId: String(raw.id), pending: true, delay: 30 };
 }

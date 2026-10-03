@@ -14,6 +14,17 @@ the first source that returns mobiles, retaining all of its mobile numbers.
 Check every source also collects additional mobiles from subsequent providers.
 Apollo's email and phone waterfalls are explicitly disabled.
 
+BetterContact requests mobile enrichment only. Email enrichment, profile
+enrichment and catch-all email verification are explicitly disabled. Apollo
+requests phones with personal-email reveal and both Apollo waterfalls disabled.
+These flags do not remove bundled provider charges: [Apollo's current API
+billing](https://docs.apollo.io/docs/api-pricing) includes a demographic/email
+credit when qualifying data is returned, in addition to mobile credits.
+[SignalHire bills each successfully matched profile](https://docs.signalhire.com/faq),
+not only profiles with mobiles. Its documented Person API has no phone-only
+selection. A strict mobile-only spending policy therefore cannot use these two
+adapters without a separately verified phone-only billing arrangement.
+
 The persistent Postgres queue is processed by `leadscope-mobile-worker`, independent
 of the browser. Provider IDs, leases, callbacks and progress are committed between
 steps. Missing keys or credits hold the current step until configuration is fixed.
