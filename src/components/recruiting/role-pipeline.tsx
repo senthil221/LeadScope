@@ -1043,7 +1043,7 @@ export function RolePipeline({
           const lookup = mobileCellStates.roleId === role.id ? mobileCellStates.cells[rc.candidate_id] : undefined;
           const zeroPhones = hasZeroMobileResult(lookup, linkedInUrl(rc.candidates));
           const running = lookup?.identifier === linkedInUrl(rc.candidates) && ["queued", "running", "waiting"].includes(lookup?.status ?? "");
-          const checkedTitle = zeroPhones && lookup ? `0 direct mobiles found. All sources checked ${new Date(lookup.checked_at).toLocaleString()}. Click to add a number manually, or use the phone icon to enrich again.` : undefined;
+          const checkedTitle = zeroPhones && lookup ? `0 direct mobiles found. All sources checked ${new Date(lookup.checked_at).toLocaleString()}. Click to add a number manually, or use the phone icon to view the lookup result.` : undefined;
           const cellId = `${role.id}:${rc.candidate_id}:${column.id}:${linkedInUrl(rc.candidates) ?? ""}`;
           const open = inlinePhoneCell === cellId;
           return <td className={`sheet-td w-${column.width}${pinnedClass}`} key={column.id}>
@@ -1059,7 +1059,7 @@ export function RolePipeline({
                   {open ? <X size={12} /> : running ? <LoaderCircle className="phone-lookup-spinner" size={12} /> : <Phone size={12} />}
                 </button>
               </div>
-              {open && <InlineMobileLookup key={cellId} roleId={role.id} candidateId={rc.candidate_id} linkedin={linkedInUrl(rc.candidates)} onSaved={refresh} onQueued={() => setMobileActivityVersion((previous) => previous + 1)} />}
+              {open && <InlineMobileLookup key={cellId} roleId={role.id} candidateId={rc.candidate_id} linkedin={linkedInUrl(rc.candidates)} currentValue={(column.id === "phone" ? rc.candidates.phone : rc.candidates.alternate_phone) ?? ""} zeroShownInCell={zeroPhones} onSaved={refresh} onQueued={() => setMobileActivityVersion((previous) => previous + 1)} />}
             </div>
           </td>;
         }
