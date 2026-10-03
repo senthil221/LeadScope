@@ -48,7 +48,7 @@
 .workspace :global(.client-directory-bar h1) { font-size: 20px; font-weight: 600; }
 .workspace :global(.client-directory-bar input[type="search"]) { width: 220px; min-height: 32px; height: 32px; font-size: 12px; }
 .workspace :global(.client-directory-bar button.primary) { min-height: 32px; height: 32px; padding: 6px 12px; font-size: 12px; }
-.workspace :global(.client-directory-wrap) { border-radius: 8px; scrollbar-gutter: auto; }
+.workspace :global(.client-directory-wrap) { position: relative; border-radius: 8px; scrollbar-gutter: auto; }
 .workspace :global(.client-directory-table) { table-layout: fixed; min-width: 1040px; }
 .workspace :global(.client-directory-table th:first-child) { width: 24%; }
 .workspace :global(.client-directory-table th:nth-child(2)) { width: 5%; text-align: center; }
@@ -81,7 +81,6 @@
 .workspace :global(.client-attention-list .client-attention-more) { border-color: var(--line); background: #f8fafc; }
 .workspace :global(.client-all-clear) { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); white-space: nowrap; }
 .workspace :global(.client-all-clear svg) { color: #94a3b8; }
-.workspace :global(.table-wrap.client-directory-wrap > table.client-directory-table td:nth-last-child(2)) { padding-inline: 8px; }
 .workspace :global(.table-wrap.client-directory-wrap > table.client-directory-table td:last-child) { padding-inline: 8px; }
 .workspace :global(.client-row-actions) { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 .workspace :global(.client-row-actions > button), .workspace :global(.client-row-actions > a) { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 26px; width: 26px; height: 26px; min-height: 26px; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: #7a889b; box-shadow: none; }
