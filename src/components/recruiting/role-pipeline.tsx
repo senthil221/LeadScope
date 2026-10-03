@@ -12,6 +12,7 @@ import {
   CircleHelp,
   ExternalLink,
   Link as LinkIcon,
+  LoaderCircle,
   Maximize2,
   Minimize2,
   Plus,
@@ -96,6 +97,7 @@ const DuplicateReview = dynamic(() => import("./duplicate-review").then((m) => m
 const XraySearchDialog = dynamic(() => import("./xray-search-dialog").then((m) => m.XraySearchDialog), { loading: DialogLoading });
 const MobileWaterfallDialog = dynamic(() => import("./mobile-waterfall-dialog").then((m) => m.MobileWaterfallDialog), { loading: DialogLoading });
 const MobileLookupActivity = dynamic(() => import("./mobile-lookup-activity").then((m) => m.MobileLookupActivity), { loading: () => null });
+const InlineMobileLookup = dynamic(() => import("./inline-mobile-lookup").then((m) => m.InlineMobileLookup), { loading: () => <div className="phone-inline-lookup" role="status">Loading…</div> });
 
 function act<T = { id: string }>(action: string, payload: unknown = {}): Promise<T> {
   return sharedAct<T>(action, payload);
@@ -226,6 +228,7 @@ export function RolePipeline({
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [showXray, setShowXray] = useState(false);
   const [mobileLookup, setMobileLookup] = useState<{ candidateId?: string; memberships?: string[] } | null>(null);
+  const [inlinePhoneCell, setInlinePhoneCell] = useState<string | null>(null);
   const [mobileActivityVersion, setMobileActivityVersion] = useState(0);
   const [mobileCellStates, setMobileCellStates] = useState<{ roleId: string; cells: Record<string, MobileLookupCell> }>({ roleId: role.id, cells: {} });
   useEffect(() => {
@@ -1039,8 +1042,26 @@ export function RolePipeline({
         {
           const lookup = mobileCellStates.roleId === role.id ? mobileCellStates.cells[rc.candidate_id] : undefined;
           const zeroPhones = hasZeroMobileResult(lookup, linkedInUrl(rc.candidates));
-          const checkedTitle = zeroPhones && lookup ? `0 direct mobiles found. All sources checked ${new Date(lookup.checked_at).toLocaleString()}. Click to add a number manually, or open lookup history.` : undefined;
-          return <td className={`sheet-td w-${column.width}${pinnedClass}`} key={column.id}><div className="phone-sheet-cell"><SheetCell col={colIndex} row={rowIndex} kind={column.kind} label={`${column.label}, row ${rowIndex + 1}`} placeholder={column.placeholder} emptyContent={zeroPhones ? <span className="phone-empty-result">0 phones found</span> : undefined} emptyTitle={checkedTitle} readOnly={locked} value={(column.id === "phone" ? rc.candidates.phone : rc.candidates.alternate_phone) ?? ""} display={formatMobile} save={(next) => act("candidateField", { id: rc.candidate_id, field: column.id, value: next })} /><button type="button" className="phone-lookup-trigger" aria-label={`Find mobile numbers for ${rc.candidates.full_name}`} title={zeroPhones ? "View previous lookup: 0 phones found" : "Mobile number waterfall"} disabled={locked} onClick={() => setMobileLookup({ candidateId: rc.candidate_id })}><Phone size={12} /></button></div></td>;
+          const running = lookup?.identifier === linkedInUrl(rc.candidates) && ["queued", "running", "waiting"].includes(lookup?.status ?? "");
+          const checkedTitle = zeroPhones && lookup ? `0 direct mobiles found. All sources checked ${new Date(lookup.checked_at).toLocaleString()}. Click to add a number manually, or use the phone icon to enrich again.` : undefined;
+          const cellId = `${role.id}:${rc.candidate_id}:${column.id}:${linkedInUrl(rc.candidates) ?? ""}`;
+          const open = inlinePhoneCell === cellId;
+          return <td className={`sheet-td w-${column.width}${pinnedClass}`} key={column.id}>
+            <div onKeyDown={(event) => {
+              if (open && event.key === "Escape") {
+                event.preventDefault(); event.stopPropagation(); setInlinePhoneCell(null);
+                event.currentTarget.querySelector<HTMLButtonElement>(".phone-lookup-trigger")?.focus();
+              }
+            }}>
+              <div className="phone-sheet-cell">
+                <SheetCell col={colIndex} row={rowIndex} kind={column.kind} label={`${column.label}, row ${rowIndex + 1}`} placeholder={column.placeholder} emptyContent={running ? <span className="phone-pending-result">Looking up…</span> : zeroPhones ? <span className="phone-empty-result">0 phones found</span> : undefined} emptyTitle={checkedTitle} readOnly={locked} value={(column.id === "phone" ? rc.candidates.phone : rc.candidates.alternate_phone) ?? ""} display={formatMobile} save={(next) => act("candidateField", { id: rc.candidate_id, field: column.id, value: next })} />
+                <button type="button" className="phone-lookup-trigger" aria-label={`${open ? "Close mobile enrichment" : "Find mobile numbers"} for ${rc.candidates.full_name}`} aria-expanded={open} title={open ? "Close inline enrichment" : "Enrich mobile numbers in this cell"} disabled={locked} onClick={() => setInlinePhoneCell(open ? null : cellId)}>
+                  {open ? <X size={12} /> : running ? <LoaderCircle className="phone-lookup-spinner" size={12} /> : <Phone size={12} />}
+                </button>
+              </div>
+              {open && <InlineMobileLookup key={cellId} roleId={role.id} candidateId={rc.candidate_id} linkedin={linkedInUrl(rc.candidates)} onSaved={refresh} onQueued={() => setMobileActivityVersion((previous) => previous + 1)} />}
+            </div>
+          </td>;
         }
       case "email":
         return candidateField("email", rc.candidates.email ?? "");
