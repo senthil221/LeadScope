@@ -44,7 +44,7 @@ export function InlineMobileLookup({ roleId, candidateId, linkedin, onQueued, on
         if (controller.signal.aborted) return;
         const latest = result.jobs[0];
         const stamp = latest ? `${latest.id}:${latest.updated_at}` : null;
-        if (seen.current !== null && seen.current !== stamp) callbacks.current.onSaved();
+        if (seen.current !== null && seen.current !== stamp && latest && (latest.results.length || latest.status === "no_mobile")) callbacks.current.onSaved();
         if (seen.current !== stamp) { setMessage(""); setRequestChecked(false); }
         seen.current = stamp;
         setStatus(result);

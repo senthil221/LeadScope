@@ -4874,19 +4874,19 @@ input[type="date"][value=""]:not(:focus) { color: #778396; font-style: italic; }
 .phone-pending-result { color: #2459e7; font-size: 11px; font-style: normal; }
 .phone-lookup-spinner { flex-shrink: 0; animation: phone-lookup-spin 1s linear infinite; }
 @keyframes phone-lookup-spin { to { transform: rotate(360deg); } }
-.phone-inline-lookup { display: flex; flex-direction: column; gap: 6px; margin: 0 5px 5px; padding: 7px; border: 1px solid #d9e4f5; border-radius: 5px; background: #f6f9ff; color: var(--ink-soft); font-size: 11px; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }
-.phone-inline-lookup small { display: block; color: var(--muted); font-size: 10px; }
+.phone-inline-lookup { display: flex; flex-direction: column; gap: 4px; margin: 0 5px 5px; padding: 6px; border: 1px solid #d9e4f5; border-radius: 5px; background: #f6f9ff; color: var(--ink-soft); font-size: 11px; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }
+.sheet-table .phone-inline-lookup small { display: block; margin: 0; color: var(--muted); font-size: 10px; }
 .phone-inline-status { display: flex; align-items: center; gap: 4px; font-weight: 500; }
 .phone-inline-lookup .phone-empty-result { white-space: normal; }
-.phone-inline-mode { display: flex; align-items: flex-start; gap: 5px; font-size: 10px; font-weight: 400; cursor: pointer; }
+.phone-inline-mode { display: flex; flex-direction: row; align-items: flex-start; gap: 5px; margin: 0; font-size: 10px; font-weight: 400; cursor: pointer; }
 .phone-inline-mode input { width: 12px; height: 12px; min-height: 0; margin: 1px 0 0; padding: 0; flex-shrink: 0; accent-color: var(--brand); }
-.phone-inline-lookup .phone-inline-enrich { min-height: 24px; padding: 3px 6px; border-color: #c9d9fa; border-radius: 4px; background: #e9f0ff; color: #2459e7; font-size: 11px; font-weight: 500; }
+.sheet-table .phone-inline-lookup .phone-inline-enrich { min-height: 24px; padding: 3px 6px; border-color: #c9d9fa; border-radius: 4px; background: #e9f0ff; color: #2459e7; font-size: 11px; font-weight: 500; }
 .phone-inline-lookup .phone-inline-enrich:hover:enabled { background: #dce8ff; }
 .phone-inline-result { display: flex; align-items: flex-start; justify-content: space-between; gap: 3px; padding-top: 5px; border-top: 1px solid #d9e4f5; font-variant-numeric: tabular-nums; color: var(--ink); }
 .phone-inline-result > span { min-width: 0; user-select: text; }
-.phone-inline-result button { min-height: 20px; padding: 3px; background: transparent; border: 0; flex-shrink: 0; }
-.phone-inline-lookup .phone-inline-error { color: var(--danger); }
-.phone-inline-lookup .phone-inline-stop { min-height: 20px; padding: 2px 4px; background: transparent; border: 0; color: var(--muted); font-size: 10px; font-weight: 400; }
+.sheet-table .phone-inline-result button { min-height: 20px; padding: 3px; background: transparent; border: 0; flex-shrink: 0; }
+.sheet-table .phone-inline-lookup .phone-inline-error { color: #b91c1c; }
+.sheet-table .phone-inline-lookup .phone-inline-stop { min-height: 20px; padding: 2px 4px; background: transparent; border: 0; color: var(--muted); font-size: 10px; font-weight: 400; }
 @media (prefers-reduced-motion: reduce) { .phone-lookup-spinner { animation: none; } }
 @media(max-width: 700px) { .enrichment-input-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .mobile-provider-rail { grid-template-columns: repeat(2,minmax(0,1fr)); } .mobile-provider-rail > span:nth-child(-n+2) { border-bottom: 1px solid var(--line); } }
 @media(max-width: 450px) { .enrichment-input-grid { grid-template-columns: 1fr; } .enrichment-actions > label { width: 100%; } }
