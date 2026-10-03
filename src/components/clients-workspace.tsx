@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowRight, FolderOpen, Plus, X } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowRight, CheckCircle2, FolderOpen, Plus, X } from "lucide-react";
 import { AppShell } from "@/components/shell/AppShell";
 import type { PageData } from "@/lib/types";
 import { act as sharedAct } from "@/lib/client/act";
@@ -15,11 +15,11 @@ function act<T>(action: string, payload: unknown): Promise<T> {
 }
 
 const pipelineColumns = [
-  { key: "all_profiles", label: "All" },
-  { key: "profile_shortlisted", label: "Profile" },
-  { key: "recruiter_shortlisted", label: "Recruiter" },
-  { key: "client_shortlisted", label: "Client" },
-  { key: "offer_sent", label: "Offer" },
+  { key: "all_profiles", label: "All", description: "All profiles" },
+  { key: "profile_shortlisted", label: "Profile", description: "Profile shortlisted" },
+  { key: "recruiter_shortlisted", label: "Recruiter", description: "Recruiter shortlisted" },
+  { key: "client_shortlisted", label: "Client", description: "Client shortlisted" },
+  { key: "offer_sent", label: "Offer", description: "Offer sent" },
 ] as const;
 
 const date = formatRecruitingDate;
@@ -51,7 +51,7 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
   const workGroups = [
     {
       key: "follow_ups",
-      label: "Due follow-ups",
+      label: "Follow-ups",
       stage: "follow_ups",
       count: (item: (typeof workQueue)[number]) => item.due_follow_ups,
     },
@@ -63,7 +63,7 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
     },
     {
       key: "offers",
-      label: "Offer follow-ups",
+      label: "Offers",
       stage: "offer_sent",
       count: (item: (typeof workQueue)[number]) => item.offers_in_progress,
     },
@@ -98,7 +98,7 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
       {/* One bar rather than a page header above a section header: the title,
           what filters the list and what adds to it all belong to the same
           table, and stacking them pushed the first client below the fold. */}
-      <header className="directory-bar">
+      <header className="directory-bar client-directory-bar">
         <h1>
           Clients <span className="count">{clients.length}</span>
         </h1>
@@ -159,17 +159,12 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
           <table className="client-directory-table">
             <thead>
               <tr>
-                <th>Client</th>
-                <th>Roles</th>
-                <th>
-                  <div className="client-pipeline-heading">Pipeline</div>
-                  <div className="client-pipeline-labels" aria-hidden="true">
-                    {pipelineColumns.map((column) => <span key={column.key}>{column.label}</span>)}
-                  </div>
-                </th>
-                <th>Needs attention</th>
-                <th>Created</th>
-                <th>Actions</th>
+                <th scope="col">Client</th>
+                <th scope="col">Roles</th>
+                {pipelineColumns.map((column) => <th scope="col" className="client-pipeline-cell" key={column.key} title={column.description} aria-label={column.description}>{column.label}</th>)}
+                <th scope="col">Needs attention</th>
+                <th scope="col">Created</th>
+                <th scope="col"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
@@ -190,61 +185,50 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
                 return (
                   <tr key={client.id} className={client.archived ? "is-archived" : undefined}>
                     <td className="client-directory-name">
-                      <Link href={`/clients/${client.id}`}>
+                      <Link href={`/clients/${client.id}`} title={client.name}>
                         <span className="client-monogram">{client.name.slice(0, 2).toUpperCase()}</span>
-                        {/* A note only earns its line when there is one. The
-                            placeholder repeated a sentence down the whole
-                            column and told nobody anything. */}
                         <span>
-                          <strong>{client.name}</strong>
-                          {client.notes && <small>{client.notes}</small>}
+                          <span className="client-identity-line"><strong>{client.name}</strong>{client.archived && <span className="badge">Archived</span>}</span>
+                          {client.notes && <small title={client.notes}>{client.notes}</small>}
                         </span>
                       </Link>
-                      {client.archived && <span className="badge">Archived</span>}
                     </td>
                     <td>
                       <Link className="client-role-count" href={`/clients/${client.id}/roles`}>
                         <strong>{counts?.active_roles ?? 0}</strong>
                       </Link>
                     </td>
-                    <td>
-                      <div className="client-pipeline-summary" aria-label="Candidate pipeline">
-                        {pipelineColumns.map((column) => {
-                          const value = counts?.[column.key] ?? 0;
-                          return (
-                            <span className={value ? undefined : "is-zero"} key={column.key} aria-label={`${column.label}: ${value}`} title={`${column.label}: ${value}`}>
-                              {value.toLocaleString("en-US")}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    </td>
+                    {pipelineColumns.map((column) => {
+                      const value = counts?.[column.key] ?? 0;
+                      return <td className={`client-pipeline-cell${value ? "" : " is-zero"}`} key={column.key}>
+                        <span title={`${column.description}: ${value}`}>{value.toLocaleString("en-US")}</span>
+                      </td>;
+                    })}
                     <td>
                       {visibleWork.length ? (
                         <div className="client-attention-list">
-                          {visibleWork.slice(0, 2).map((item) => (
-                            <Link href={item.href} key={item.key} title={`${item.count} ${item.label.toLowerCase()} · ${item.roleName}`}>
+                          {visibleWork.slice(0, visibleWork.length > 2 ? 1 : 2).map((item) => (
+                            <Link href={item.href} key={item.key} title={`${item.count} ${item.label.toLowerCase()} · ${item.roleName}`} aria-label={`${item.count} ${item.label.toLowerCase()} for ${item.roleName}`}>
                               <span className="client-attention-count">{item.count}</span>
                               <span className="client-attention-kind">{item.label}</span>
-                              <span className="client-attention-role">{item.roleName}</span>
                             </Link>
                           ))}
                           {visibleWork.length > 2 && (
                             <Link href={`/clients/${client.id}/roles`} className="client-attention-more">
-                              +{visibleWork.length - 2} more
+                              +{visibleWork.length - 1} more
                             </Link>
                           )}
                         </div>
                       ) : (
-                        <span className="client-all-clear">All clear</span>
+                        <span className="client-all-clear"><CheckCircle2 size={13} aria-hidden="true" />All clear</span>
                       )}
                     </td>
                     <td><time dateTime={client.created_at}>{date(client.created_at)}</time></td>
                     <td className="client-directory-actions">
-                      <button className="small" disabled={busy} onClick={() => void toggleArchive(client.id, !client.archived)}>{client.archived ? "Restore" : "Archive"}</button>
-                      <Link href={`/clients/${client.id}`} className="table-row-action" aria-label={`Open ${client.name}`}>
-                        <ArrowRight size={18} />
-                      </Link>
+                      <div className="client-row-actions">
+                        <button type="button" disabled={busy} title={`${client.archived ? "Restore" : "Archive"} ${client.name}`} aria-label={`${client.archived ? "Restore" : "Archive"} ${client.name}`} onClick={() => void toggleArchive(client.id, !client.archived)}>{client.archived ? <ArchiveRestore size={15} aria-hidden="true" /> : <Archive size={15} aria-hidden="true" />}</button>
+                        <Link href={`/clients/${client.id}`} title={`Open ${client.name}`} aria-label={`Open ${client.name}`}><ArrowRight size={16} aria-hidden="true" /></Link>
+                      </div>
                     </td>
                   </tr>
                 );
