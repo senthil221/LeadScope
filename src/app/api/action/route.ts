@@ -581,7 +581,7 @@ export async function POST(request: Request) {
         break;
       }
       case "removeRoleCandidates": {
-        const p = z.object({ clientId: uuid, roleId: uuid, ids: z.array(uuid).min(1).max(2000), stage: z.string().max(50).nullable() }).parse(payload);
+        const p = z.object({ clientId: uuid, roleId: uuid, ids: z.array(uuid).min(1).max(2000), stage: z.string().max(50).nullable(), confirmation: z.literal("DELETE") }).parse(payload);
         result = { batchId: checked(await db.rpc("remove_role_candidates", { p_client: p.clientId, p_role: p.roleId, p_ids: p.ids, p_stage: p.stage })) };
         break;
       }

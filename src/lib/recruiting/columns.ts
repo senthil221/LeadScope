@@ -111,7 +111,7 @@ const specs: Spec[] = [
     editable: true,
     width: "xs",
     numeric: true,
-    placeholder: "0.0–5.0",
+    placeholder: "Add rating",
   },
   // Beside the rating rather than further along: where a profile came from is
   // part of judging it, and on the tabs where it is judged the two are read

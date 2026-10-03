@@ -88,6 +88,7 @@ const PushProfilesDialog = dynamic(() => import("./push-profiles-dialog").then((
 const ShareDialog = dynamic(() => import("./share-dialog").then((m) => m.ShareDialog), { loading: DialogLoading });
 const RoleAnalytics = dynamic(() => import("./role-analytics").then((m) => m.RoleAnalytics), { loading: () => <div className="empty" role="status">Loading analytics…</div> });
 const DeletedCandidates = dynamic(() => import("./deleted-candidates").then((m) => m.DeletedCandidates), { loading: DialogLoading });
+const DeleteCandidatesDialog = dynamic(() => import("./delete-candidates-dialog").then((m) => m.DeleteCandidatesDialog), { loading: DialogLoading });
 const BulkEditDialog = dynamic(() => import("./bulk-edit-dialog").then((m) => m.BulkEditDialog), { loading: DialogLoading });
 const EditHistoryDialog = dynamic(() => import("./edit-history").then((m) => m.EditHistoryDialog), { loading: DialogLoading });
 const DuplicateReview = dynamic(() => import("./duplicate-review").then((m) => m.DuplicateReview), { loading: DialogLoading });
@@ -184,7 +185,7 @@ export function RolePipeline({
   stageFunnel: StageFunnelRow[];
   stageDurations: StageDurationRow[];
   sourcePerformance: SourcePerformanceRow[];
-  /** Deletion is offered only to the workspace owner. */
+  /** Deletion outside All Profiles and recovery are restricted to the workspace owner. */
   isOwner: boolean;
 }) {
   const router = useRouter();
@@ -417,9 +418,9 @@ export function RolePipeline({
       ? nextStage(tab as PipelineStage)
       : null;
   const canSelectCandidates = isStage(tab) || isFollowUpsTab;
-  // Deletion is the owner's alone. The RPCs refuse anyone else, so this only
-  // decides whether the control is offered rather than whether it works.
-  const canDeleteRows = canSelectCandidates && !role.archived && isOwner;
+  // Approved operators can remove rows from the aggregate All Profiles view.
+  // Other views and trash recovery retain their owner check in the database.
+  const canDeleteRows = canSelectCandidates && !role.archived && (isOwner || tab === "all_profiles");
   const canMoveLater = tab === "profile_shortlisted" || tab === "later";
   const showRowActions = Boolean(advanceTo || canRejectFromTab || canMoveLater) || canDeleteRows;
   const activeCandidateFilterCount = [
@@ -1459,8 +1460,7 @@ export function RolePipeline({
           <button type="button" disabled={busy || role.archived} onClick={() => setBulkEditing([...selected])}>Bulk edit</button>
           {canDeleteRows && <button type="button" disabled={busy || role.archived} onClick={() => setDeleting([...selected])}><Trash2 size={15} /> Delete from role</button>}
           <button type="button" onClick={() => setSelected([])}>Clear selection</button>
-          {canMoveLater && <button disabled={busy || role.archived} onClick={() => void moveLater(selected)}>{tab === "later" ? "Return to Profile shortlisted" : "Move to Later"}</button>}
-          {showRowActions && <>
+          {(advanceTo || canRejectFromTab || canMoveLater) && <>
           <input
             aria-label="Optional note"
             value={note}
@@ -1478,6 +1478,7 @@ export function RolePipeline({
               Reject
             </button>
           )}
+          {canMoveLater && <button disabled={busy || role.archived} onClick={() => void moveLater(selected)}>{tab === "later" ? "Return to Profile shortlisted" : "Move to Later"}</button>}
           </>}
         </div>
       )}
@@ -2155,7 +2156,6 @@ export function RolePipeline({
                   {showRowActions && (
                     <td className="candidate-action-cell">
                       <div className="candidate-row-actions">
-                        {canMoveLater && <button className="small" disabled={busy || role.archived} onClick={() => void moveLater([rc.id])}>{tab === "later" ? "Return" : "Later"}</button>}
                         {advanceTo && (
                           <button
                             className="small primary"
@@ -2175,6 +2175,7 @@ export function RolePipeline({
                             Reject
                           </button>
                         )}
+                        {canMoveLater && <button className="small" disabled={busy || role.archived} onClick={() => void moveLater([rc.id])}>{tab === "later" ? "Return" : "Later"}</button>}
                         {canDeleteRows && (
                           <button
                             className="small candidate-delete-button"
@@ -2297,21 +2298,17 @@ export function RolePipeline({
       {mobileLookup && <MobileWaterfallDialog roleId={role.id} candidateId={mobileLookup.candidateId} memberships={mobileLookup.memberships} onClose={() => { setMobileLookup(null); refresh(); }} onSaved={refresh} onQueued={() => setMobileActivityVersion((previous) => previous + 1)} />}
       {showDuplicates && <DuplicateReview clientId={client.id} roleId={role.id} onClose={() => setShowDuplicates(false)} />}
       {showDeleted && <DeletedCandidates clientId={client.id} roleId={role.id} archived={role.archived} onClose={() => setShowDeleted(false)} onRestored={() => refresh()} />}
-      {deleting && <TableDialog titleId="delete-rows-title" busy={busy} onClose={() => setDeleting(null)}>
-        <div className="modal-heading"><h2 id="delete-rows-title">Delete {deleting.length} selected row{deleting.length === 1 ? "" : "s"} from this role?</h2></div>
-        <p>These rows will leave <strong>{role.name}</strong>. Shared candidate profiles and other roles are kept. You can restore this batch with its notes and history from Recently deleted.</p>
-        {error && <p className="error" role="alert">{error}</p>}
-        <div className="row"><button disabled={busy} onClick={async () => {
+      {deleting && <DeleteCandidatesDialog count={deleting.length} roleName={role.name} busy={busy} error={error} onClose={() => setDeleting(null)} onConfirm={async (confirmation) => {
+          if (busy) return;
           setBusy(true); setError("");
           try {
-            await act("removeRoleCandidates", { clientId: client.id, roleId: role.id, ids: deleting, stage: isStage(tab) && tab !== "all_profiles" ? tab : null });
+            await act("removeRoleCandidates", { clientId: client.id, roleId: role.id, ids: deleting, stage: isStage(tab) ? tab : null, confirmation });
             setSelected([]); setMasterSelected([]); setDeleting(null);
-            setMessage("Rows deleted from this role. Restore them from Recently deleted.");
+            setMessage("Rows deleted from this role. The workspace owner can restore them from Recently deleted.");
             refresh();
           } catch (e) { setError((e as Error).message); }
           finally { setBusy(false); }
-        }}>{busy ? "Deleting…" : "Delete from role"}</button><button disabled={busy} onClick={() => setDeleting(null)}>Cancel</button></div>
-      </TableDialog>}
+        }} />}
       {editing && (
         <RoleFormDialog
           clientId={client.id}

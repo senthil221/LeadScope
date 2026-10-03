@@ -21,7 +21,7 @@ export function RoleBrief({ role, onSaved }: { role: Role; onSaved: () => void }
         } catch (e) { setError((e as Error).message); }
         finally { setBusy(false); }
       }}>
-        <label>Role brief<textarea name="brief" rows={8} maxLength={50000} defaultValue={role.role_brief ?? ""} disabled={busy || role.archived} placeholder="Describe responsibilities, requirements, must-have skills and hiring context." /></label>
+        <label>Role brief<textarea name="brief" rows={5} maxLength={50000} defaultValue={role.role_brief ?? ""} disabled={busy || role.archived} placeholder="Describe responsibilities, requirements, must-have skills and hiring context." /></label>
         <button className="primary" disabled={busy || role.archived}>{busy ? "Saving…" : "Save brief"}</button>
       </form>
       <div className="role-jd">

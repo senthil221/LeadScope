@@ -451,7 +451,7 @@ export function SheetCell({
       ) : (
         <span className="sheet-value">
           {current ? (display ? display(current) : current) : (
-            <span className="sheet-placeholder">{placeholder}</span>
+            <span className="sheet-placeholder">{placeholder || (readOnly ? "Not set" : "Click to add")}</span>
           )}
         </span>
       )}

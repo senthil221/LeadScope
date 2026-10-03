@@ -161,10 +161,15 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
               <tr>
                 <th>Client</th>
                 <th>Roles</th>
-                <th>Pipeline</th>
+                <th>
+                  <div className="client-pipeline-heading">Pipeline</div>
+                  <div className="client-pipeline-labels" aria-hidden="true">
+                    {pipelineColumns.map((column) => <span key={column.key}>{column.label}</span>)}
+                  </div>
+                </th>
                 <th>Needs attention</th>
                 <th>Created</th>
-                <th><span className="sr-only">Open client</span></th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -177,7 +182,9 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
                     .map((group) => ({
                       key: `${item.role_id}-${group.key}`,
                       href: `/roles/${item.role_id}?stage=${group.stage}`,
-                      label: `${group.count(item)} ${group.label.toLowerCase()} · ${item.role_name}`,
+                      count: group.count(item),
+                      label: group.label,
+                      roleName: item.role_name,
                     })),
                 );
                 return (
@@ -201,15 +208,12 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
                       </Link>
                     </td>
                     <td>
-                      {/* One line, in pipeline order. Stages nobody is sitting
-                          in are dimmed so the row reads as where the work is
-                          rather than as five equally loud numbers. */}
                       <div className="client-pipeline-summary" aria-label="Candidate pipeline">
                         {pipelineColumns.map((column) => {
                           const value = counts?.[column.key] ?? 0;
                           return (
-                            <span className={value ? undefined : "is-zero"} key={column.key}>
-                              <strong>{value}</strong> {column.label}
+                            <span className={value ? undefined : "is-zero"} key={column.key} aria-label={`${column.label}: ${value}`} title={`${column.label}: ${value}`}>
+                              {value.toLocaleString("en-US")}
                             </span>
                           );
                         })}
@@ -219,7 +223,11 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
                       {visibleWork.length ? (
                         <div className="client-attention-list">
                           {visibleWork.slice(0, 2).map((item) => (
-                            <Link href={item.href} key={item.key}>{item.label}</Link>
+                            <Link href={item.href} key={item.key} title={`${item.count} ${item.label.toLowerCase()} · ${item.roleName}`}>
+                              <span className="client-attention-count">{item.count}</span>
+                              <span className="client-attention-kind">{item.label}</span>
+                              <span className="client-attention-role">{item.roleName}</span>
+                            </Link>
                           ))}
                           {visibleWork.length > 2 && (
                             <Link href={`/clients/${client.id}/roles`} className="client-attention-more">
@@ -232,7 +240,7 @@ export function ClientsWorkspace({ data }: { data: PageData }) {
                       )}
                     </td>
                     <td><time dateTime={client.created_at}>{date(client.created_at)}</time></td>
-                    <td>
+                    <td className="client-directory-actions">
                       <button className="small" disabled={busy} onClick={() => void toggleArchive(client.id, !client.archived)}>{client.archived ? "Restore" : "Archive"}</button>
                       <Link href={`/clients/${client.id}`} className="table-row-action" aria-label={`Open ${client.name}`}>
                         <ArrowRight size={18} />

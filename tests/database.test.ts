@@ -1459,9 +1459,8 @@ describe("edit history, duplicate review and bulk editing", () => {
 });
 
 describe("recoverable role membership deletion", () => {
-  // Deletion is the owner's alone, so the actor holds ownership for this block
-  // and gives it back afterwards. The refusal for a merely approved operator is
-  // asserted on its own below.
+  // Owners retain stage-specific deletion and recovery. Approved operators
+  // can remove memberships only through the All Profiles scope.
   beforeAll(() =>
     sql("update public.user_profiles set is_owner=true where id=$1", [actor]).then(() => {}),
   );
@@ -1469,20 +1468,26 @@ describe("recoverable role membership deletion", () => {
     sql("update public.user_profiles set is_owner=false where id=$1", [actor]).then(() => {}),
   );
 
-  it("refuses an approved operator who is not the owner", async () => {
+  it("restricts approved operators to All Profiles and preserves owner-only recovery", async () => {
     const { cid, rid, rcId } = await pipeline("trash-not-owner");
     await sql("update public.user_profiles set is_owner=false where id=$1", [actor]);
     try {
       for (const call of [
-        () => rpc("remove_role_candidates", [cid, rid, [rcId], "all_profiles"]),
+        () => rpc("remove_role_candidates", [cid, rid, [rcId], null]),
+        () => rpc("remove_role_candidates", [cid, rid, [rcId], "profile_shortlisted"]),
         () => rpc("deleted_role_candidate_batches", [cid, rid]),
         () => rpc("restore_role_candidates", [cid, rid, randomUUID()]),
       ])
         await expect(asUser(actor, call)).rejects.toThrow("workspace owner");
-      // Nothing was removed on the way to being refused.
       expect(
         (await sql("select id from public.role_candidates where id=$1", [rcId])).rowCount,
       ).toBe(1);
+      const batch = await asUser(actor, () => rpc("remove_role_candidates", [cid, rid, [rcId], "all_profiles"]));
+      expect(typeof batch).toBe("string");
+      expect((await sql("select id from public.role_candidates where id=$1", [rcId])).rowCount).toBe(0);
+      const saved = (await sql("select deleted_by,jsonb_array_length(records) as count from private.role_candidate_trash where id=$1", [batch])).rows[0];
+      expect(saved).toEqual({ deleted_by: actor, count: 1 });
+      await expect(asUser(actor, () => rpc("restore_role_candidates", [cid, rid, batch]))).rejects.toThrow("workspace owner");
     } finally {
       await sql("update public.user_profiles set is_owner=true where id=$1", [actor]);
     }
