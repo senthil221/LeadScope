@@ -84,8 +84,8 @@ export function ClientSwitcher({
       if (root.current && !root.current.contains(event.target as Node))
         setOpen(false);
     }
-    document.addEventListener("pointerdown", dismiss);
-    return () => document.removeEventListener("pointerdown", dismiss);
+    document.addEventListener("pointerdown", dismiss, true);
+    return () => document.removeEventListener("pointerdown", dismiss, true);
   }, [open]);
 
   function move(to: number) {

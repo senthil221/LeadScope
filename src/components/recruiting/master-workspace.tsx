@@ -1,4 +1,5 @@
 "use client";
+import { DropdownDetails } from "./dropdown-details";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useState } from "react";
@@ -33,7 +34,7 @@ export function MasterWorkspace({ data }: { data: PageData }) {
       <input name="q" type="search" aria-label="Search Master Database" placeholder="Search name, LinkedIn, email or phone" defaultValue={params.get("q") ?? ""} maxLength={200} />
       <select name="contact" aria-label="Mobile availability" defaultValue={params.get("contact") ?? ""}><option value="">Any mobile status</option><option value="available">Has a mobile</option><option value="missing">Missing mobile</option></select>
       <select name="client" aria-label="Profiles used by client" defaultValue={params.get("client") ?? ""}><option value="">All clients</option>{data.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-      <details className="master-more-filters"><summary>More filters</summary><div><label>Company<input name="company" maxLength={200} defaultValue={params.get("company") ?? ""} placeholder="Filter by company" /></label><label>Location<input name="location" maxLength={200} defaultValue={params.get("location") ?? ""} placeholder="Filter by location" /></label><label>Minimum experience<input name="experience" type="number" min={0} max={70} step="0.1" defaultValue={params.get("experience") ?? ""} /></label><label className="row"><input type="checkbox" name="company_missing" value="1" defaultChecked={params.get("company_missing") === "1"} />Missing company</label></div></details>
+      <DropdownDetails className="master-more-filters"><summary>More filters</summary><div><label>Company<input name="company" maxLength={200} defaultValue={params.get("company") ?? ""} placeholder="Filter by company" /></label><label>Location<input name="location" maxLength={200} defaultValue={params.get("location") ?? ""} placeholder="Filter by location" /></label><label>Minimum experience<input name="experience" type="number" min={0} max={70} step="0.1" defaultValue={params.get("experience") ?? ""} /></label><label className="row"><input type="checkbox" name="company_missing" value="1" defaultChecked={params.get("company_missing") === "1"} />Missing company</label></div></DropdownDetails>
       {params.get("role") && <input type="hidden" name="role" value={params.get("role")!} />}
       <button className="primary">Apply</button><Link href="/master-db">Clear</Link>
     </form>

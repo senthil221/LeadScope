@@ -69,7 +69,6 @@ import {
   type DraftRow,
 } from "@/lib/recruiting/drafts";
 import { serializeRoleFilters } from "@/lib/recruiting/list-filters";
-import { SavedViews } from "./saved-views";
 import { useBatchedRefresh } from "@/lib/client/use-batched-refresh";
 import { saveCell } from "@/lib/client/save-cell";
 import { act as sharedAct } from "@/lib/client/act";
@@ -306,8 +305,11 @@ export function RolePipeline({
   useEffect(() => {
     function dismiss(event: PointerEvent) {
       const target = event.target as Node;
-      if (filterMenu.current && !filterMenu.current.contains(target))
+      if (!(target instanceof Element) || !target.closest('[data-phone-menu="open"]')) setInlinePhoneCell(null);
+      if (filterMenu.current && !filterMenu.current.contains(target)) {
+        filterMenu.current.open = false;
         setFilterMenuOpen(false);
+      }
       if (columnMenu.current && !columnMenu.current.contains(target))
         setColumnMenuOpen(false);
     }
@@ -318,17 +320,17 @@ export function RolePipeline({
       setFilterMenuOpen(false);
       setColumnMenuOpen(false);
     }
-    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("pointerdown", dismiss, true);
     document.addEventListener("keydown", escape, true);
     return () => {
-      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("pointerdown", dismiss, true);
       document.removeEventListener("keydown", escape, true);
     };
   }, [columnMenuOpen, filterMenuOpen]);
   const [columnPreference, setColumnPreference] = useState<{ scope: string; value: string } | null>(null);
   const [navigatingTo, setNavigatingTo] = useState<Tab | null>(null);
   const path = `/roles/${role.id}`;
-  const layout = useTableLayout(`${role.id}:${tab}`, stageDefaultsToCompact(tab));
+  const layout = useTableLayout(`${role.id}:${tab}`, stageDefaultsToCompact(tab), 2);
   // Paging put a button between a recruiter and the next fifty rows of the
   // list they were already reading. The server still hands over the first
   // slice; the rest arrives as it is scrolled to, and the whole thing stays
@@ -525,7 +527,9 @@ export function RolePipeline({
     .filter((id: ColumnId) => visibleColumns.includes(id))
     .map((id) => tabColumns.find((column) => column.id === id))
     .filter((column): column is CandidateColumn => Boolean(column));
-  const columnWidths = { xs: 96, sm: 128, md: 160, lg: 220 };
+  const columnWidths = { xs: 96, sm: 128, md: 176, lg: 240 };
+  const minimumWidth = (column: CandidateColumn) => column.id === "status" ? 176 : column.id === "source" ? 160 : column.id === "date_added" ? 128 : 80;
+  const baseWidth = (column: CandidateColumn) => Math.max(minimumWidth(column), layout.width(column.id, columnWidths[column.width]));
   const showNameColumn = stageShowsName(tab);
   // Something has to stay put while the grid scrolls sideways. Normally that is
   // the name; where the name is hidden, whichever column has been dragged into
@@ -547,10 +551,19 @@ export function RolePipeline({
       )
     : 0;
   const fixedWidth = utilityWidth + nameWidth + actionWidth;
-  const dataWidth = visibleCandidateColumns.reduce((sum, column) => sum + layout.width(column.id, columnWidths[column.width]), 0);
-  const tableWidth = Math.max(tableFrameWidth, fixedWidth + dataWidth);
+  const dataWidth = visibleCandidateColumns.reduce((sum, column) => sum + baseWidth(column), 0);
+  const tableWidth = layout.hasWidths ? fixedWidth + dataWidth : Math.max(tableFrameWidth, fixedWidth + dataWidth);
   const flexibleIds = visibleCandidateColumns.filter((column) => ["linkedin", "notes", "follow_up_note", "headline", "current_company"].includes(column.id)).map((column) => column.id);
-  const displayedWidth = (column: CandidateColumn) => layout.width(column.id, columnWidths[column.width]) + (flexibleIds.includes(column.id) ? (tableWidth - fixedWidth - dataWidth) / flexibleIds.length : 0);
+  const displayedWidth = (column: CandidateColumn) => baseWidth(column) + (flexibleIds.includes(column.id) ? (tableWidth - fixedWidth - dataWidth) / flexibleIds.length : 0);
+
+  function resizeColumn(id: string, width: number) {
+    const current = Object.fromEntries(visibleCandidateColumns.map((column) => [column.id, displayedWidth(column)]));
+    if (showNameColumn) current.full_name = nameWidth;
+    tableFrame.current?.querySelectorAll<HTMLTableCellElement>("thead th[data-column-id]").forEach((heading) => {
+      current[heading.dataset.columnId!] = heading.getBoundingClientRect().width;
+    });
+    layout.resizeColumns({ ...current, [id]: width });
+  }
 
   function toggleColumn(column: ColumnId) {
     const next = visibleColumns.includes(column)
@@ -1047,7 +1060,7 @@ export function RolePipeline({
           const cellId = `${role.id}:${rc.candidate_id}:${column.id}:${linkedInUrl(rc.candidates) ?? ""}`;
           const open = inlinePhoneCell === cellId;
           return <td className={`sheet-td w-${column.width}${pinnedClass}`} key={column.id}>
-            <div onKeyDown={(event) => {
+            <div data-phone-menu={open ? "open" : undefined} onKeyDown={(event) => {
               if (open && event.key === "Escape") {
                 event.preventDefault(); event.stopPropagation(); setInlinePhoneCell(null);
                 event.currentTarget.querySelector<HTMLButtonElement>(".phone-lookup-trigger")?.focus();
@@ -1444,7 +1457,7 @@ export function RolePipeline({
         {stageTab("later", "Later", "stage-exit")}
       </div>
       <nav className="role-secondary-nav" aria-label="Role tools">
-        <MobileLookupActivity roleId={role.id} candidateIds={roleCandidates.map((rc) => rc.candidate_id)} version={mobileActivityVersion} onUpdate={refresh} onStates={(cells) => setMobileCellStates({ roleId: role.id, cells: Object.fromEntries(cells.map((cell) => [cell.candidate_id, cell])) })} onOpen={() => setMobileLookup({})} />
+        <MobileLookupActivity roleId={role.id} candidateIds={visibleColumns.some((id: ColumnId) => id === "phone" || id === "alternate_phone") ? roleCandidates.map((rc) => rc.candidate_id) : []} version={mobileActivityVersion} onUpdate={refresh} onStates={(cells) => setMobileCellStates({ roleId: role.id, cells: Object.fromEntries(cells.map((cell) => [cell.candidate_id, cell])) })} onOpen={() => setMobileLookup({})} />
         <RoleToolsMenu label={isFollowUpsTab ? "Views · Follow-ups" : tab === "master_db" ? "Views · Master DB" : tab === "analytics" ? "Views · Analytics" : "Views"} active={!isStage(tab)}>
         <Link className={isFollowUpsTab ? "selected" : ""} aria-current={isFollowUpsTab ? "page" : undefined} href={tabUrl("follow_ups")}>
           Follow-ups
@@ -1555,9 +1568,8 @@ export function RolePipeline({
               className="candidate-filter-menu"
               ref={filterMenu}
               open={filterMenuOpen}
-              onToggle={(event) => setFilterMenuOpen(event.currentTarget.open)}
             >
-              <summary>
+              <summary onClick={(event) => { event.preventDefault(); setFilterMenuOpen(!filterMenuOpen); }}>
                 <SlidersHorizontal size={14} aria-hidden="true" />
                 Filters
                 {activeCandidateFilterCount > 0 && (
@@ -1668,7 +1680,6 @@ export function RolePipeline({
             {(query || activeCandidateFilterCount > 0 || params.get("sort")) && (
               <Link className="candidate-clear-filters" href={stageFilterUrl({ q: "", source: "", source_detail: "", contact: "", stale: "", rating: "", entered_from: "", entered_to: "", sort: "" })}>Clear</Link>
             )}
-            <SavedViews roleId={role.id} stage={tab} columns={JSON.stringify({ visible: visibleColumns, order: orderedColumns })} onColumns={(value) => { try { localStorage.setItem(columnStorageKey, value); } catch {} setColumnPreference({ scope: columnStorageKey, value }); }} />
             <button type="button" aria-label="Compact rows" aria-pressed={layout.compact} onClick={layout.toggleDensity}>
               <Rows3 size={15} aria-hidden="true" />
               {layout.compact ? "Compact" : "Comfortable"}
@@ -2105,19 +2116,20 @@ export function RolePipeline({
                   <span className="sr-only">Open candidate</span>
                 </th>
                 {showNameColumn && (
-                  <th className="sheet-th sheet-th-pinned" scope="col">
+                  <th className="sheet-th sheet-th-pinned" data-column-id="full_name" scope="col">
                     Full name
-                    <ColumnResizeHandle label="Full name" width={nameWidth} onResize={(width) => layout.resize("full_name", Math.max(180, width))} />
+                    <ColumnResizeHandle label="Full name" width={nameWidth} minWidth={180} onResize={(width) => resizeColumn("full_name", width)} />
                   </th>
                 )}
                 {visibleCandidateColumns.map((column) => (
                   <th
                     className={`sheet-th w-${column.width}${column.id === pinnedColumnId ? " sheet-th-pinned" : ""}${column.numeric ? " is-numeric" : ""}`}
                     key={column.id}
+                    data-column-id={column.id}
                     scope="col"
                   >
                     {column.label}
-                    <ColumnResizeHandle label={column.label} width={layout.width(column.id, columnWidths[column.width])} onResize={(width) => layout.resize(column.id, width)} />
+                    <ColumnResizeHandle label={column.label} width={displayedWidth(column)} minWidth={minimumWidth(column)} onResize={(width) => resizeColumn(column.id, width)} />
                   </th>
                 ))}
                 {showRowActions && <th className="candidate-action-heading" scope="col">Action</th>}

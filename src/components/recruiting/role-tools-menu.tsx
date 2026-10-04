@@ -18,10 +18,10 @@ export function RoleToolsMenu({ label, active = false, children }: { label: stri
         root.current.querySelector("summary")?.focus();
       }
     }
-    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("pointerdown", dismiss, true);
     document.addEventListener("keydown", escape, true);
     return () => {
-      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("pointerdown", dismiss, true);
       document.removeEventListener("keydown", escape, true);
     };
   }, []);
