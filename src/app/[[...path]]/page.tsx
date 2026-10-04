@@ -6,6 +6,8 @@ import { Workspace } from "@/components/workspace";
 import { ClientsWorkspace } from "@/components/clients-workspace";
 import { RoleWorkspace } from "@/components/recruiting/role-workspace";
 import { RolesWorkspace } from "@/components/recruiting/roles-workspace";
+import { WorkQueue } from "@/components/recruiting/work-queue";
+import { profileSearchTerm } from "@/lib/recruiting/list-filters";
 import { MasterWorkspace } from "@/components/recruiting/master-workspace";
 import { AllRolesWorkspace } from "@/components/recruiting/all-roles-workspace";
 import { BlocklistWorkspace } from "@/components/recruiting/blocklist-workspace";
@@ -518,15 +520,11 @@ export default async function Page({
     }
     if (data.view === "master-db") {
       data.page = Math.max(1, Math.min(100000, Math.floor(Number(filter.page) || 1)));
-      let query = db.from("candidates").select("*,candidate_identities(kind,normalized_value)", { count: "exact" });
-      if (filter.q?.trim()) {
-        const term = filter.q.trim().slice(0, 200).replace(/[^\p{L}\p{N} @.+-]/gu, " ");
-        query = query.or(["full_name", "headline", "current_company", "email", "phone"].map((key) => key + ".ilike.%" + term + "%").join(","));
-      }
-      const result = await query.order("created_at", { ascending: false }).order("id").range((data.page - 1) * 50, data.page * 50 - 1);
-      data.masterCandidates = checked(result);
-      data.total = result.count ?? 0;
+      const result = checked(await db.rpc("master_profiles_page", { p_filters: { ...filter, q: profileSearchTerm(filter.q ?? ""), experience: /^\d{1,2}(\.\d)?$/.test(filter.experience ?? "") ? filter.experience : "" }, p_page: data.page }));
+      data.masterCandidates = result.rows;
+      data.total = result.total;
     }
+    if (data.view === "work") { const [queue, health] = await Promise.all([db.rpc("agency_workbench"), db.rpc("workspace_mobile_health")]); data.workbench = checked(queue); data.mobileHealth = checked(health); }
     if (data.view === "all-roles") {
       data.page = Math.max(1, Math.min(100000, Math.floor(Number(filter.page) || 1)));
       let query = db.from("roles").select("id,client_id,name,description,rating_threshold,status,archived,revision,created_at,updated_at,recruiter_names,ctc,jd_name", { count: "exact" });
@@ -655,6 +653,7 @@ export default async function Page({
         "role",
         "team",
         "master-db",
+        "work",
         "all-roles",
         "blocklist",
       ].includes(data.view)
@@ -671,9 +670,10 @@ export default async function Page({
       );
     throw error;
   }
+  if (data.view === "work") return <WorkQueue data={data} />;
   const routeKey = `${path.join("/")}:${filter.page ?? ""}:${filter.status ?? ""}:${filter.campaign ?? ""}:${filter.q ?? ""}:${filter.contact ?? ""}:${filter.stage ?? ""}`;
-  const roleRouteKey = `${path.join("/")}:${filter.page ?? ""}:${filter.q ?? ""}:${filter.source ?? ""}:${filter.source_detail ?? ""}:${filter.rating ?? ""}:${filter.entered_from ?? ""}:${filter.entered_to ?? ""}:${filter.sort ?? ""}`;
-  if (data.view === "master-db") return <MasterWorkspace key={routeKey} data={data} />;
+  const roleRouteKey = `${filter.candidate ?? ""}:${filter.contact ?? ""}:${filter.stale ?? ""}:${path.join("/")}:${filter.page ?? ""}:${filter.q ?? ""}:${filter.source ?? ""}:${filter.source_detail ?? ""}:${filter.rating ?? ""}:${filter.entered_from ?? ""}:${filter.entered_to ?? ""}:${filter.sort ?? ""}`;
+  if (data.view === "master-db") return <MasterWorkspace key={JSON.stringify(filter)} data={data} />;
   if (data.view === "all-roles") return <AllRolesWorkspace key={`${routeKey}:${filter.archived}:${filter.recruiter}:${filter.client}`} data={data} />;
   if (data.view === "blocklist") return <BlocklistWorkspace key={`${routeKey}:${filter.client}`} data={data} />;
   if (data.view === "team") return <TeamWorkspace key={routeKey} data={data} />;

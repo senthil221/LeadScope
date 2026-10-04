@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { Database, Briefcase, LogOut, Settings, ShieldCheck, Users } from "lucide-react";
+import { ListTodo, Database, Briefcase, LogOut, Settings, ShieldCheck, Users } from "lucide-react";
 import type { PageData } from "@/lib/types";
 import logo from "@/assets/brand/leadvance-recruiting.png";
 import { ClientSwitcher } from "./ClientSwitcher";
@@ -33,6 +33,7 @@ export function Sidebar({ data }: { data: PageData }) {
       <nav className="shell-nav" aria-label="Primary">
         <div className="shell-group">
           <span className="shell-label">Workspace</span>
+          <Link className={itemClass(view, ["work"])} aria-current={view === "work" ? "page" : undefined} href="/work"><ListTodo size={17} aria-hidden="true" />Work queue</Link>
           <Link className={itemClass(view, ["clients"])} aria-current={view === "clients" ? "page" : undefined} href="/clients">
             <Users size={17} aria-hidden="true" />
             Clients

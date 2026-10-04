@@ -64,12 +64,13 @@ describe("Provider request contracts (mock transport only)", () => {
   }
   it("explicitly disables both Apollo waterfalls and requests mobile polling", async () => {
     const fetcher = mockProvider({ request_id: "1039995589705121900" });
-    const result = await dispatchMobile("apollo", { id: "job", identifier: "https://www.linkedin.com/in/person", candidate: { name: "Test Person", company: "Acme" } });
+    const result = await dispatchMobile("apollo", { id: "job", identifier: "https://www.linkedin.com/in/person", candidate: { name: "Test Person", company: "Acme", email: "known@example.com" } });
     const url = new URL(fetcher.mock.calls[0][0]);
     expect(url.searchParams.get("run_waterfall_phone")).toBe("false"); expect(url.searchParams.get("run_waterfall_email")).toBe("false"); expect(url.searchParams.get("poll_only")).toBe("true");
     expect(url.searchParams.get("reveal_phone_number")).toBe("true"); expect(url.searchParams.get("reveal_personal_emails")).toBe("false");
     expect(url.searchParams.get("linkedin_url")).toBe("https://www.linkedin.com/in/person");
     expect(url.searchParams.get("name")).toBe("Test Person"); expect(url.searchParams.get("organization_name")).toBe("Acme");
+    expect(url.searchParams.get("email")).toBe("known@example.com");
     expect(result.requestId).toBe("1039995589705121900");
   });
   it("sends the exact LinkedIn identifier and secure callback to SignalHire", async () => {

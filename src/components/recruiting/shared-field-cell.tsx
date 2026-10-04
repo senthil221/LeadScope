@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 async function save(token: string, payload: unknown): Promise<void> {
   const response = await fetch(`/api/share/${token}`, {
@@ -45,17 +45,28 @@ export function SharedFieldCell({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saveNote, setSaveNote] = useState("");
+  const savingRef = useRef(false);
+  const dirty = current !== saved;
+  const [lastValue, setLastValue] = useState(value);
+  if (lastValue !== value) { setLastValue(value); if (!dirty && !saving) { setCurrent(value); setSaved(value); } }
+  useEffect(() => {
+    if (!dirty && !saving) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty, saving]);
 
   async function commit(next: Value) {
-    if (saving) return;
+    if (savingRef.current || next === saved) return;
+    savingRef.current = true;
     setSaving(true);
     setError("");
-    const previous = saved;
     try {
       await save(token, {
         roleCandidateId,
         column,
         value: next === undefined ? null : next,
+        expected: String(saved ?? ""),
       });
       setSaved(next);
       // Clients are giving feedback the agency acts on, so confirm the note
@@ -63,16 +74,16 @@ export function SharedFieldCell({
       setSaveNote("Saved");
       setTimeout(() => setSaveNote(""), 2000);
     } catch (e) {
-      setCurrent(previous);
       setError((e as Error).message);
     } finally {
       setSaving(false);
+      savingRef.current = false;
     }
   }
 
   if (multiline)
     return (
-      <div className="shared-note">
+      <div className="shared-note" data-unsaved={dirty || saving || undefined}>
         <textarea
           aria-label={label}
           className="shared-note-input"
@@ -100,6 +111,7 @@ export function SharedFieldCell({
             <small>{saving ? "Saving…" : saveNote}</small>
           )}
         </div>
+        {dirty && !saving && <button type="button" className="shared-feedback-save" onClick={() => void commit(current)}>{error ? "Retry saving feedback" : "Save feedback"}</button>}
       </div>
     );
 

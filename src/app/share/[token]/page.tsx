@@ -4,10 +4,8 @@ import { setup } from "@/lib/server/config";
 import { stageLabels, isStage } from "@/lib/recruiting/stages";
 import { clientShareLabels } from "@/lib/recruiting/share-columns";
 import { candidateSourceLabel } from "@/lib/recruiting/stages";
-import { ShareRefresh } from "@/components/recruiting/share-refresh";
-import { SharedFieldCell } from "@/components/recruiting/shared-field-cell";
+import { ClientShareSheet } from "@/components/recruiting/client-share-sheet";
 import Image from "next/image";
-import { ExternalLink } from "lucide-react";
 import logo from "@/assets/brand/leadvance-recruiting.png";
 import styles from "./share-page.module.css";
 import { formatRecruitingDate } from "@/lib/recruiting/display";
@@ -56,13 +54,13 @@ function cell(row: SharedRow, key: string, fields: SharedField[]): string {
   const field = fields.find((f) => f.key === key);
   if (field) {
     const value = row.custom?.[key];
-    if (value == null) return "Not provided";
+    if (value == null) return "";
     if (field.kind === "boolean") return value ? "Yes" : "No";
     if (field.kind === "date") return formatDate(String(value));
     return String(value);
   }
   const value = (row as Record<string, unknown>)[key];
-  if (value == null || value === "") return "Not provided";
+  if (value == null || value === "") return "";
   if (["created_at", "stage_entered_at", "interview_at", "follow_up_at", "offer_sent_on", "offer_response_due_at", "expected_start_at"].includes(key)) return formatDate(String(value));
   if (key === "stage" && isStage(String(value))) return stageLabels[String(value) as keyof typeof stageLabels];
   if (key === "source") return candidateSourceLabel(String(value));
@@ -119,13 +117,13 @@ export default async function SharePage({
         : "";
     return (
       <Message
-        title="This link is no longer valid"
+        title={message.includes("LS:") ? "This link is no longer valid" : "The sheet is temporarily unavailable"}
         detail={
           message.includes("revoked")
             ? "This link has been revoked."
             : message.includes("expired")
               ? "This link has expired."
-              : "Check the link your recruiter sent you, or ask them to send a new one."
+              : message.includes("LS:") ? "Check the link your recruiter sent you." : "Please refresh in a moment. Your feedback has not been changed."
         }
       />
     );
@@ -156,60 +154,7 @@ export default async function SharePage({
           </div>
           <span className={styles.stage}>Client shortlist</span>
         </section>
-        <section className={styles.sheet} aria-label="Candidate review sheet">
-          <div className={styles.toolbar}>
-            <strong>{data.rows.length} {data.rows.length === 1 ? "candidate" : "candidates"}</strong>
-            <span>{canEditNotes ? "Add feedback in the sheet. Changes save when you leave the cell." : "Review the shared candidate details below."}</span>
-          </div>
-          {data.rows.length ? (
-            <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="Candidate details. Scroll horizontally to see all columns.">
-              <table className={styles.table}>
-                <caption className={styles.srOnly}>Candidates shared for {data.roleName}</caption>
-                <colgroup>
-                  <col style={{ width: 40 }} />
-                  <col className={styles.identityColumn} />
-                  {shown("client_notes") && <col style={{ width: 300 }} />}
-                  {factKeys.map((key) => <col key={key} style={{ width: key === "headline" ? 240 : key === "rating" ? 90 : 140 }} />)}
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th scope="col" className={styles.rowNumber}>#</th>
-                    <th scope="col" className={styles.identity}>Candidate</th>
-                    {shown("client_notes") && <th scope="col">{canEditNotes ? "Your feedback" : "Notes"}</th>}
-                    {factKeys.map((key) => <th scope="col" key={key}>{labelFor(key)}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.rows.map((row, index) => {
-                    const name = (shown("full_name") && row.full_name) || `Candidate ${index + 1}`;
-                    const subtitle = [shown("current_designation") ? row.current_designation : "", shown("current_company") ? row.current_company : ""].filter(Boolean).join(" · ");
-                    return (
-                      <tr key={row.id}>
-                        <td className={styles.rowNumber}>{index + 1}</td>
-                        <th scope="row" className={styles.identity}>
-                          <strong className={styles.name} title={name}>{name}</strong>
-                          {subtitle && <span className={styles.subtitle} title={subtitle}>{subtitle}</span>}
-                          {shown("linkedin") && row.linkedin && <a className={styles.profileLink} href={row.linkedin} rel="noreferrer" target="_blank">LinkedIn <ExternalLink size={11} aria-hidden="true" /></a>}
-                        </th>
-                        {shown("client_notes") && <td className={styles.feedback}>
-                          {canEditNotes ? <SharedFieldCell key={`${row.id}:${row.client_notes ?? ""}`} token={token} roleCandidateId={row.id} column="client_notes" value={row.client_notes} kind="text" multiline label={`Feedback for ${name}`} /> : <span className={styles.noteText}>{row.client_notes || "No notes yet"}</span>}
-                        </td>}
-                        {factKeys.map((key) => {
-                          const value = cell(row, key, data.fields);
-                          if (key === "resume" && row.resume) return <td key={key}><a href={`/api/share/${token}?resume=${row.id}`} target="_blank" rel="noreferrer">Open resume</a></td>;
-                          return <td key={key}><span className={value === "Not provided" ? styles.missing : styles.value} title={value}>{value}</span></td>;
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className={styles.empty}><h2>No candidates shared yet</h2><p>Your recruiter will add profiles to this shortlist shortly.</p></div>
-          )}
-          <div className={styles.sheetFooter}><span>{data.rows.length} {data.rows.length === 1 ? "profile" : "profiles"} shared</span><ShareRefresh /></div>
-        </section>
+        <ClientShareSheet token={token} roleName={data.roleName} canEditNotes={canEditNotes} columns={factKeys.map((key) => ({key,label:labelFor(key)}))} rows={data.rows.map((row,index) => ({id:row.id,name:(shown("full_name") && row.full_name) || String(index+1),subtitle:[row.current_designation,row.current_company].filter(Boolean).join(" · "),linkedin:shown("linkedin") ? row.linkedin : undefined,note:row.client_notes,stage:cell(row,"stage",data.fields),resume:Boolean(row.resume),values:Object.fromEntries(factKeys.map((key) => [key,cell(row,key,data.fields)]))}))} />
         <footer className={styles.footer}><span>Prepared by {data.clientName}&rsquo;s recruiting team</span><span>Powered by <strong>Leadvance Recruiting</strong></span></footer>
       </div>
     </main>

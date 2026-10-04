@@ -75,7 +75,7 @@ function skippedRowLabel(row: DraftRow) {
     row.linkedin?.trim() ||
     row.email?.trim() ||
     row.naukri?.trim() ||
-    "—"
+    "Not provided"
   );
 }
 // A CSV or Excel file is usually an export of a search, so the tab it is
@@ -574,7 +574,7 @@ export function AddCandidatesDialog({
             <div>
               <strong>Import template</strong>
               <p className="muted">
-                Every column an import can fill, at any stage — a stage limits
+                Every column an import can fill, at any stage. A stage limits
                 what is shown, not what a record holds. Only LinkedIn URL is
                 required; leave the rest blank and fill them in later. The file
                 is headers only, so type your rows underneath.
@@ -662,6 +662,7 @@ export function AddCandidatesDialog({
                       : "No valid candidate rows found"}
                 </span>
               </div>
+              {csvPreview.validRows.length > 0 && <div className="import-quality" aria-label="Import data quality"><span><strong>{csvPreview.validRows.filter((r) => !String(r.fields.currentCompany ?? "").trim()).length}</strong> without company</span><span><strong>{csvPreview.validRows.filter((r) => !String(r.fields.currentDesignation ?? "").trim()).length}</strong> without designation</span><span><strong>{csvPreview.validRows.filter((r) => !String(r.fields.location ?? "").trim()).length}</strong> without location</span><span>These rows can still import. Known company and role details help later matching.</span></div>}
               {csvPreview.recognizedColumns.length > 0 && (
                 <p className="muted">
                   Found: {csvPreview.recognizedColumns.join(", ")}
@@ -679,7 +680,7 @@ export function AddCandidatesDialog({
                       {csvPreview.invalidRows.length} row
                       {csvPreview.invalidRows.length === 1 ? "" : "s"} cannot be
                       imported. Import the rest now, or fix these and upload
-                      again — nothing is duplicated either way.
+                      again. Nothing is duplicated either way.
                     </p>
                     <button
                       type="button"

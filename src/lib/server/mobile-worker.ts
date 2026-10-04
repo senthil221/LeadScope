@@ -3,7 +3,7 @@ import { checked, integrationDb } from "./db";
 import { dispatchMobile, mobileSetup, MobileProviderError, pollMobile } from "./mobile-providers";
 import { mergeMobiles, mobileProviders, uniqueMobiles, type MobileResult, type MobileProvider } from "../recruiting/mobile-waterfall";
 
-type Claim = { id: string; lease_token: string; identifier: string; provider_index: number; attempt_state: string; request_id: string | null; callback_result: { results: MobileResult[]; code?: string } | null; retries: number; collect_all: boolean; results: MobileResult[]; steps: { provider: MobileProvider; outcome: string; count: number }[]; candidate: { name: string; company: string; phone: string | null; alternate_phone: string | null }; cached: MobileResult[] };
+type Claim = { id: string; lease_token: string; identifier: string; provider_index: number; attempt_state: string; request_id: string | null; callback_result: { results: MobileResult[]; code?: string } | null; retries: number; collect_all: boolean; results: MobileResult[]; steps: { provider: MobileProvider; outcome: string; count: number }[]; candidate: { name: string; company: string; email?: string | null; phone: string | null; alternate_phone: string | null }; cached: MobileResult[] };
 export async function processMobileJob() {
   const db = integrationDb();
   const job = checked(await db.rpc("claim_mobile_waterfall")) as Claim | null;

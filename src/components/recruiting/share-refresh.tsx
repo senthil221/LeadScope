@@ -7,6 +7,7 @@ export function ShareRefresh() {
   useEffect(() => {
     const refresh = () => {
       if (document.visibilityState !== "visible" ||
+          document.querySelector('[data-unsaved="true"]') ||
           document.activeElement?.matches("input,textarea,[contenteditable=true]")) return;
       router.refresh();
     };

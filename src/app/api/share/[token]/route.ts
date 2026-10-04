@@ -37,15 +37,17 @@ export async function POST(
         roleCandidateId: uuid,
         column: z.string().min(1).max(50),
         value: z.union([z.string(), z.number(), z.boolean()]).nullable(),
+        expected: z.string().max(4000).optional(),
       })
       .parse(input);
     const hash = createHash("sha256").update(token).digest("hex");
     checked(
-      await integrationDb().rpc("write_shared_cell", {
+      await integrationDb().rpc(p.expected === undefined ? "write_shared_cell" : "write_shared_cell_checked", {
         p_token_hash: hash,
         p_role_candidate: p.roleCandidateId,
         p_column: p.column,
         p_value: p.value,
+        ...(p.expected === undefined ? {} : { p_expected: p.expected }),
       }),
     );
     return Response.json({ ok: true });

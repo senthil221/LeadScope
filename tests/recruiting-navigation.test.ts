@@ -16,3 +16,8 @@ describe("stage navigation", () => {
     expect(nextStage("later")).toBeNull(); expect(isPipelineStage("later")).toBe(false);
   });
 });
+
+it("clears saved-view contact and age filters, and an open profile, on stage changes", () => {
+  const url=roleStageUrl("/roles/example","stage=all_profiles&contact=missing&stale=1&candidate=test","all_profiles","profile_shortlisted");
+  expect(url).not.toContain("contact="); expect(url).not.toContain("stale="); expect(url).not.toContain("candidate=");
+});

@@ -1,5 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { profileSearchTerm } from "@/lib/recruiting/list-filters";
 import {
   candidateSources,
   isRatingFilter,
@@ -13,6 +14,8 @@ export type RoleCandidateListFilters = {
   source?: CandidateSource;
   sourceDetail: string;
   rating?: RatingFilter;
+  contact?: "missing" | "available";
+  stale?: boolean;
   enteredFrom?: string;
   enteredTo?: string;
   sort: "newest" | "oldest" | "updated" | "rating_high" | "rating_low";
@@ -53,7 +56,9 @@ export function roleCandidateListFilters(
     ? (raw.sort as RoleCandidateListFilters["sort"])
     : "oldest";
   return {
-    query: searchTerm(raw.q),
+    query: searchTerm(profileSearchTerm(raw.q ?? "")),
+    contact: raw.contact === "missing" || raw.contact === "available" ? raw.contact : undefined,
+    stale: raw.stale === "1",
     source,
     sourceDetail: searchTerm(raw.source_detail),
     rating,
@@ -68,7 +73,7 @@ export function roleCandidateListFilters(
 // already-available stage total. Keep the expensive count for filtered lists.
 export function hasRoleCandidateListFilters(filters: RoleCandidateListFilters) {
   return Boolean(
-    filters.query ||
+    filters.query || filters.contact || filters.stale ||
       filters.source ||
       filters.sourceDetail ||
       filters.rating ||
@@ -86,7 +91,7 @@ export function roleCandidateListQuery(
   includeTotal = true,
   // The whole row by default; a caller that only needs ids says so, because
   // two thousand joined candidate records is a different kind of request.
-  columns = "*,candidates!inner(*,candidate_identities(kind,normalized_value))",
+  columns = "*,candidates!inner(id,full_name,headline,current_company,current_designation,location,total_experience_years,phone,alternate_phone,email,current_ctc,highest_qualification,resume_path,enrichment_state,created_at,candidate_identities(kind,normalized_value))",
 ) {
   let query = db
     .from("role_candidates")
@@ -116,16 +121,10 @@ export function roleCandidateListQuery(
     query = query.gte("rating", ratingThreshold);
   else if (filters.rating === "below_floor")
     query = query.lt("rating", ratingThreshold);
-  if (filters.query)
-    query = query.or(
-      [
-        `full_name.ilike.%${filters.query}%`,
-        `headline.ilike.%${filters.query}%`,
-        `current_company.ilike.%${filters.query}%`,
-        `current_designation.ilike.%${filters.query}%`,
-      ].join(","),
-      { referencedTable: "candidates" },
-    );
+  if (filters.query) query = query.ilike("candidates.search_text", `%${filters.query}%`);
+  if (filters.contact === "missing") query = query.is("candidates.phone", null).is("candidates.alternate_phone", null);
+  if (filters.contact === "available") query = query.or("phone.not.is.null,alternate_phone.not.is.null", { referencedTable: "candidates" });
+  if (filters.stale) query = query.in("stage", ["profile_shortlisted", "recruiter_shortlisted", "client_shortlisted", "later"]).lt("stage_entered_at", new Date(Date.now() - 7 * 86400000).toISOString());
   // What changed most recently, on this role: a stage move, a rating, a note,
   // a custom column, or an edit to the profile itself.
   if (filters.sort === "updated")

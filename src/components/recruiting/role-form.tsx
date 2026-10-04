@@ -39,7 +39,7 @@ export function RoleFormDialog({
         description: data.get("description"),
         recruiterNames: String(data.get("recruiters") ?? "").split(",").map((name) => name.trim()).filter(Boolean),
         ctc: data.get("ctc"),
-        roleBrief: role === "new" ? "" : role.role_brief,
+        roleBrief: data.has("roleBrief") ? String(data.get("roleBrief")) : role === "new" ? "" : role.role_brief,
         ratingThreshold: Number(data.get("ratingThreshold")),
         status: String(data.get("status")),
         expectedRevision: role === "new" ? undefined : role.revision,
@@ -89,6 +89,8 @@ export function RoleFormDialog({
           <span>Role CTC <span className="optional">budget or range</span></span>
           <input name="ctc" maxLength={200} defaultValue={role === "new" ? "" : role.ctc ?? ""} placeholder="e.g. ₹18–24 LPA, fixed + variable" />
         </label>
+        {(role === "new" || role.role_brief !== undefined) && <label><span>Role brief <span className="optional">hiring context and must-have skills</span></span><textarea name="roleBrief" rows={3} maxLength={30000} defaultValue={role === "new" ? "" : role.role_brief} placeholder="Responsibilities, essential experience and what makes a strong match" /></label>}
+        {role === "new" && <p className="role-setup-hint">Add the recruiter, CTC and brief now. Attach the JD inside the role after saving.</p>}
         <div className="form-grid role-form-pair"><label>
           Rating floor
           <input

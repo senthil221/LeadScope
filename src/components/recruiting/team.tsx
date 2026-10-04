@@ -127,7 +127,7 @@ export function TeamPage({
                     {/* The owner row has no control: revoking it is what would
                         leave nobody able to grant access again. */}
                     {operator.owner ? (
-                      <span className="muted">—</span>
+                      <span className="muted">Not available</span>
                     ) : operator.approved ? (
                       <button
                         className="small"

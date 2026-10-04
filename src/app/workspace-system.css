@@ -1,0 +1,67 @@
+/* Shared workspace controls. Table-specific geometry stays with each sheet. */
+:root { --workspace-control: 32px; --workspace-row: 36px; }
+.profile-name-button { appearance: none; background: none; border: 0; box-shadow: none; padding: 0; min-height: 24px; font: inherit; font-weight: 500; color: #244a80; text-align: left; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-name-button:hover { text-decoration: underline; }
+.filter-context, .share-context { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 7px 12px; color: #617086; font-size: 12px; border-bottom: 1px solid #e2e8f0; }
+.filter-chip { display: inline-flex; align-items: center; padding: 4px 8px; background: #edf4ff; border: 1px solid #ccddf7; border-radius: 5px; color: #275493; font-size: 12px; }
+.work-metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border: 1px solid #dce3ed; border-radius: 8px; background: #fff; margin-bottom: 16px; }
+.work-metrics > div { padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-right: 1px solid #e2e8f0; }
+.work-metrics > div:last-child { border: 0; }
+.work-metrics span { font-size: 12px; color: #607086; }
+.work-metrics strong { font-size: 22px; font-weight: 550; font-variant-numeric: tabular-nums; }
+.work-queue table { min-width: 930px; }
+.work-queue th { font-size: 12px; font-weight: 500; }
+.work-queue td { font-size: 13px; padding: 10px 12px; font-variant-numeric: tabular-nums; }
+.work-queue td small { display: block; font-size: 11px; color: #68788d; margin-top: 3px; }
+.work-queue .work-due { color: #a33a27; font-weight: 600; }
+.master-filters { flex-wrap: wrap; gap: 8px; }
+.master-filters select { min-height: 32px; width: auto; max-width: 180px; font-size: 12px; }
+.master-more-filters, .saved-views, .share-controls details { position: relative; }
+.master-more-filters summary, .saved-views summary, .share-controls summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; border: 1px solid #c9d4e3; background: #fff; border-radius: 6px; font-size: 12px; font-weight: 500; padding: 6px 10px; min-height: 32px; white-space: nowrap; }
+.saved-views summary::after, .master-more-filters summary::after, .share-controls summary::after { content: '⌄'; color: #7890aa; }
+.master-more-filters > div, .saved-views-menu, .share-column-menu { position: absolute; z-index: 60; top: calc(100% + 6px); left: 0; width: 280px; max-width: calc(100vw - 32px); padding: 12px; border: 1px solid #ced8e5; border-radius: 8px; background: #fff; box-shadow: 0 8px 26px #13243b1c; display: grid; gap: 8px; }
+.saved-views-menu > button { text-align: left; }
+.saved-views-menu label, .master-more-filters label { display: grid; gap: 5px; margin: 0; font-size: 12px; font-weight: 500; }
+.saved-views-menu input, .master-more-filters input { width: 100% !important; min-width: 0; flex: none !important; min-height: 32px; font-weight: 400; }
+.master-more-filters input[type=checkbox] { width: 14px !important; min-height: 14px; }
+.master-more-filters .row { display: flex; }
+.profile-editor { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #dce3ed; border-radius: 6px; overflow: hidden; }
+.profile-editor > div { padding: 8px 10px; min-width: 0; border-bottom: 1px solid #e2e8f0; }
+.profile-editor > div > span { display: block; color: #69798c; font-size: 11px; margin-bottom: 3px; }
+.profile-editor .sheet-cell { min-height: 32px; font-size: 13px; padding: 5px 0; }
+.profile-editor .sheet-placeholder { color: #7c899b; font-style: italic; }
+.profile-context { margin-top: 18px; }
+.profile-context h3 { font-size: 13px; font-weight: 550; margin-bottom: 10px; }
+.profile-context > div { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 10px 0; border-top: 1px solid #e2e8f0; font-size: 12px; }
+.profile-context > div > span:not(.badge), .profile-context small { color: #6b7b8f; }
+.share-controls { flex-wrap: wrap; justify-content: flex-start !important; gap: 8px !important; }
+.share-controls input, .share-controls select { width: auto; min-height: 32px; font-size: 12px; }
+.share-controls input { flex: 1 1 220px; max-width: 380px; }
+.share-column-menu { left: auto; right: 0; max-height: 380px; overflow: auto; }
+.share-column-menu label { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 12px; font-weight: 400; }
+.share-column-menu input { flex: none; width: 14px; min-height: 14px; }
+.share-context { justify-content: space-between; }
+.shared-feedback-save { min-height: 26px; padding: 3px 7px; font-size: 11px; margin-top: 3px; }
+.import-quality { border: 1px solid #dce3ed; border-radius: 6px; padding: 10px 12px; margin: 10px 0; display: flex; flex-wrap: wrap; gap: 8px 16px; background: #f8fafc; font-size: 12px; color: #5d6d82; }
+.import-quality strong { color: #1e3556; font-weight: 500; }
+.role-setup-hint { font-size: 12px; color: #687a90; margin: 0; }
+.role-directory-table td { padding: 10px 12px; font-size: 13px; }
+.role-directory-table .strong { font-weight: 500; }
+.role-directory-header .eyebrow { display: none; }
+.role-directory-filters { padding: 10px 12px; gap: 8px; }
+@media (max-width: 700px) {
+  .work-metrics { grid-template-columns: 1fr 1fr; }
+  .work-metrics > div { padding: 10px; border-bottom: 1px solid #e2e8f0; }
+  .profile-editor { grid-template-columns: 1fr; }
+  .share-controls input { max-width: none; flex-basis: 100%; }
+  .share-controls select { max-width: 46%; }
+  .share-context span:last-child { display: none; }
+  .saved-views-menu { left: auto; right: 0; }
+}
+
+.work-health { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 14px; font-size: 12px; color: #65748a; }
+.work-health details { position: relative; }
+.work-health summary { cursor: pointer; color: #9c4924; }
+.work-health details > div { position: absolute; z-index: 60; width: 300px; max-width: calc(100vw - 40px); right: 0; padding: 12px; border: 1px solid #dce3ed; border-radius: 8px; background: white; box-shadow: 0 8px 26px #13243b1c; }
+.work-health details a { display: block; padding: 5px 0; }
+.share-navigation-error { margin: 8px 12px; }

@@ -88,7 +88,7 @@ export function SheetCell({
   emptyTitle?: string;
   label: string;
   display?: (value: string) => ReactNode;
-  save: (value: string) => Promise<void>;
+  save: (value: string, previous?: string) => Promise<void>;
   onSaved?: (value: string) => void;
 }) {
   const [current, setCurrent] = useState(value);
@@ -105,6 +105,7 @@ export function SheetCell({
   const pendingRef = useRef("");
   const selectOnEditRef = useRef(true);
   const savedRef = useRef<string | null>(null);
+  const savingRef = useRef(false);
 
   useEffect(() => {
     if (status !== "saved") return;
@@ -153,7 +154,7 @@ export function SheetCell({
     if (!node) return;
     node.__sheetCommit = readOnly
       ? null
-      : (next: string) => commit(next, null);
+      : (next: string) => commit(next, null, true);
     return () => {
       node.__sheetCommit = null;
     };
@@ -163,7 +164,7 @@ export function SheetCell({
     if (readOnly || status === "saving" || editingRef.current) return;
     editingRef.current = true;
     selectOnEditRef.current = initial === undefined;
-    pendingRef.current = initial ?? current;
+    pendingRef.current = initial ?? (status === "error" ? draft : current);
     setDraft(pendingRef.current);
     setError("");
     setEditing(true);
@@ -178,7 +179,11 @@ export function SheetCell({
 
   // `move` runs instead of refocusing this cell. Losing focus to a click
   // elsewhere passes nothing, so the commit never drags focus back.
-  async function commit(next: string, move?: (() => boolean) | null) {
+  async function commit(next: string, move?: (() => boolean) | null, propagate = false) {
+    if (savingRef.current) {
+      if (propagate) throw new Error("This cell is still saving. Retry after it finishes.");
+      return;
+    }
     editingRef.current = false;
     setEditing(false);
     const applyFocus = () => {
@@ -202,13 +207,14 @@ export function SheetCell({
       return;
     }
     const previous = current;
+    savingRef.current = true;
     savedRef.current = next;
     setCurrent(next);
     setStatus("saving");
     setError("");
     restoreFocus();
     try {
-      await save(next);
+      await save(next, previous);
       setStatus("saved");
       onSaved?.(next);
     } catch (e) {
@@ -218,11 +224,12 @@ export function SheetCell({
       editingRef.current = false;
       setEditing(false);
       setCurrent(previous);
-      setDraft(previous);
+      setDraft(next);
       setStatus("error");
       setError((e as Error).message);
       rootRef.current?.focus();
-    }
+      if (propagate) throw e;
+    } finally { savingRef.current = false; }
   }
 
   async function toggleBoolean() {

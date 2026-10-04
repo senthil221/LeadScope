@@ -4854,3 +4854,76 @@ describe("agency_today_work_queue", () => {
     await sql("rollback");
   });
 });
+
+
+describe("workspace reliability and profile reuse", () => {
+  it("compares the edited field without blocking independent edits", async () => {
+    const f = await pipeline("checked-field");
+    await asUser(actor, () => rpc("save_cell_checked", ["profile",f.candidateId,"current_company","First company",""]));
+    await asUser(actor, () => rpc("save_cell_checked", ["profile",f.candidateId,"location","Chennai",""]));
+    await expect(asUser(actor, () => rpc("save_cell_checked", ["profile",f.candidateId,"current_company","Stale overwrite",""]))).rejects.toThrow("Another operator");
+    expect((await sql("select current_company,location from public.candidates where id=$1",[f.candidateId])).rows[0]).toEqual({current_company:"First company",location:"Chennai"});
+    await expect(asUser(outsider, () => rpc("save_cell_checked", ["profile",f.candidateId,"location","Elsewhere","Chennai"]))).rejects.toThrow();
+    await asUser(actor, () => rpc("save_cell_checked", ["role",f.rcId,"rating","4.7",""]));
+    await asUser(actor, () => rpc("save_cell_checked", ["role",f.rcId,"rating","4.8","4.70"]));
+    expect((await sql("select rating,stage from public.role_candidates where id=$1",[f.rcId])).rows[0]).toEqual({rating:"4.8",stage:"profile_shortlisted"});
+    const field = await asUser(actor,()=>rpc("add_role_field",[f.cid,f.rid,"Numeric detail","number","[]"]));
+    const key=(await sql("select key from public.role_fields where id=$1",[field])).rows[0].key;
+    await asUser(actor,()=>rpc("save_custom_field",[f.cid,f.rcId,key,"1.00"]));
+    await asUser(actor,()=>rpc("save_cell_checked",["role",f.rcId,'custom:'+key,'2','1']));
+    expect((await sql("select custom from public.role_candidates where id=$1",[f.rcId])).rows[0].custom[key]).toBe(2);
+  });
+  it("saves a profile form atomically and preserves fields that the form did not change", async () => {
+    const f=await pipeline("atomic-profile-form");
+    await sql("update public.candidates set location='Another operator' where id=$1",[f.candidateId]);
+    await expect(asUser(actor,()=>rpc("save_profile_patch",[f.candidateId,JSON.stringify({current_company:"Acme",location:"Chennai"}),JSON.stringify({current_company:"",location:""})]))).rejects.toThrow("Another operator");
+    expect((await sql("select current_company from public.candidates where id=$1",[f.candidateId])).rows[0].current_company).toBe("");
+    await asUser(actor,()=>rpc("save_profile_patch",[f.candidateId,JSON.stringify({current_company:"Acme",location:""}),JSON.stringify({current_company:"",location:""})]));
+    expect((await sql("select current_company,location from public.candidates where id=$1",[f.candidateId])).rows[0]).toEqual({current_company:"Acme",location:"Another operator"});
+  });
+  it("searches identities and contacts across the complete master dataset before paging", async () => {
+    const cid=await client(),rid=await role(cid);
+    const ids:string[]=[];
+    for(let i=0;i<55;i++) ids.push(await person('workspace-search-'+i,{currentCompany:'Workspace Search Co',location:i===54?'Chennai':'Bengaluru',phone:i===54?'9876501234':undefined,email:i===54?'workspace@example.com':undefined}));
+    await asUser(actor,()=>rpc("add_candidates_to_role",[cid,rid,ids,"linkedin"]));
+    const first=await asUser(actor,()=>rpc("master_profiles_page",[JSON.stringify({q:'workspace-search-'}),1]));
+    const second=await asUser(actor,()=>rpc("master_profiles_page",[JSON.stringify({q:'workspace-search-'}),2]));
+    expect(first.total).toBe(55);expect(first.rows).toHaveLength(50);expect(second.rows).toHaveLength(5);
+    expect(new Set([...first.rows,...second.rows].map((r:{id:string})=>r.id)).size).toBe(55);
+    for(const q of ['linkedin.com/in/workspace-search-54','workspace@example.com','9876501234']) {
+      const found=await asUser(actor,()=>rpc("master_profiles_page",[JSON.stringify({q}),1]));
+      expect(found.rows.map((r:{id:string})=>r.id)).toEqual([ids[54]]);
+      expect(found.rows[0].memberships).toEqual(expect.arrayContaining([expect.objectContaining({role_id:rid,client_id:cid})]));
+      expect(found.rows[0]).not.toHaveProperty('search_text');
+    }
+    const filtered=await asUser(actor,()=>rpc("master_profiles_page",[JSON.stringify({company:'Workspace Search Co',location:'Chennai',contact:'available',client:cid}),1]));
+    expect(filtered.total).toBe(1);
+    await asUser(actor,()=>rpc("set_candidate_linkedin",[ids[54],'https://www.linkedin.com/in/workspace-new-identity']));
+    expect((await asUser(actor,()=>rpc("master_profiles_page",[JSON.stringify({q:'linkedin.com/in/workspace-search-54'}),1]))).total).toBe(0);
+    expect((await asUser(actor,()=>rpc("master_profiles_page",[JSON.stringify({q:'workspace-new-identity'}),1]))).total).toBe(1);
+    await expect(asUser(outsider,()=>rpc("master_profiles_page",['{}',1]))).rejects.toThrow();
+  });
+  it("keeps client totals consistent and links the work queue to actual stage counts", async () => {
+    const f=await pipeline('workspace-totals');
+    await asUser(actor,()=>rpc("save_cell_checked",["role",f.rcId,"rating","4.7",""]));
+    await sql("update public.role_candidates set stage_entered_at=now()-interval '8 days' where id=$1",[f.rcId]);
+    const counts=await asUser(actor,()=>sql("select * from public.client_directory_counts() where client_id=$1",[f.cid]));
+    expect(counts.rows[0]).toMatchObject({all_profiles:1,profile_shortlisted:1});
+    const health=await asUser(actor,()=>rpc("workspace_mobile_health"));
+    expect(health).toHaveProperty("worker_online");
+    await expect(asUser(outsider,()=>rpc("workspace_mobile_health"))).rejects.toThrow();
+    const queue=await asUser(actor,()=>rpc("agency_workbench"));
+    expect(queue.find((r:{role_id:string})=>r.role_id===f.rid)).toMatchObject({waiting_mobile:1,stale:1,unrated:0,setup_missing:4});
+  });
+  it("protects client feedback against stale drafts and cross-role writes", async () => {
+    const f=await pipeline('checked-share');
+    await asUser(actor,()=>rpc("move_stage",[f.cid,[f.rcId],"recruiter_shortlisted",""]));
+    const token=freshToken();const link=await asUser(actor,()=>rpc("get_role_share_link",[f.cid,f.rid,token.token,token.hash]));
+    await rpc("write_shared_cell_checked",[hashOf(link.token),f.rcId,'client_notes',JSON.stringify('First review'),'']);
+    await expect(rpc("write_shared_cell_checked",[hashOf(link.token),f.rcId,'client_notes',JSON.stringify('Stale review'),''])).rejects.toThrow('Feedback changed');
+    const other=await pipeline('checked-share-other');
+    await expect(rpc("write_shared_cell_checked",[hashOf(link.token),other.rcId,'client_notes',JSON.stringify('Wrong role'),''])).rejects.toThrow('not found');
+    await expect(asUser(actor,()=>rpc("write_shared_cell_checked",[hashOf(link.token),f.rcId,'client_notes',JSON.stringify('Forbidden direct RPC'),'First review']))).rejects.toThrow('permission denied');
+    expect((await sql("select client_notes from public.role_candidates where id=$1",[f.rcId])).rows[0].client_notes).toBe('First review');
+  });
+});

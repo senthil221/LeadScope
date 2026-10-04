@@ -2,14 +2,14 @@
 .workspace { --sidebar-w: 232px; }
 .workspace :global(.shell-sidebar) { width: var(--sidebar-w); }
 .workspace :global(.shell-header) { width: 100%; background: #fff; backdrop-filter: none; }
-.workspace :global(.page-body) { width: 100%; padding-top: 24px; }
+.workspace :global(.page-body) { width: 100%; padding-top: 20px; }
 .workspace :global(.shell-label) { color: #65748a; font-size: 11px; letter-spacing: .07em; }
 .workspace :global(.shell-crumbs) { max-width: calc(100% - 140px); }
 .workspace :global(.shell-crumbs [aria-current]) { overflow: hidden; text-overflow: ellipsis; }
 .workspace :global(.shell-link) { font-size: 13px; }
 .workspace :global(.shell-link svg) { flex-shrink: 0; }
-.workspace :global(.page-header h1) { font-size: 26px; letter-spacing: -.03em; line-height: 1.25; }
-.workspace :global(.page-header) { margin-bottom: 20px; gap: 16px; }
+.workspace :global(.page-header h1) { font-size: 22px; letter-spacing: -.03em; line-height: 1.25; }
+.workspace :global(.page-header) { margin-bottom: 14px; gap: 12px; }
 .workspace :global(.page-header p) { margin-bottom: 0; max-width: 720px; }
 .workspace :global(.page-header .count) { font-size: 13px; vertical-align: middle; }
 .workspace :global(.eyebrow) { font-size: 11px; letter-spacing: .07em; }
@@ -23,7 +23,7 @@
 .workspace :global(.role-directory-header .header-actions select) { width: 190px; min-width: 0; min-height: 36px; }
 .workspace :global(.role-directory-header .header-actions button) { white-space: nowrap; }
 .workspace :global(.table-wrap > table:not(.sheet-table) th) { font-size: 12px; text-transform: none; letter-spacing: 0; font-weight: 600; color: #526278; padding-block: 12px; }
-.workspace :global(.table-wrap > table:not(.sheet-table) td) { padding-block: 12px; }
+.workspace :global(.table-wrap > table:not(.sheet-table) td) { padding-block: 9px; }
 .workspace :global(.role-directory-table table) { min-width: 1000px; }
 .workspace :global(.role-directory-table td:first-child) { min-width: 280px; }
 .workspace :global(.blocklist-table:has(tbody tr button) table) { min-width: 760px; }

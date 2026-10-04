@@ -141,6 +141,7 @@ export type Role = {
   updated_at: string;
 };
 export type MasterCandidate = {
+  memberships?: { id: string; role_id: string; role_name: string; client_id: string; client_name: string; stage: string; recruiters: string[]; archived: boolean }[];
   id: string;
   full_name: string;
   headline: string;
@@ -284,6 +285,8 @@ export type Preflight = {
   target: number;
 };
 export type PageData = {
+  mobileHealth?: { worker_online: boolean; active: number; attention: number; completed_today: number; empty_today: number; roles: { id: string; name: string; jobs: number }[] };
+  workbench?: import("@/components/recruiting/work-queue").WorkItem[];
   blocklist?: { id: string; client_id: string | null; linkedin_url: string; note: string; created_at: string }[];
   prospects?: import("./prospects").Prospect[];
   reviewEvents?: ReviewEvent[];

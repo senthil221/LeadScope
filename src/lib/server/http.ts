@@ -19,11 +19,11 @@ export function sameOrigin(request: Request): string {
     throw new AppError("This action must be made from the application.", 403);
   return origin;
 }
-export async function body(request: Request) {
+export async function body(request: Request, limit = 64000) {
   sameOrigin(request);
   if (!request.headers.get("content-type")?.startsWith("application/json"))
     throw new AppError("Expected JSON.");
-  const text = await boundedText(request, 64000);
+  const text = await boundedText(request, limit);
   try {
     return JSON.parse(text);
   } catch {

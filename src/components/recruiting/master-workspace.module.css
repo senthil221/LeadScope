@@ -1,4 +1,4 @@
-.sheet { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); overflow: hidden; box-shadow: var(--shadow-sm); }
+.sheet { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); overflow: visible; box-shadow: var(--shadow-sm); }
 .sheet :global(.sheet-toolbar) { margin: 0; padding: 12px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; }
 .sheet :global(.sheet-toolbar input) { flex: 1 1 260px; width: 260px; max-width: 520px; min-width: 0; min-height: 36px; }
 .sheet :global(.sheet-toolbar a) { color: var(--brand-ink); font-size: 12px; padding: 8px; }

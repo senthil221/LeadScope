@@ -1,3 +1,5 @@
+import { collectPages } from "@/lib/server/collect-pages";
+import { serializeRoleFilters } from "@/lib/recruiting/list-filters";
 import { z } from "zod";
 import { admin, AppError, checked } from "@/lib/server/db";
 import { failure } from "@/lib/server/http";
@@ -59,22 +61,8 @@ export async function GET(request: Request) {
           .eq("client_id", clientId)
           .single(),
       );
-      const [result, fieldResult] = await Promise.all([
-        roleCandidateListQuery(
-          db,
-          role.id,
-          stage,
-          role.rating_threshold,
-          roleCandidateListFilters({
-            q: params.get("q") ?? undefined,
-            source: params.get("source") ?? undefined,
-            source_detail: params.get("source_detail") ?? undefined,
-            rating: params.get("rating") ?? undefined,
-            entered_from: params.get("entered_from") ?? undefined,
-            entered_to: params.get("entered_to") ?? undefined,
-            sort: params.get("sort") ?? undefined,
-          }),
-        ).range(0, 9999),
+      const [rows, fieldResult] = await Promise.all([
+        collectPages<RoleCandidate>((from, to) => roleCandidateListQuery(db, role.id, stage, role.rating_threshold, roleCandidateListFilters(serializeRoleFilters(params))).range(from, to) as unknown as PromiseLike<{ data: RoleCandidate[] | null; error: { message: string } | null; count: number | null }>, 10000),
         db
           .from("role_fields")
           .select("id,role_id,key,label,kind,options,ordinal,archived")
@@ -82,12 +70,7 @@ export async function GET(request: Request) {
           .eq("archived", false)
           .order("ordinal"),
       ]);
-      const rows = checked(result) as unknown as RoleCandidate[];
       const fields = checked(fieldResult) as RoleField[];
-      if ((result.count ?? 0) > 10_000)
-        throw new AppError(
-          "Export fewer than 10,000 candidates at a time. Narrow the filters and try again.",
-        );
       return new Response(
         serializeExport(
           rows.map((candidate) => roleCandidateExportCells(candidate, fields)),

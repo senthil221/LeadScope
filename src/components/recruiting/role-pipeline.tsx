@@ -2,7 +2,7 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, useEffect, useMemo, useRef, useCallback, useState, useSyncExternalStore } from "react";
 import {
   Archive,
   ArrowLeft,
@@ -68,6 +68,10 @@ import {
   isDraftReady,
   type DraftRow,
 } from "@/lib/recruiting/drafts";
+import { serializeRoleFilters } from "@/lib/recruiting/list-filters";
+import { SavedViews } from "./saved-views";
+import { useBatchedRefresh } from "@/lib/client/use-batched-refresh";
+import { saveCell } from "@/lib/client/save-cell";
 import { act as sharedAct } from "@/lib/client/act";
 import { ColumnResizeHandle, useTableLayout } from "./table-layout";
 import styles from "./role-workspace.module.css";
@@ -264,7 +268,9 @@ export function RolePipeline({
   const [rejecting, setRejecting] = useState(false);
   const [rejectingIds, setRejectingIds] = useState<string[]>([]);
   const [movingCandidateId, setMovingCandidateId] = useState<string | null>(null);
-  const [panelId, setPanelId] = useState<string | null>(null);
+  const [panelId, setPanelId] = useState<string | null>(params.get("candidate"));
+  const [linkedCandidate, setLinkedCandidate] = useState<RoleCandidate | null>(null);
+
   const [managingFields, setManagingFields] = useState(false);
   const [sharing, setSharing] = useState<"client" | null>(null);
   const [pushingProfiles, setPushingProfiles] = useState<{ membershipIds?: string[] } | null>(null);
@@ -273,6 +279,7 @@ export function RolePipeline({
   const [savingFollowUpId, setSavingFollowUpId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
+
   const [message, setMessage] = useState("");
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
   const [drafts, setDrafts] = useState<DraftRow[]>(() => [newDraft()]);
@@ -336,7 +343,8 @@ export function RolePipeline({
   );
   // A different tab, filter or sort is a different list, so what was loaded
   // for the old one is dropped rather than shown under the new heading.
-  const listKey = `${role.id}:${tab}:${params.toString()}`;
+  const [dataVersion, setDataVersion] = useState(0);
+  const listKey = `${role.id}:${tab}:${params.toString()}:${dataVersion}`;
   const [loadedListKey, setLoadedListKey] = useState(listKey);
   const listKeyRef = useRef(listKey);
   useEffect(() => {
@@ -350,19 +358,16 @@ export function RolePipeline({
     if (laterRows.length) setLaterRows([]);
   }
   const moreToLoad = nextOffset < total;
+  const atRenderLimit = roleCandidates.length >= 200;
   async function loadMore() {
     // Scroll events can fire again before React commits the loading state.
     // Guard synchronously so a single scroll never fetches the same page twice.
-    if (loadingMoreRef.current || !moreToLoad || !isStage(tab)) return;
+    if (loadingMoreRef.current || !moreToLoad || atRenderLimit || !isStage(tab)) return;
     loadingMoreRef.current = true;
     const requestedList = listKey;
     setLoadingMore(true);
     try {
-      const filters: Record<string, string> = {};
-      for (const key of ["q", "source", "source_detail", "rating", "entered_from", "entered_to", "sort"]) {
-        const value = params.get(key);
-        if (value) filters[key] = value;
-      }
+      const filters = serializeRoleFilters(params);
       const next = await act<RoleCandidate[]>("roleCandidatePage", {
         clientId: client.id,
         roleId: role.id,
@@ -371,7 +376,7 @@ export function RolePipeline({
         offset: nextOffset,
       });
       if (listKeyRef.current !== requestedList) return;
-      setNextOffset(nextOffset + next.length);
+      setNextOffset(next.length ? nextOffset + next.length : total);
       // Rows can be added while somebody scrolls, which shifts the offsets
       // under them; anything already on screen is not shown twice.
       const seen = new Set(roleCandidates.map((row) => row.id));
@@ -544,7 +549,8 @@ export function RolePipeline({
   const fixedWidth = utilityWidth + nameWidth + actionWidth;
   const dataWidth = visibleCandidateColumns.reduce((sum, column) => sum + layout.width(column.id, columnWidths[column.width]), 0);
   const tableWidth = Math.max(tableFrameWidth, fixedWidth + dataWidth);
-  const displayedWidth = (column: CandidateColumn) => layout.width(column.id, columnWidths[column.width]) * (tableWidth - fixedWidth) / dataWidth;
+  const flexibleIds = visibleCandidateColumns.filter((column) => ["linkedin", "notes", "follow_up_note", "headline", "current_company"].includes(column.id)).map((column) => column.id);
+  const displayedWidth = (column: CandidateColumn) => layout.width(column.id, columnWidths[column.width]) + (flexibleIds.includes(column.id) ? (tableWidth - fixedWidth - dataWidth) / flexibleIds.length : 0);
 
   function toggleColumn(column: ColumnId) {
     const next = visibleColumns.includes(column)
@@ -576,11 +582,19 @@ export function RolePipeline({
   // somebody. router.refresh() only clears the page you are standing on, so
   // each change bumps this instead: it rides along in the other tabs' links,
   // and a link nobody has fetched cannot answer from a cache.
-  const [dataVersion, setDataVersion] = useState(0);
-  function refresh() {
+  useEffect(() => {
+    const id = panelId;
+    if (!id) return;
+    let cancelled = false;
+    act<RoleCandidate>("roleCandidateDetail", { id, roleId: role.id }).then((row) => { if (!cancelled) setLinkedCandidate(row); }).catch((e) => { if (!cancelled) { setError((e as Error).message); setPanelId(null); } });
+    return () => { cancelled = true; };
+  }, [panelId, role.id, dataVersion]);
+  const { beginBatch, endBatch, refresh } = useBatchedRefresh(useCallback(() => {
+    setLaterRows([]);
+    setNextOffset((page - 1) * 50 + firstRows.length);
     setDataVersion((version) => version + 1);
     router.refresh();
-  }
+  }, [page, firstRows.length, router]));
   const tabUrl = (key: Tab) => roleStageUrl(path, params.toString(), tab, key, dataVersion);
   function startTabNavigation(key: Tab) {
     if (key !== tab) {
@@ -716,7 +730,7 @@ export function RolePipeline({
         // Matched on an email or a Naukri id rather than a profile URL, so
         // nothing was written: that match is not proof of the same person.
         summary.flagged
-          ? `${summary.flagged} matched someone already on file by email or Naukri id, not by LinkedIn URL — left for you to check`
+          ? `${summary.flagged} matched someone already on file by email or Naukri id, not by LinkedIn URL. left for you to check`
           : "",
       ].filter(Boolean);
       setMessage(parts.join(" · ") || "Nothing to add.");
@@ -773,29 +787,33 @@ export function RolePipeline({
     setMessage(`Pasting ${writes.length} cells…`);
     // A wide paste is a lot of single-field saves; a small window keeps the
     // API responsive without dropping any of them.
+    beginBatch();
     const failures: string[] = [];
     for (let index = 0; index < writes.length; index += 6) {
       await Promise.all(
         writes.slice(index, index + 6).map(async ({ node, value }) => {
           try {
-            await node.__sheetCommit?.(value);
+            if (!node.__sheetCommit) throw new Error("Cell is no longer available. Retry this row.");
+            await node.__sheetCommit(value);
           } catch (e) {
             failures.push((e as Error).message);
           }
         }),
       );
     }
+    endBatch();
     const pastedRows = block.length - skipped;
     setMessage(
       [
-        `Pasted ${writes.length} cells across ${pastedRows} row${pastedRows === 1 ? "" : "s"}.`,
+        `Saved ${writes.length - failures.length} of ${writes.length} cells across ${pastedRows} row${pastedRows === 1 ? "" : "s"}.`,
         skipped ? `${skipped} row${skipped === 1 ? "" : "s"} had no matching row in this tab. Add those candidates first.` : "",
         failures.length ? `${failures.length} cells could not be saved.` : "",
       ]
         .filter(Boolean)
         .join(" "),
     );
-    refresh();
+    if (failures.length) setError(`${failures.length} cells failed. Their drafts are kept. Click a failed cell to retry. ${failures[0]}`);
+    else refresh();
   }
 
   // One cell renderer for the whole grid. Every editable column resolves to a
@@ -812,7 +830,7 @@ export function RolePipeline({
     const cell = (
       props: Partial<Parameters<typeof SheetCell>[0]> & {
         value: string;
-        save: (value: string) => Promise<void>;
+        save: (value: string, previous?: string) => Promise<void>;
       },
     ) => (
       <td
@@ -833,8 +851,7 @@ export function RolePipeline({
     const candidateField = (field: string, value: string) =>
       cell({
         value,
-        save: (next) =>
-          act("candidateField", { id: rc.candidate_id, field, value: next }),
+        save: async (next, previous) => { await saveCell("profile", rc.candidate_id, field, next, previous); },
       });
 
     if (column.id.startsWith("custom:")) {
@@ -844,20 +861,7 @@ export function RolePipeline({
         options: field.options,
         value:
           raw == null ? "" : typeof raw === "boolean" ? String(raw) : String(raw),
-        save: (next) =>
-          act("customField", {
-            clientId: client.id,
-            id: rc.id,
-            key: field.key,
-            value:
-              next === ""
-                ? null
-                : field.kind === "number"
-                  ? Number(next)
-                  : field.kind === "boolean"
-                    ? next === "true"
-                    : next,
-          }),
+        save: async (next, previous) => { await saveCell("role", rc.id, `custom:${field.key}`, next, previous); },
       });
     }
 
@@ -875,16 +879,13 @@ export function RolePipeline({
         return cell({
           options: candidateSources.map((option) => candidateSourceLabels[option]),
           value: candidateSourceLabel(rc.source),
-          save: async (next) => {
+          save: async (next, previous) => {
             const source = candidateSources.find(
               (option) => candidateSourceLabels[option] === next,
             );
             if (!source || source === rc.source) return;
-            const result = await act<{ moved: boolean }>("candidateSource", {
-              clientId: client.id,
-              id: rc.id,
-              source,
-            });
+            const previousSource = candidateSources.find((option) => candidateSourceLabels[option] === previous) ?? rc.source;
+            const result = await saveCell("role", rc.id, "source", source, previousSource);
             // Naukri is not rated here, so this can also change where the row
             // sits. Say so rather than letting the Status column change under
             // somebody who was only correcting a column.
@@ -916,7 +917,7 @@ export function RolePipeline({
           >
             <div className="candidate-profile-cell">
               <SheetCell row={rowIndex} col={colIndex} label={`LinkedIn, row ${rowIndex + 1}`} value={url ?? ""} display={shortProfileUrl} placeholder="Add LinkedIn URL" readOnly={locked}
-                save={async (value) => { await act("candidateLinkedIn", { id: rc.candidate_id, value }); refresh(); }} />
+                save={async (value, previous) => { await saveCell("profile", rc.candidate_id, "linkedin", value, previous); refresh(); }} />
               {url && <a className="candidate-link" href={url} rel="noreferrer" target="_blank" aria-label={`Open ${rc.candidates.full_name} on LinkedIn`}><ExternalLink size={14} /></a>}
             </div>
           </td>
@@ -951,7 +952,7 @@ export function RolePipeline({
       case "rating":
         return cell({
           value: rc.rating == null ? "" : String(rc.rating),
-          save: async (next) => {
+          save: async (next, previous) => {
             const rating = next === "" ? null : Number(next);
             if (
               rating !== null &&
@@ -961,7 +962,7 @@ export function RolePipeline({
                 Math.round(rating * 10) !== rating * 10)
             )
               throw new Error("Enter a rating from 0.0 to 5.0.");
-            await act("rate", { clientId: client.id, id: rc.id, rating });
+            await saveCell("role", rc.id, "rating", next, previous);
             if (tab === "all_profiles" && rating !== null && rating >= role.rating_threshold)
               setMessage(
                 `${rc.candidates.full_name} moved to Profile shortlisted after meeting the ${role.rating_threshold} / 5 threshold.`,
@@ -972,13 +973,12 @@ export function RolePipeline({
       case "notes":
         return cell({
           value: rc.client_notes,
-          save: (next) =>
-            act("clientNote", { clientId: client.id, id: rc.id, note: next }),
+          save: async (next, previous) => { await saveCell("role", rc.id, "client_notes", next, previous); },
         });
       case "follow_up_note":
         return cell({
           value: rc.follow_up_note ?? "",
-          save: (next) => act("followUpNote", { clientId: client.id, id: rc.id, note: next }),
+          save: async (next, previous) => { await saveCell("role", rc.id, "follow_up_note", next, previous); },
         });
       case "outcome":
         return cell({
@@ -1054,7 +1054,7 @@ export function RolePipeline({
               }
             }}>
               <div className="phone-sheet-cell">
-                <SheetCell col={colIndex} row={rowIndex} kind={column.kind} label={`${column.label}, row ${rowIndex + 1}`} placeholder={column.placeholder} emptyContent={running ? <span className="phone-pending-result">Looking up…</span> : zeroPhones ? <span className="phone-empty-result">0 phones found</span> : undefined} emptyTitle={checkedTitle} readOnly={locked} value={(column.id === "phone" ? rc.candidates.phone : rc.candidates.alternate_phone) ?? ""} display={formatMobile} save={(next) => act("candidateField", { id: rc.candidate_id, field: column.id, value: next })} />
+                <SheetCell col={colIndex} row={rowIndex} kind={column.kind} label={`${column.label}, row ${rowIndex + 1}`} placeholder={column.placeholder} emptyContent={running ? <span className="phone-pending-result">Looking up…</span> : zeroPhones ? <span className="phone-empty-result">0 phones found</span> : undefined} emptyTitle={checkedTitle} readOnly={locked} value={(column.id === "phone" ? rc.candidates.phone : rc.candidates.alternate_phone) ?? ""} display={formatMobile} save={async (next, previous) => { await saveCell("profile", rc.candidate_id, column.id, next, previous); }} />
                 <button type="button" className="phone-lookup-trigger" aria-label={`${open ? "Close mobile enrichment" : "Find mobile numbers"} for ${rc.candidates.full_name}`} aria-expanded={open} title={open ? "Close inline enrichment" : "Enrich mobile numbers in this cell"} disabled={locked} onClick={() => setInlinePhoneCell(open ? null : cellId)}>
                   {open ? <X size={12} /> : running ? <LoaderCircle className="phone-lookup-spinner" size={12} /> : <Phone size={12} />}
                 </button>
@@ -1130,11 +1130,7 @@ export function RolePipeline({
     setSelectingAll(true);
     setError("");
     try {
-      const filters: Record<string, string> = {};
-      for (const key of ["q", "source", "rating", "entered_from", "entered_to", "sort"]) {
-        const value = params.get(key);
-        if (value) filters[key] = value;
-      }
+      const filters = serializeRoleFilters(params);
       const ids = await act<string[]>("roleCandidateIds", {
         clientId: client.id,
         roleId: role.id,
@@ -1143,7 +1139,7 @@ export function RolePipeline({
       });
       setSelected(ids);
       if (ids.length < total)
-        setMessage(`Selected the first ${ids.length} of ${total}. Edit these, then select again for the rest.`);
+        setMessage(`Selected the first ${ids.length} of ${total}. Narrow the filters to work on the remaining profiles.`);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1162,7 +1158,7 @@ export function RolePipeline({
       summary.rated && `${summary.rated} rated`,
       summary.updated && `${summary.updated} updated`,
       summary.skipped &&
-        `${summary.skipped} skipped, not on this role yet — add them from All profiles`,
+        `${summary.skipped} skipped, not on this role yet. add them from All profiles`,
       summary.invalid && `${summary.invalid} skipped as invalid`,
     ].filter(Boolean);
     // Only a profile URL is taken as proof that two rows are one person. A row
@@ -1480,7 +1476,7 @@ export function RolePipeline({
               not just what is on screen. */}
           {total > selected.length && (
             <button type="button" disabled={selectingAll} onClick={() => void selectAllMatching()}>
-              {selectingAll ? "Selecting…" : `Select all ${total}`}
+              {selectingAll ? "Selecting…" : total > 2000 ? "Select first 2,000" : `Select all ${total}`}
             </button>
           )}
           <button type="button" onClick={() => setPushingProfiles({ membershipIds: selected })}>Push to role</button>
@@ -1670,8 +1666,9 @@ export function RolePipeline({
               )}
             </div>
             {(query || activeCandidateFilterCount > 0 || params.get("sort")) && (
-              <Link className="candidate-clear-filters" href={stageFilterUrl({ q: "", source: "", source_detail: "", rating: "", entered_from: "", entered_to: "", sort: "" })}>Clear</Link>
+              <Link className="candidate-clear-filters" href={stageFilterUrl({ q: "", source: "", source_detail: "", contact: "", stale: "", rating: "", entered_from: "", entered_to: "", sort: "" })}>Clear</Link>
             )}
+            <SavedViews roleId={role.id} stage={tab} columns={JSON.stringify({ visible: visibleColumns, order: orderedColumns })} onColumns={(value) => { try { localStorage.setItem(columnStorageKey, value); } catch {} setColumnPreference({ scope: columnStorageKey, value }); }} />
             <button type="button" aria-label="Compact rows" aria-pressed={layout.compact} onClick={layout.toggleDensity}>
               <Rows3 size={15} aria-hidden="true" />
               {layout.compact ? "Compact" : "Comfortable"}
@@ -1679,6 +1676,7 @@ export function RolePipeline({
           </div>
         </form>
         <div className="sheet-bar-actions">
+          {(params.get("contact") || params.get("stale")) && <Link className="filter-chip" href={stageFilterUrl({ contact: "", stale: "" })}>{params.get("contact") === "missing" ? "Missing mobile" : params.get("contact") ? "Has mobile" : ""}{params.get("stale") ? " · 7+ days in stage" : ""} ×</Link>}
           <span className="role-table-count">
             {total} candidate{total === 1 ? "" : "s"}
           </span>
@@ -1998,13 +1996,13 @@ export function RolePipeline({
                         </a>
                       ) : "Not provided"}
                     </td>
-                    <td title={c.headline ?? ""}>{c.headline || "—"}</td>
-                    <td title={c.current_company ?? ""}>{c.current_company || "—"}</td>
-                    <td title={c.location ?? ""}>{c.location || "—"}</td>
+                    <td title={c.headline ?? ""}>{c.headline || ""}</td>
+                    <td title={c.current_company ?? ""}>{c.current_company || ""}</td>
+                    <td title={c.location ?? ""}>{c.location || ""}</td>
                     <td>
                       {c.total_experience_years != null
                         ? `${c.total_experience_years} yrs`
-                        : "—"}
+                        : ""}
                     </td>
                     <td>
                       {c.phone || c.email ? (
@@ -2167,13 +2165,7 @@ export function RolePipeline({
                         label={`Full name, row ${rowIndex + 1}`}
                         readOnly={role.archived}
                         row={rowIndex}
-                        save={(value) =>
-                          act("candidateField", {
-                            id: rc.candidate_id,
-                            field: "full_name",
-                            value,
-                          })
-                        }
+                        save={async (value, previous) => { await saveCell("profile", rc.candidate_id, "full_name", value, previous); }}
                         value={rc.candidates.full_name}
                       />
                     </td>
@@ -2310,7 +2302,8 @@ export function RolePipeline({
             <div className="row">
               {page > 1 && <Link className="button small" href={stagePageUrl(1).replace(/&bottom=1/, "")}>Back to top</Link>}
               {loadingMore && <span className="muted">Loading…</span>}
-              {moreToLoad && !loadingMore && (
+              {moreToLoad && atRenderLimit && <Link className="button small" href={stagePageUrl(Math.floor(nextOffset / 50) + 1)}>Continue to next 200</Link>}
+              {moreToLoad && !atRenderLimit && !loadingMore && (
                 <button className="small" type="button" onClick={() => void loadMore()}>
                   Load more
                 </button>
@@ -2387,10 +2380,10 @@ export function RolePipeline({
       {panelId && (
         (() => {
           const panelIndex = roleCandidates.findIndex((rc) => rc.id === panelId);
-          const panelCandidate = roleCandidates[panelIndex];
-          if (!panelCandidate) return null;
+          const panelCandidate = linkedCandidate?.id === panelId ? linkedCandidate : null;
+          if (!panelCandidate) return <DialogLoading />;
           const previous = roleCandidates[panelIndex - 1];
-          const next = roleCandidates[panelIndex + 1];
+          const next = panelIndex >= 0 ? roleCandidates[panelIndex + 1] : undefined;
           return (
             <CandidatePanel
               key={panelCandidate.id}
@@ -2404,10 +2397,10 @@ export function RolePipeline({
               nextCandidate={
                 next ? { id: next.id, name: next.candidates.full_name } : null
               }
-              position={panelIndex + 1}
+              position={Math.max(1, panelIndex + 1)}
               totalInView={roleCandidates.length}
               onNavigate={setPanelId}
-              onClose={() => setPanelId(null)}
+              onClose={() => { setPanelId(null); setLinkedCandidate(null); }}
               onChanged={() => refresh()}
             />
           );

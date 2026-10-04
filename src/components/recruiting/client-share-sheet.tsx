@@ -1,0 +1,29 @@
+"use client";
+import { useMemo, useState } from "react";
+import { SharedFieldCell } from "./shared-field-cell";
+import { ShareRefresh } from "./share-refresh";
+import styles from "@/app/share/[token]/share-page.module.css";
+export type ReviewRow = { id: string; name: string; subtitle: string; linkedin?: string; note?: string; stage: string; values: Record<string,string>; resume: boolean };
+export function ClientShareSheet({ token, rows, columns, canEditNotes, roleName }: { token: string; rows: ReviewRow[]; columns: { key: string; label: string }[]; canEditNotes: boolean; roleName: string }) {
+  const [query, setQuery] = useState(""); const [stage, setStage] = useState(""); const [sort, setSort] = useState("added"); const [page, setPage] = useState(0); const [hidden, setHidden] = useState<string[]>([]);
+  const [navigationError, setNavigationError] = useState("");
+  function changeView(change: () => void) {
+    if (document.querySelector('[data-unsaved="true"]')) { setNavigationError("Save your feedback before changing this view. If saving failed, your draft is still in its cell."); return; }
+    setNavigationError(""); change();
+  }
+  const visible = columns.filter((c) => !hidden.includes(c.key));
+  const filtered = useMemo(() => {
+    const found = rows.filter((r) => (!stage || r.stage === stage) && (!query.trim() || [r.name,r.subtitle,r.linkedin,r.note,...Object.values(r.values)].join(" ").toLowerCase().includes(query.trim().toLowerCase())));
+    if (sort === "name") found.sort((a,b) => a.name.localeCompare(b.name));
+    if (sort === "rating") found.sort((a,b) => (parseFloat(b.values.rating) || -1) - (parseFloat(a.values.rating) || -1));
+    return found;
+  }, [rows, query, stage, sort]);
+  const currentPage = Math.min(page, Math.max(0, Math.ceil(filtered.length / 25) - 1));
+  return <section className={styles.sheet} aria-label="Candidate review sheet">
+    <div className={`${styles.toolbar} share-controls`}><input type="search" aria-label="Search shared candidates" placeholder="Search candidates or details" value={query} onChange={(e) => { const value = e.target.value; changeView(() => { setQuery(value); setPage(0); }); }} /><select aria-label="Review stage" value={stage} onChange={(e) => { const value = e.target.value; changeView(() => { setStage(value); setPage(0); }); }}><option value="">All shared stages</option>{[...new Set(rows.map((r) => r.stage))].map((s) => <option key={s}>{s}</option>)}</select><select aria-label="Sort shared candidates" value={sort} onChange={(e) => { const value = e.target.value; changeView(() => setSort(value)); }}><option value="added">Recently added</option><option value="name">Candidate name</option><option value="rating">Highest rating</option></select><details><summary>Columns ({visible.length})</summary><div className="share-column-menu"><button type="button" onClick={() => setHidden([])}>Show all columns</button>{columns.map((c) => <label key={c.key}><input type="checkbox" checked={!hidden.includes(c.key)} onChange={() => setHidden((h) => h.includes(c.key) ? h.filter((x) => x !== c.key) : [...h,c.key])} />{c.label}</label>)}</div></details></div>
+    {navigationError && <p className="error share-navigation-error" role="alert">{navigationError}</p>}
+    <div className="share-context"><span>{filtered.length} candidates</span><span>All candidate columns are available. Feedback is saved when you leave the cell.</span></div>
+    <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="Candidate details. Scroll horizontally to see all columns."><table className={styles.table}><caption className={styles.srOnly}>Candidates shared for {roleName}</caption><colgroup><col style={{width:40}} /><col className={styles.identityColumn} /><col style={{width:280}} />{visible.map((c) => <col key={c.key} style={{width:c.key === "email" ? 230 : ["headline","current_company","offer_notes"].includes(c.key) ? 220 : c.key === "rating" ? 90 : 140}} />)}</colgroup><thead><tr><th scope="col">#</th><th scope="col" className={styles.identity}>Candidate</th><th scope="col">Your feedback</th>{visible.map((c) => <th scope="col" key={c.key}>{c.label}</th>)}</tr></thead><tbody>{filtered.slice(currentPage*25,currentPage*25+25).map((r,index) => <tr key={r.id}><td className={styles.rowNumber}>{currentPage*25+index+1}</td><th scope="row" className={styles.identity}><strong className={styles.name}>{r.name}</strong>{r.subtitle && <span className={styles.subtitle}>{r.subtitle}</span>}{r.linkedin && <a className={styles.profileLink} href={r.linkedin} rel="noreferrer" target="_blank">LinkedIn ↗</a>}</th><td className={styles.feedback}>{canEditNotes ? <SharedFieldCell token={token} roleCandidateId={r.id} column="client_notes" value={r.note} kind="text" multiline label={`Feedback for ${r.name}`} /> : r.note}</td>{visible.map((c) => <td key={c.key}>{c.key === "resume" && r.resume ? <a href={`/api/share/${token}?resume=${r.id}`} target="_blank" rel="noreferrer">Open resume</a> : <span className={styles.value} title={r.values[c.key] || undefined} aria-label={r.values[c.key] ? undefined : "Not provided"}>{r.values[c.key]}</span>}</td>)}</tr>)}</tbody></table>{!filtered.length && <div className={styles.empty}><h2>No matching candidates</h2><p>{rows.length ? "Try another search or stage." : "Your recruiter will add profiles here shortly."}</p></div>}</div>
+    <div className={styles.sheetFooter}><span>{filtered.length ? `${currentPage*25+1}–${Math.min((currentPage+1)*25,filtered.length)} of ${filtered.length}` : "0 profiles"}</span><div className="row"><button disabled={!currentPage} onClick={() => changeView(() => setPage(currentPage-1))}>Previous</button><button disabled={(currentPage+1)*25>=filtered.length} onClick={() => changeView(() => setPage(currentPage+1))}>Next</button></div><ShareRefresh /></div>
+  </section>;
+}

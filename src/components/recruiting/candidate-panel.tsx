@@ -27,6 +27,7 @@ import {
   normalizeCandidatePhone,
 } from "@/lib/recruiting/contact";
 import { MobileField } from "./mobile-field";
+import { ProfileContext } from "./profile-context";
 import { TableDialog } from "./table-dialog";
 import { act as sharedAct } from "@/lib/client/act";
 
@@ -211,6 +212,7 @@ export function CandidatePanel({
     email: c.email ?? "",
     linkedin: existingLinkedin,
   });
+  const [savedDetails, setSavedDetails] = useState(details);
   const [screening, setScreening] = useState<Screening>(
     (rc.screening as Screening) ?? {},
   );
@@ -289,27 +291,11 @@ export function CandidatePanel({
     setSavingDetails(true);
     setError("");
     try {
-      await act("candidateDetails", {
-        id: c.id,
-        fullName: details.fullName,
-        headline: details.headline,
-        currentCompany: details.currentCompany,
-        currentDesignation: details.currentDesignation,
-        location: details.location,
-        totalExperienceYears: details.totalExperienceYears.trim()
-          ? Number(details.totalExperienceYears)
-          : null,
-        phone: phone.value,
-        alternatePhone: alternate.value,
-        email,
-        linkedin: linkedin.value,
-      });
-      setDetails((current) => ({
-        ...current,
-        phone: phone.value ?? "",
-        alternatePhone: alternate.value ?? "",
-        email: email ?? "",
-      }));
+      const normalized = { ...details, phone: phone.value ?? "", alternatePhone: alternate.value ?? "", email: email ?? "", linkedin: linkedin.value };
+      const fields = (d: typeof details) => ({ full_name: d.fullName, headline: d.headline, current_company: d.currentCompany, current_designation: d.currentDesignation, location: d.location, total_experience_years: d.totalExperienceYears, phone: d.phone, alternate_phone: d.alternatePhone, email: d.email, linkedin: d.linkedin });
+      await act("saveProfilePatch", { id: c.id, values: fields(normalized), expected: fields(savedDetails) });
+      setDetails(normalized);
+      setSavedDetails(normalized);
       setMessage("Candidate details saved.");
       onChanged();
     } catch (e) {
@@ -447,19 +433,8 @@ export function CandidatePanel({
       setRestoring(false);
     }
   }
-  function navigate(id: string) {
-    const detailsChanged =
-      details.fullName !== c.full_name ||
-      details.headline !== c.headline ||
-      details.currentCompany !== c.current_company ||
-      details.currentDesignation !== c.current_designation ||
-      details.location !== c.location ||
-      details.totalExperienceYears !==
-        (c.total_experience_years != null ? String(c.total_experience_years) : "") ||
-      details.phone !== (c.phone ?? "") ||
-      details.alternatePhone !== (c.alternate_phone ?? "") ||
-      details.email !== (c.email ?? "") ||
-      details.linkedin !== existingLinkedin;
+  function hasUnsavedChanges() {
+    const detailsChanged = JSON.stringify(details) !== JSON.stringify(savedDetails);
     const screeningChanged =
       JSON.stringify(screening) !== JSON.stringify((rc.screening as Screening) ?? {}) ||
       internalNotes !== rc.internal_notes;
@@ -471,22 +446,18 @@ export function CandidatePanel({
       offer.expectedStartAt !== (rc.expected_start_at ?? "") ||
       offer.notes !== rc.offer_notes;
     const clientNoteChanged = clientNotes !== savedClientNotes;
-    if (
-      !detailsChanged &&
-      !screeningChanged &&
-      !offerChanged &&
-      !clientNoteChanged
-    ) {
-      onNavigate(id);
-      return;
-    }
-    if (window.confirm("Discard unsaved changes and open another candidate?"))
-      onNavigate(id);
+    return detailsChanged || screeningChanged || offerChanged || clientNoteChanged;
+  }
+  function navigate(id: string) {
+    if (!hasUnsavedChanges() || window.confirm("Discard unsaved changes and open another candidate?")) onNavigate(id);
+  }
+  function closePanel() {
+    if (!hasUnsavedChanges() || window.confirm("Discard unsaved changes and close this profile?")) onClose();
   }
 
   const drawerBusy = savingDetails || savingScreening || savingClientNotes || savingOffer || uploading || advancing || restoring;
   return (
-    <TableDialog titleId="candidate-panel-title" className="candidate-drawer" onClose={onClose}
+    <TableDialog titleId="candidate-panel-title" className="candidate-drawer" onClose={closePanel}
       busy={drawerBusy}>
       <div className="modal-heading candidate-drawer-heading">
         <div>
@@ -500,7 +471,7 @@ export function CandidatePanel({
             </p>
           )}
         </div>
-        <button aria-label="Close" disabled={drawerBusy} onClick={onClose}>
+        <button aria-label="Close" disabled={drawerBusy} onClick={closePanel}>
           <X size={18} />
         </button>
       </div>
@@ -623,6 +594,7 @@ export function CandidatePanel({
               <p>{offer.amount ? `${offer.currency || ""} ${offer.amount}`.trim() : "Amount not added"}{offer.responseDueAt ? ` · Response due ${offer.responseDueAt}` : ""}</p>
             </section>
           )}
+          {activeSection === "overview" && <ProfileContext candidateId={c.id} />}
         </section>
 
         {currentStage === "offer_sent" && (
@@ -1129,6 +1101,7 @@ export function CandidatePanel({
           }}
         />
       )}
+
     </TableDialog>
   );
 }

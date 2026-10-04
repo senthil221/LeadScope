@@ -41,7 +41,7 @@ async function providerFetch(url: string, key: string, header: string, payload?:
   }
 }
 export type ProviderReply = { numbers: MobileResult[]; requestId?: string; pending?: boolean; delay?: number; code?: string };
-export async function dispatchMobile(provider: Exclude<MobileProvider, "database">, job: { id: string; identifier: string; candidate: { name: string; company: string } }): Promise<ProviderReply> {
+export async function dispatchMobile(provider: Exclude<MobileProvider, "database">, job: { id: string; identifier: string; candidate: { name: string; company: string; email?: string | null } }): Promise<ProviderReply> {
   const key = process.env[`${provider.toUpperCase()}_API_KEY`]?.trim();
   if (!key) throw new MobileProviderError("provider_not_configured", "setup");
   if (provider === "signalhire") {
@@ -58,6 +58,7 @@ export async function dispatchMobile(provider: Exclude<MobileProvider, "database
     // Send the stored matching context too, without requesting more enrichment.
     if (job.candidate.name.trim()) url.searchParams.set("name", job.candidate.name.trim());
     if (job.candidate.company.trim()) url.searchParams.set("organization_name", job.candidate.company.trim());
+    if (job.candidate.email?.trim()) url.searchParams.set("email", job.candidate.email.trim());
     url.searchParams.set("reveal_phone_number", "true");
     url.searchParams.set("reveal_personal_emails", "false");
     url.searchParams.set("run_waterfall_phone", "false");

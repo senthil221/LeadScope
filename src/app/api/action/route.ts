@@ -1,3 +1,4 @@
+import { collectPages } from "@/lib/server/collect-pages";
 import { z } from "zod";
 import { randomBytes, createHash } from "node:crypto";
 import { admin, checked, integrationDb, AppError } from "@/lib/server/db";
@@ -24,11 +25,14 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 const note = z.string().max(4000).default("");
 export async function POST(request: Request) {
+  const started = performance.now();
+  let actionName = "invalid";
   try {
-    const input = await body(request);
+    const input = await body(request, 128000);
     const { action, payload } = z
-      .object({ action: z.string(), payload: z.unknown() })
+      .object({ action: z.string().regex(/^[A-Za-z]{1,80}$/), payload: z.unknown() })
       .parse(input);
+    actionName = action;
     const { db, user } = await admin();
     let result: unknown;
     switch (action) {
@@ -601,7 +605,7 @@ export async function POST(request: Request) {
         break;
       }
       case "bulkEditCandidates": {
-        const p = z.object({ clientId: uuid, roleId: uuid, ids: z.array(uuid).min(1).max(50), stage: z.string().max(50).nullable(), field: z.string().min(1).max(100), value: z.union([z.string().max(4000),z.number().finite(),z.boolean()]).nullable(), mode: z.enum(["replace","fill_empty","clear"]), expected: z.string().regex(/^[a-f0-9]{32}$/).nullable().default(null) }).parse(payload);
+        const p = z.object({ clientId: uuid, roleId: uuid, ids: z.array(uuid).min(1).max(2000), stage: z.string().max(50).nullable(), field: z.string().min(1).max(100), value: z.union([z.string().max(4000),z.number().finite(),z.boolean()]).nullable(), mode: z.enum(["replace","fill_empty","clear"]), expected: z.string().regex(/^[a-f0-9]{32}$/).nullable().default(null) }).parse(payload);
         result = checked(await db.rpc("bulk_edit_role_candidates", { p_client: p.clientId, p_role: p.roleId, p_ids: p.ids, p_stage: p.stage, p_field: p.field, p_value: p.value, p_mode: p.mode, p_expected: p.expected }));
         break;
       }
@@ -625,17 +629,8 @@ export async function POST(request: Request) {
             .eq("client_id", p.clientId)
             .single(),
         ) as { rating_threshold: number };
-        const rows = checked(
-          await roleCandidateListQuery(
-            db,
-            p.roleId,
-            p.stage,
-            role.rating_threshold,
-            roleCandidateListFilters(p.filters),
-            false,
-            "id,candidates!inner(id)",
-          ).range(0, 1999),
-        ) as unknown as { id: string }[];
+        const rows = await collectPages<{ id: string }>((from, to) =>
+          roleCandidateListQuery(db, p.roleId, p.stage, role.rating_threshold, roleCandidateListFilters(p.filters), true, "id,candidates!inner(id)").range(from, to) as unknown as PromiseLike<{ data: { id: string }[] | null; error: { message: string } | null; count: number | null }>, 2000, true);
         result = rows.map((row) => row.id);
         break;
       }
@@ -693,6 +688,48 @@ export async function POST(request: Request) {
       case "reviewDuplicate": {
         const p = z.object({ clientId: uuid, roleId: uuid, firstId: uuid, secondId: uuid, fingerprint: z.string().regex(/^[a-f0-9]{32}$/), revision: z.number().int().min(0), status: z.enum(["pending","confirmed","separate"]), note: z.string().max(2000) }).parse(payload);
         checked(await db.rpc("review_candidate_duplicate", { p_client: p.clientId, p_role: p.roleId, p_first: p.firstId, p_second: p.secondId, p_fingerprint: p.fingerprint, p_revision: p.revision, p_status: p.status, p_note: p.note }));
+        break;
+      }
+      case "saveCheckedCell": {
+        const p = z.object({ kind: z.enum(["profile", "role"]), id: uuid, field: z.string().max(100), value: z.string().max(4000), expected: z.string().max(4000) }).parse(payload);
+        let value = p.value.trim();
+        let expected = p.expected;
+        if (p.kind === "profile" && ["phone", "alternate_phone"].includes(p.field)) expected = mobileDigits(expected);
+        if (p.kind === "profile" && p.field === "email") expected = normalizeCandidateEmail(expected) ?? "";
+        if (p.kind === "profile" && ["phone", "alternate_phone"].includes(p.field) && value) {
+          value = mobileDigits(value);
+          expected = mobileDigits(expected);
+          if (!isMobileNumber(value)) throw new AppError("Enter a 10 digit mobile number.");
+        }
+        if (p.kind === "profile" && p.field === "email" && value) {
+          const email = normalizeCandidateEmail(value);
+          if (!email) throw new AppError("Enter a valid email address.");
+          value = email;
+          expected = normalizeCandidateEmail(expected) ?? "";
+        }
+        if (p.kind === "profile" && p.field === "linkedin") {
+          const url = canonicalLinkedIn(value);
+          if (!url) throw new AppError("Enter a valid LinkedIn profile URL.");
+          value = url;
+          expected = canonicalLinkedIn(expected) ?? "";
+        }
+        result = checked(await db.rpc("save_cell_checked", { p_kind: p.kind, p_id: p.id, p_field: p.field, p_value: value, p_expected: expected }));
+        break;
+      }
+      case "profileContext": {
+        const p = z.object({ candidateId: uuid }).parse(payload);
+        result = checked(await db.from("role_candidates").select("id,role_id,client_id,stage,roles!inner(name,recruiter_names,archived),clients!inner(name)").eq("candidate_id", p.candidateId).order("created_at", { ascending: false }).limit(100));
+        break;
+      }
+      case "roleCandidateDetail": {
+        const p = z.object({ roleId: uuid, id: uuid }).parse(payload);
+        result = checked(await db.from("role_candidates").select("*,candidates!inner(*,candidate_identities(kind,normalized_value))").eq("role_id", p.roleId).eq("id", p.id).single());
+        break;
+      }
+      case "saveProfilePatch": {
+        const p = z.object({ id: uuid, values: z.record(z.string().max(40), z.string().max(400)), expected: z.record(z.string().max(40), z.string().max(400)) }).parse(payload);
+        if (Object.keys(p.values).length > 12) throw new AppError("Too many fields.");
+        checked(await db.rpc("save_profile_patch", { p_id: p.id, p_values: p.values, p_expected: p.expected }));
         break;
       }
       case "candidateField": {
@@ -1080,8 +1117,11 @@ export async function POST(request: Request) {
       default:
         throw new AppError("Unknown action.");
     }
-    return Response.json(result ?? { ok: true });
+    const duration = Math.round(performance.now() - started);
+    if (duration > 1000) console.info(JSON.stringify({ event: "slow_action", action: actionName, durationMs: duration }));
+    return Response.json(result ?? { ok: true }, { headers: { "Server-Timing": `action;dur=${duration}` } });
   } catch (error) {
+    console.warn(JSON.stringify({ event: "action_failed", action: actionName, durationMs: Math.round(performance.now() - started), code: error instanceof AppError ? error.status : "validation_or_unexpected" }));
     return failure(error);
   }
 }

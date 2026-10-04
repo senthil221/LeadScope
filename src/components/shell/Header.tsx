@@ -5,7 +5,7 @@ import type { PageData } from "@/lib/types";
 export function ShellHeader({ data }: { data: PageData }) {
   const client = data.client ?? null;
   const workspaceTitle: Record<string, string> = {
-    clients: "Clients", "all-roles": "Roles", "master-db": "Master Database",
+    work: "Work queue", clients: "Clients", "all-roles": "Roles", "master-db": "Master Database",
     blocklist: "Blocklist", team: "Access", settings: "Settings",
   };
   return (
