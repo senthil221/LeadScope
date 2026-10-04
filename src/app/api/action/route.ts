@@ -718,7 +718,7 @@ export async function POST(request: Request) {
       }
       case "profileContext": {
         const p = z.object({ candidateId: uuid }).parse(payload);
-        result = checked(await db.from("role_candidates").select("id,role_id,client_id,stage,roles!inner(name,recruiter_names,archived),clients!inner(name)").eq("candidate_id", p.candidateId).order("created_at", { ascending: false }).limit(100));
+        result = checked(await db.from("role_candidates").select("id,role_id,client_id,stage,roles!inner(name,recruiter_names,archived,clients!inner(name))").eq("candidate_id", p.candidateId).order("created_at", { ascending: false }).limit(100));
         break;
       }
       case "roleCandidateDetail": {

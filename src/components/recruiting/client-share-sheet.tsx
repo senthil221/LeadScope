@@ -15,7 +15,7 @@ export function ClientShareSheet({ token, rows, columns, canEditNotes, roleName 
   const filtered = useMemo(() => {
     const found = rows.filter((r) => (!stage || r.stage === stage) && (!query.trim() || [r.name,r.subtitle,r.linkedin,r.note,...Object.values(r.values)].join(" ").toLowerCase().includes(query.trim().toLowerCase())));
     if (sort === "name") found.sort((a,b) => a.name.localeCompare(b.name));
-    if (sort === "rating") found.sort((a,b) => (parseFloat(b.values.rating) || -1) - (parseFloat(a.values.rating) || -1));
+    if (sort === "rating") found.sort((a,b) => (Number.isNaN(parseFloat(b.values.rating)) ? -1 : parseFloat(b.values.rating)) - (Number.isNaN(parseFloat(a.values.rating)) ? -1 : parseFloat(a.values.rating)));
     return found;
   }, [rows, query, stage, sort]);
   const currentPage = Math.min(page, Math.max(0, Math.ceil(filtered.length / 25) - 1));

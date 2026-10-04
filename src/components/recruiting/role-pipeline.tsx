@@ -1474,15 +1474,15 @@ export function RolePipeline({
           {/* The page is fifty rows; the mistake worth fixing is usually a
               whole import. This selects everything the current filter shows,
               not just what is on screen. */}
-          {total > selected.length && (
-            <button type="button" disabled={selectingAll} onClick={() => void selectAllMatching()}>
-              {selectingAll ? "Selecting…" : total > 2000 ? "Select first 2,000" : `Select all ${total}`}
+          {total > firstRows.length && (
+            <button type="button" className="bulk-select-all" disabled={selectingAll || selected.length >= Math.min(total, 2000)} onClick={() => void selectAllMatching()}>
+              {selectingAll ? "Selecting…" : selected.length >= Math.min(total, 2000) ? `${selected.length.toLocaleString()} selected` : total > 2000 ? "Select first 2,000" : `Select all ${total}`}
             </button>
           )}
-          <button type="button" onClick={() => setPushingProfiles({ membershipIds: selected })}>Push to role</button>
-          <button type="button" disabled={role.archived || selected.length > 200} onClick={() => setMobileLookup({ memberships: [...selected] })}><Phone size={14} /> Find mobiles</button>
-          <button type="button" disabled={busy || role.archived} onClick={() => setBulkEditing([...selected])}>Bulk edit</button>
-          {canDeleteRows && <button type="button" disabled={busy || role.archived} onClick={() => setDeleting([...selected])}><Trash2 size={15} /> Delete from role</button>}
+          <button type="button" disabled={selectingAll} onClick={() => setPushingProfiles({ membershipIds: selected })}>Push to role</button>
+          <button type="button" disabled={selectingAll || role.archived || selected.length > 200} onClick={() => setMobileLookup({ memberships: [...selected] })}><Phone size={14} /> Find mobiles</button>
+          <button type="button" disabled={selectingAll || busy || role.archived} onClick={() => setBulkEditing([...selected])}>Bulk edit</button>
+          {canDeleteRows && <button type="button" disabled={selectingAll || busy || role.archived} onClick={() => setDeleting([...selected])}><Trash2 size={15} /> Delete from role</button>}
           <button type="button" onClick={() => setSelected([])}>Clear selection</button>
           {(advanceTo || canRejectFromTab || canMoveLater) && <>
           <input
@@ -1493,16 +1493,16 @@ export function RolePipeline({
             maxLength={4000}
           />
           {advanceTo && (
-            <button disabled={busy || Boolean(movingCandidateId) || role.archived} onClick={() => void moveSelectedToNextStage()}>
+            <button disabled={selectingAll || busy || Boolean(movingCandidateId) || role.archived} onClick={() => void moveSelectedToNextStage()}>
               Move to {stageLabels[advanceTo]}
             </button>
           )}
           {canRejectFromTab && (
-            <button disabled={busy || Boolean(movingCandidateId) || role.archived} onClick={() => startReject(selected)}>
+            <button disabled={selectingAll || busy || Boolean(movingCandidateId) || role.archived} onClick={() => startReject(selected)}>
               Reject
             </button>
           )}
-          {canMoveLater && <button disabled={busy || role.archived} onClick={() => void moveLater(selected)}>{tab === "later" ? "Return to Profile shortlisted" : "Move to Later"}</button>}
+          {canMoveLater && <button disabled={selectingAll || busy || role.archived} onClick={() => void moveLater(selected)}>{tab === "later" ? "Return to Profile shortlisted" : "Move to Later"}</button>}
           </>}
         </div>
       )}
@@ -2050,7 +2050,7 @@ export function RolePipeline({
         </>
       ) : (
         <>
-          <div className="table-edit-hint">Click a cell to edit · Enter, Tab or click away to save · Esc to cancel. Added date and source are system managed.</div>
+          <div className="table-edit-hint">Click a cell to edit · Enter, Tab or click away to save · Esc to cancel. Added date and stage are system managed.</div>
           <div
             className="card table-wrap sheet-table-frame"
             ref={tableFrame}

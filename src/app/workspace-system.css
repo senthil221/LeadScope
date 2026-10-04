@@ -65,3 +65,13 @@
 .work-health details > div { position: absolute; z-index: 60; width: 300px; max-width: calc(100vw - 40px); right: 0; padding: 12px; border: 1px solid #dce3ed; border-radius: 8px; background: white; box-shadow: 0 8px 26px #13243b1c; }
 .work-health details a { display: block; padding: 5px 0; }
 .share-navigation-error { margin: 8px 12px; }
+
+/* Keep disclosure controls aligned with compact toolbar inputs. */
+.master-more-filters, .saved-views, .share-controls details, .work-health details { margin: 0; padding: 0; border: 0; background: transparent; }
+.master-more-filters summary, .saved-views summary, .share-controls summary, .work-health summary { margin: 0; }
+.master-more-filters .row { flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px; }
+.master-more-filters input[type=checkbox] { flex: none; margin: 0; }
+.work-queue-header > div { flex: 1; min-width: 0; }
+.work-queue-header select { flex: none; width: 190px; min-height: 32px; font-size: 12px; }
+.bulk-select-all { min-width: 132px; }
+@media (max-width: 700px) { .work-queue-header { flex-wrap: wrap; } .work-queue-header select { width: 100%; } }

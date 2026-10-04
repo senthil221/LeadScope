@@ -29,3 +29,10 @@ describe("client feedback drafts",()=>{
     expect(screen.queryByRole("textbox",{name:"Feedback for Person 25"})).toBeNull();
   });
 });
+
+it("sorts a zero rating above an unrated client profile",()=>{
+  const rows=[{id:"blank",name:"Unrated",rating:""},{id:"zero",name:"Zero",rating:"0"},{id:"rated",name:"Rated",rating:"4.5"}].map(r=>({...r,subtitle:"",stage:"Recruiter shortlisted",values:{rating:r.rating},resume:false}));
+  render(<ClientShareSheet token="token" rows={rows} columns={[{key:"rating",label:"Rating"}]} canEditNotes={false} roleName="Test role"/>);
+  fireEvent.change(screen.getByRole("combobox",{name:"Sort shared candidates"}),{target:{value:"rating"}});
+  expect([...document.querySelectorAll('tbody th')].map(x=>x.textContent)).toEqual(["Rated","Zero","Unrated"]);
+});
