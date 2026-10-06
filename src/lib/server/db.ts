@@ -48,11 +48,25 @@ export class AppError extends Error {
 }
 export async function admin() {
   const db = await sessionDb();
-  const {
-    data: { user },
-    error,
-  } = await db.auth.getUser();
-  if (error || !user) throw new AppError("Sign in to continue.", 401);
+  // The token is checked here, against the auth service's published public
+  // key (fetched once and cached), instead of by asking the auth service -
+  // which spent 70 to 120ms of its own time on that, on every page and every
+  // action. The session is refreshed first if it has expired.
+  //
+  // The trade-off, chosen deliberately: a token from a session that has since
+  // been signed out keeps working until it expires - an hour at most - rather
+  // than stopping at once. Removing someone's approval is still immediate,
+  // because that is the user_profiles check below, made on every request; and
+  // every query carries the same token to the database, which verifies it
+  // again. A token signed the old symmetric way still goes to the auth service.
+  const { data, error } = await db.auth.getClaims();
+  const claims = data?.claims;
+  if (error || !claims?.sub || claims.role !== "authenticated")
+    throw new AppError("Sign in to continue.", 401);
+  const user = {
+    id: claims.sub,
+    email: typeof claims.email === "string" ? claims.email : undefined,
+  };
   const { data: profile, error: profileError } = await db
     .from("user_profiles")
     .select("is_agency_admin,is_owner")
