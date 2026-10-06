@@ -23,7 +23,13 @@ export async function proxy(request: NextRequest) {
       },
     },
   });
-  await db.auth.getUser();
+  // Only here to keep the session cookie fresh, never to decide anything:
+  // admin() makes the authoritative check against the auth service on every
+  // page and action. getUser() here made that same check a second time -
+  // 70 to 120ms of the auth service's own time, on every request, measured in
+  // its logs. getSession() reads the cookie and only calls out when the token
+  // has actually expired and needs refreshing.
+  await db.auth.getSession();
   response.headers.set("Cache-Control", "private, no-store");
   return response;
 }
