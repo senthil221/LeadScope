@@ -541,7 +541,11 @@ export function RolePipeline({
   // Keyboard addressing counts the editable cells, so the data columns start
   // one place earlier once the name is not one of them.
   const firstDataColumn = showNameColumn ? 1 : 0;
-  const utilityWidth = (canSelectCandidates ? 36 : 0) + 36 + 28;
+  // Row numbers are a fixed column in a table that is now scrolled rather
+  // than paged, so the hundredth row arrives in the same column that was sized
+  // for two digits and came out as "1…". Five pixels a digit past the second.
+  const serialWidth = 36 + Math.max(0, String(roleCandidates.length + 1).length - 2) * 10;
+  const utilityWidth = (canSelectCandidates ? 36 : 0) + serialWidth + 28;
   // Advance, Reject and a delete icon, counting only what this tab shows, and
   // never narrower than the word "Action" in the heading.
   const actionWidth = showRowActions
@@ -2076,13 +2080,25 @@ export function RolePipeline({
             <table
               className={`candidate-table sheet-table${canSelectCandidates ? " has-select" : ""}`}
               data-sheet-grid=""
-              style={{ width: tableWidth, minWidth: fixedWidth + dataWidth }}
+              style={
+                {
+                  width: tableWidth,
+                  minWidth: fixedWidth + dataWidth,
+                  // The pinned columns are offset by these widths. They were
+                  // written twice, here and in the stylesheet, and the two had
+                  // drifted a few pixels apart; the table is the one that
+                  // decides, so it says so.
+                  "--pin-select": canSelectCandidates ? "36px" : "0px",
+                  "--pin-serial": `${serialWidth}px`,
+                  "--pin-open": "28px",
+                } as React.CSSProperties
+              }
               onPaste={(event) => void pasteIntoGrid(event)}
               role="grid"
             >
               <colgroup>
                 {canSelectCandidates && <col style={{ width: 36 }} />}
-                <col style={{ width: 36 }} />
+                <col style={{ width: serialWidth }} />
                 <col style={{ width: 28 }} />
                 {showNameColumn && <col style={{ width: nameWidth }} />}
                 {visibleCandidateColumns.map((column) => (
