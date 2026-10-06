@@ -11,6 +11,12 @@ services:
       - "127.0.0.1:3000:3000"
     restart: unless-stopped
     mem_limit: 768m
+    # Supabase's own network, so the server can reach it as supabase-envoy:8000
+    # (SUPABASE_INTERNAL_URL) instead of out through the public hostname and
+    # back. The browser still uses the public address.
+    networks:
+      - default
+      - supabase
     healthcheck:
       test:
         - CMD
@@ -34,3 +40,11 @@ services:
         condition: service_healthy
     restart: unless-stopped
     mem_limit: 128m
+    networks:
+      - default
+      - supabase
+networks:
+  default: {}
+  supabase:
+    external: true
+    name: supabase_default

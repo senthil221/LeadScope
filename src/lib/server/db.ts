@@ -3,12 +3,14 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { setup } from "./config";
+import { authCookieName, forBrowser, supabaseAddresses } from "../supabase-address";
 export async function sessionDb() {
   const env = setup();
   if (!env.url || !env.key)
     throw new AppError("Configure Supabase URL and publishable key.", 503);
   const jar = await cookies();
-  return createServerClient(env.url, env.key, {
+  return createServerClient(supabaseAddresses().serverUrl!, env.key, {
+    cookieOptions: { name: authCookieName(env.url) },
     cookies: {
       getAll: () => jar.getAll(),
       setAll: (list) => {
@@ -30,10 +32,12 @@ export function integrationDb() {
       "Set SUPABASE_SECRET_KEY on the server to enable search processing.",
       503,
     );
-  return createClient(env.url, env.secret, {
+  return createClient(supabaseAddresses().serverUrl!, env.secret, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
+// For a signed storage link about to be handed to a browser.
+export const browserUrl = forBrowser;
 export class AppError extends Error {
   constructor(
     message: string,

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createHash } from "node:crypto";
-import { integrationDb, AppError, checked } from "@/lib/server/db";
+import { browserUrl, integrationDb, AppError, checked } from "@/lib/server/db";
 import { body, failure } from "@/lib/server/http";
 import { uuid } from "@/lib/domain";
 
@@ -17,7 +17,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
     const row = checked(await db.from("role_candidates").select("candidates!inner(resume_path)").eq("id", membershipId).single()) as unknown as { candidates: { resume_path: string } };
     const { data, error } = await db.storage.from("resumes").createSignedUrl(row.candidates.resume_path, 60);
     if (error || !data) throw new AppError("Could not open the resume. Try again.", 502);
-    return new Response(null, { status: 302, headers: { Location: data.signedUrl, "Cache-Control": "private, no-store" } });
+    return new Response(null, { status: 302, headers: { Location: browserUrl(data.signedUrl), "Cache-Control": "private, no-store" } });
   } catch (error) { return failure(error); }
 }
 // Unlike the share page's own GET, this write path is same-origin protected

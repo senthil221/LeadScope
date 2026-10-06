@@ -1,4 +1,4 @@
-import { admin, integrationDb, AppError } from "@/lib/server/db";
+import { admin, browserUrl, integrationDb, AppError } from "@/lib/server/db";
 import { failure, sameOrigin } from "@/lib/server/http";
 import { uuid } from "@/lib/domain";
 
@@ -76,7 +76,7 @@ export async function GET(request: Request) {
       .createSignedUrl(candidate.resume_path, 60);
     if (signError || !signed)
       throw new AppError("Could not open the resume. Try again.", 502);
-    return Response.json({ url: signed.signedUrl });
+    return Response.json({ url: browserUrl(signed.signedUrl) });
   } catch (error) {
     return failure(error);
   }

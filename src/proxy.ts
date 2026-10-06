@@ -1,13 +1,17 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { authCookieName, supabaseAddresses } from "./lib/supabase-address";
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const { publicUrl: url, serverUrl } = supabaseAddresses();
   const key =
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return response;
-  const db = createServerClient(url, key, {
+  // This runs before every request, so the hop it makes is paid on every
+  // page, prefetch and action. It goes the short way.
+  const db = createServerClient(serverUrl!, key, {
+    cookieOptions: { name: authCookieName(url) },
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll(values) {

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { admin, checked, integrationDb, AppError } from "@/lib/server/db";
+import { admin, browserUrl, checked, integrationDb, AppError } from "@/lib/server/db";
 import { failure, sameOrigin } from "@/lib/server/http";
 import { uuid } from "@/lib/domain";
 
@@ -36,6 +36,6 @@ export async function GET(request: Request) {
     if (!role.jd_path || !role.jd_path.startsWith(`roles/${id}/`)) throw new AppError("No JD attached.", 404);
     const { data, error } = await integrationDb().storage.from("resumes").createSignedUrl(role.jd_path, 60);
     if (error || !data) throw new AppError("Could not open the JD.", 502);
-    return new Response(null, { status: 302, headers: { Location: data.signedUrl, "Cache-Control": "private, no-store" } });
+    return new Response(null, { status: 302, headers: { Location: browserUrl(data.signedUrl), "Cache-Control": "private, no-store" } });
   } catch (error) { return failure(error); }
 }
