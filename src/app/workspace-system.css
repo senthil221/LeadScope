@@ -49,6 +49,17 @@
 .role-directory-table .strong { font-weight: 500; }
 .role-directory-header .eyebrow { display: none; }
 .role-directory-filters { padding: 10px 12px; gap: 8px; }
+/* Recruiter: a dropdown in the row, sized to a first name rather than the
+   column, and quiet until it is used - like the source cell in a stage. */
+.recruiter-select { min-width: 132px; max-width: 180px; min-height: 30px; padding: 3px 8px; font-size: 13px; }
+.role-directory-table .recruiter-select { border-color: transparent; background-color: transparent; }
+.role-directory-table tr:hover .recruiter-select,
+.role-directory-table .recruiter-select:focus { border-color: var(--line-strong, #c9d3e0); background-color: var(--surface, #fff); }
+.recruiters-dialog { width: min(420px, calc(100vw - 32px)); }
+.recruiters-list { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 4px; }
+.recruiters-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; }
+.recruiters-add { display: flex; gap: 8px; }
+.recruiters-add input { flex: 1; min-width: 0; }
 @media (max-width: 700px) {
   .work-metrics { grid-template-columns: 1fr 1fr; }
   .work-metrics > div { padding: 10px; border-bottom: 1px solid #e2e8f0; }

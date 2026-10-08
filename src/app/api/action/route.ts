@@ -680,6 +680,35 @@ export async function POST(request: Request) {
         );
         break;
       }
+      // The kept list of recruiter names, and the dropdown that assigns one.
+      case "recruiters": {
+        result = checked(
+          await db.from("recruiters").select("id,name,archived").order("name"),
+        );
+        break;
+      }
+      case "saveRecruiter": {
+        const p = z.object({ name: z.string().trim().min(1).max(120) }).parse(payload);
+        result = { id: checked(await db.rpc("save_recruiter", { p_name: p.name })) };
+        break;
+      }
+      case "archiveRecruiter": {
+        const p = z.object({ id: uuid }).parse(payload);
+        checked(await db.rpc("archive_recruiter", { p_id: p.id }));
+        break;
+      }
+      case "setRoleRecruiters": {
+        const p = z
+          .object({
+            roleId: uuid,
+            names: z.array(z.string().trim().min(1).max(120)).max(20),
+          })
+          .parse(payload);
+        result = checked(
+          await db.rpc("set_role_recruiters", { p_role: p.roleId, p_names: p.names }),
+        );
+        break;
+      }
       case "duplicateReview": {
         const p = z.object({ clientId: uuid, roleId: uuid, status: z.enum(["pending","confirmed","separate"]), after: z.string().max(73).nullable().default(null) }).parse(payload);
         result = checked(await db.rpc("duplicate_review_page", { p_client: p.clientId, p_role: p.roleId, p_status: p.status, p_after: p.after }));

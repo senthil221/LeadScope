@@ -4927,3 +4927,69 @@ describe("workspace reliability and profile reuse", () => {
     expect((await sql("select client_notes from public.role_candidates where id=$1",[f.rcId])).rows[0].client_notes).toBe('First review');
   });
 });
+
+describe("recruiters: a kept list, chosen per role", () => {
+  const names = async () =>
+    (await sql("select name,archived from public.recruiters order by lower(name)")).rows;
+
+  it("starts with Tisha and Anshika", async () => {
+    const rows = await names();
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        { name: "Anshika", archived: false },
+        { name: "Tisha", archived: false },
+      ]),
+    );
+  });
+
+  it("assigns a listed recruiter to a role, and unassigns", async () => {
+    const rid = await role(await client());
+    expect(await asUser(actor, () => rpc("set_role_recruiters", [rid, ["Tisha"]]))).toEqual(["Tisha"]);
+    expect(
+      (await sql("select recruiter_names from public.roles where id=$1", [rid])).rows[0].recruiter_names,
+    ).toEqual(["Tisha"]);
+    expect(await asUser(actor, () => rpc("set_role_recruiters", [rid, []]))).toEqual([]);
+  });
+
+  it("refuses a name that is not on the list", async () => {
+    const rid = await role(await client());
+    await expect(
+      asUser(actor, () => rpc("set_role_recruiters", [rid, ["Somebody Typed"]])),
+    ).rejects.toThrow("from the list");
+  });
+
+  it("treats a differently capitalised name as the same person", async () => {
+    await asUser(actor, () => rpc("save_recruiter", ["  Meera  "]));
+    const again = await asUser(actor, () => rpc("save_recruiter", ["meera"]));
+    const rows = (await sql("select id,name from public.recruiters where lower(name)='meera'")).rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: again, name: "Meera" });
+  });
+
+  // Somebody leaving should not rewrite the roles they worked on.
+  it("stops offering a removed name but leaves it on roles that have it", async () => {
+    const id = await asUser(actor, () => rpc("save_recruiter", ["Rohan"]));
+    const rid = await role(await client());
+    await asUser(actor, () => rpc("set_role_recruiters", [rid, ["Rohan"]]));
+    await asUser(actor, () => rpc("archive_recruiter", [id]));
+    expect(
+      (await sql("select recruiter_names from public.roles where id=$1", [rid])).rows[0].recruiter_names,
+    ).toEqual(["Rohan"]);
+    // Re-saving the role as it stands still works ...
+    expect(await asUser(actor, () => rpc("set_role_recruiters", [rid, ["Rohan"]]))).toEqual(["Rohan"]);
+    // ... but the removed name cannot be given to a different role.
+    const other = await role(await client());
+    await expect(
+      asUser(actor, () => rpc("set_role_recruiters", [other, ["Rohan"]])),
+    ).rejects.toThrow("from the list");
+    // Adding the name again brings it back.
+    await asUser(actor, () => rpc("save_recruiter", ["Rohan"]));
+    expect(await asUser(actor, () => rpc("set_role_recruiters", [other, ["Rohan"]]))).toEqual(["Rohan"]);
+  });
+
+  it("is closed to anybody who is not an approved operator", async () => {
+    const rid = await role(await client());
+    await expect(asUser(outsider, () => rpc("save_recruiter", ["Intruder"]))).rejects.toThrow();
+    await expect(asUser(outsider, () => rpc("set_role_recruiters", [rid, ["Tisha"]]))).rejects.toThrow();
+  });
+});

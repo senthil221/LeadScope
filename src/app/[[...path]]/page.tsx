@@ -532,7 +532,8 @@ export default async function Page({
         const term = filter.q.trim().slice(0, 120).replace(/[^\p{L}\p{N} @.+-]/gu, " ");
         query = query.or(`name.ilike.%${term}%,description.ilike.%${term}%,ctc.ilike.%${term}%`);
       }
-      if (filter.recruiter?.trim()) query = query.contains("recruiter_names", [filter.recruiter.trim().slice(0, 120)]);
+      if (filter.recruiter === "__unassigned") query = query.eq("recruiter_names", "{}");
+      else if (filter.recruiter?.trim()) query = query.contains("recruiter_names", [filter.recruiter.trim().slice(0, 120)]);
       const response = await query.order("created_at", { ascending: false }).order("id").range((data.page - 1) * 50, data.page * 50 - 1);
       data.roles = checked(response);
       data.total = response.count ?? 0;

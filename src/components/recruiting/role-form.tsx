@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import type { Role } from "@/lib/types";
 import { act as sharedAct } from "@/lib/client/act";
 import { TableDialog } from "./table-dialog";
+import { RecruiterSelect } from "./recruiter-select";
 
 function act<T = { id: string }>(action: string, payload: unknown = {}): Promise<T> {
   return sharedAct<T>(action, payload);
@@ -24,6 +25,9 @@ export function RoleFormDialog({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [recruiter, setRecruiter] = useState(
+    role === "new" ? "" : role.recruiter_names?.[0] ?? "",
+  );
 
   async function save(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -82,8 +86,10 @@ export function RoleFormDialog({
           />
         </label>
         <label>
-          <span>Recruiter tags <span className="optional">comma separated names</span></span>
-          <input name="recruiters" maxLength={2400} defaultValue={role === "new" ? "" : (role.recruiter_names ?? []).join(", ")} placeholder="e.g. Priya, Rahul" />
+          <span>Recruiter</span>
+          {/* Chosen from the kept list, so one person is one name everywhere. */}
+          <RecruiterSelect label="Recruiter" value={recruiter} onChoose={setRecruiter} />
+          <input type="hidden" name="recruiters" value={recruiter} />
         </label>
         <label>
           <span>Role CTC <span className="optional">budget or range</span></span>
