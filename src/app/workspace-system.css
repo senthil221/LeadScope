@@ -133,11 +133,11 @@
 .bulk-select-all { min-width: 132px; }
 @media (max-width: 700px) { .work-queue-header { flex-wrap: wrap; } .work-queue-header select { width: 100%; } }
 /* X-Ray: what a run found, and who in it the role already has. */
-.xray-pages { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 12px; font-weight: 500; }
+.xray-pages { display: flex; flex-direction: row; align-items: center; gap: 8px; margin: 0; font-size: 12px; font-weight: 500; }
 .xray-pages select { width: auto; min-height: 32px; font-size: 12px; }
 .xray-summary { font-size: 12px; color: var(--ink-soft); margin-bottom: 0; }
 .xray-summary strong { color: var(--ink); font-weight: 600; }
-.xray-show-known { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; font-weight: 400; }
+.xray-show-known { display: flex; flex-direction: row; align-items: center; gap: 6px; margin: 0; font-size: 12px; font-weight: 400; }
 .xray-show-known input { width: auto; margin: 0; }
 .enrichment-results tr.xray-known td { color: var(--faint); background: #fafbfc; }
 .xray-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: #eef1f5; color: #5d6d82; font-size: 10.5px; font-weight: 500; vertical-align: 1px; }
