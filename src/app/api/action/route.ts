@@ -658,6 +658,8 @@ export async function POST(request: Request) {
             stage: z.enum(stages),
             filters: z.record(z.string(), z.string().max(200)).default({}),
             offset: z.number().int().min(0).max(100000),
+            // Scroll to bottom asks for the rest of the list in a few big slices.
+            limit: z.number().int().min(1).max(250).default(50),
           })
           .parse(payload);
         const role = checked(
@@ -676,7 +678,7 @@ export async function POST(request: Request) {
             role.rating_threshold,
             roleCandidateListFilters(p.filters),
             false,
-          ).range(p.offset, p.offset + 49),
+          ).range(p.offset, p.offset + p.limit - 1),
         );
         break;
       }

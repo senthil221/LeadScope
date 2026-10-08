@@ -83,6 +83,8 @@ import { hasZeroMobileResult, type MobileLookupCell } from "@/lib/recruiting/mob
 
 // These views and dialogs are opened on demand. Keep their code out of the
 // spreadsheet's initial bundle, which every recruiter downloads on every role.
+// Rows drawn in the grid at once; past this the list continues on a new page.
+const RENDER_LIMIT = 1000;
 const RoleFormDialog = dynamic(() => import("./role-form").then((m) => m.RoleFormDialog), { loading: DialogLoading });
 const RoleBrief = dynamic(() => import("./role-brief").then((m) => m.RoleBrief), { loading: () => <div className="role-brief role-brief-loading" role="status">Loading role brief…</div> });
 const AddCandidatesDialog = dynamic(() => import("./add-candidates").then((m) => m.AddCandidatesDialog), { loading: DialogLoading });
@@ -330,7 +332,7 @@ export function RolePipeline({
   const [columnPreference, setColumnPreference] = useState<{ scope: string; value: string } | null>(null);
   const [navigatingTo, setNavigatingTo] = useState<Tab | null>(null);
   const path = `/roles/${role.id}`;
-  const layout = useTableLayout(`${role.id}:${tab}`, stageDefaultsToCompact(tab), 2);
+  const layout = useTableLayout(`${role.id}:${tab}`, stageDefaultsToCompact(tab), 3);
   // Paging put a button between a recruiter and the next fifty rows of the
   // list they were already reading. The server still hands over the first
   // slice; the rest arrives as it is scrolled to, and the whole thing stays
@@ -360,32 +362,42 @@ export function RolePipeline({
     if (laterRows.length) setLaterRows([]);
   }
   const moreToLoad = nextOffset < total;
-  const atRenderLimit = roleCandidates.length >= 200;
-  async function loadMore() {
+  const atRenderLimit = roleCandidates.length >= RENDER_LIMIT;
+  // The next slice, or with `toEnd` every slice left (as many as the grid
+  // will draw). Says whether the end of the list was reached.
+  async function loadMore(toEnd = false) {
     // Scroll events can fire again before React commits the loading state.
     // Guard synchronously so a single scroll never fetches the same page twice.
-    if (loadingMoreRef.current || !moreToLoad || atRenderLimit || !isStage(tab)) return;
+    if (loadingMoreRef.current || !moreToLoad || atRenderLimit || !isStage(tab)) return !moreToLoad;
     loadingMoreRef.current = true;
     const requestedList = listKey;
     setLoadingMore(true);
+    let offset = nextOffset;
+    // Rows can be added while somebody scrolls, which shifts the offsets
+    // under them; anything already on screen is not shown twice.
+    const seen = new Set(roleCandidates.map((row) => row.id));
     try {
       const filters = serializeRoleFilters(params);
-      const next = await act<RoleCandidate[]>("roleCandidatePage", {
-        clientId: client.id,
-        roleId: role.id,
-        stage: tab,
-        filters,
-        offset: nextOffset,
-      });
-      if (listKeyRef.current !== requestedList) return;
-      setNextOffset(next.length ? nextOffset + next.length : total);
-      // Rows can be added while somebody scrolls, which shifts the offsets
-      // under them; anything already on screen is not shown twice.
-      const seen = new Set(roleCandidates.map((row) => row.id));
-      const fresh = next.filter((row) => !seen.has(row.id));
-      if (fresh.length) setLaterRows((rows) => [...rows, ...fresh]);
+      do {
+        const next = await act<RoleCandidate[]>("roleCandidatePage", {
+          clientId: client.id,
+          roleId: role.id,
+          stage: tab,
+          filters,
+          offset,
+          limit: toEnd ? 250 : 50,
+        });
+        if (listKeyRef.current !== requestedList) return false;
+        offset = next.length ? offset + next.length : total;
+        setNextOffset(offset);
+        const fresh = next.filter((row) => !seen.has(row.id));
+        fresh.forEach((row) => seen.add(row.id));
+        if (fresh.length) setLaterRows((rows) => [...rows, ...fresh]);
+      } while (toEnd && offset < total && seen.size < RENDER_LIMIT);
+      return offset >= total;
     } catch (e) {
       if (listKeyRef.current === requestedList) setError((e as Error).message);
+      return false;
     } finally {
       if (listKeyRef.current === requestedList) {
         loadingMoreRef.current = false;
@@ -394,6 +406,21 @@ export function RolePipeline({
     }
   }
   const tableFrame = useRef<HTMLDivElement>(null);
+  // Jumping to the last page used to leave only its last few rows on screen,
+  // with nothing above them to scroll back to. The rest of the list is loaded
+  // instead, so the bottom is the bottom of the same list. Only a list too
+  // long to draw at once still jumps, to its last few pages.
+  async function scrollToBottom() {
+    if (moreToLoad && total - (page - 1) * 50 > RENDER_LIMIT) {
+      router.push(stagePageUrl(Math.max(1, Math.floor((total - 150) / 50) + 1)) + "&bottom=1");
+      return;
+    }
+    if (moreToLoad && !(await loadMore(true))) return;
+    requestAnimationFrame(() => {
+      const frame = tableFrame.current;
+      frame?.scrollTo({ top: frame.scrollHeight, behavior: "smooth" });
+    });
+  }
   useEffect(() => {
     if (params.get("bottom") !== "1") return;
     const frame = tableFrame.current;
@@ -528,7 +555,7 @@ export function RolePipeline({
     .map((id) => tabColumns.find((column) => column.id === id))
     .filter((column): column is CandidateColumn => Boolean(column));
   const columnWidths = { xs: 96, sm: 128, md: 176, lg: 240 };
-  const minimumWidth = (column: CandidateColumn) => column.id === "status" ? 176 : column.id === "source" ? 160 : column.id === "date_added" ? 128 : 80;
+  const minimumWidth = (column: CandidateColumn) => column.id === "linkedin" ? 200 : column.id === "status" ? 176 : column.id === "source" ? 160 : column.id === "date_added" ? 128 : 80;
   const baseWidth = (column: CandidateColumn) => Math.max(minimumWidth(column), layout.width(column.id, columnWidths[column.width]));
   const showNameColumn = stageShowsName(tab);
   // Something has to stay put while the grid scrolls sideways. Normally that is
@@ -544,7 +571,7 @@ export function RolePipeline({
   // Row numbers are a fixed column in a table that is now scrolled rather
   // than paged, so the hundredth row arrives in the same column that was sized
   // for two digits and came out as "1…". Five pixels a digit past the second.
-  const serialWidth = 36 + Math.max(0, String(roleCandidates.length + 1).length - 2) * 10;
+  const serialWidth = 36 + Math.max(0, String((page - 1) * 50 + roleCandidates.length + 1).length - 2) * 10;
   const utilityWidth = (canSelectCandidates ? 36 : 0) + serialWidth + 28;
   // Advance, Reject and a delete icon, counting only what this tab shows, and
   // never narrower than the word "Action" in the heading.
@@ -555,10 +582,23 @@ export function RolePipeline({
       )
     : 0;
   const fixedWidth = utilityWidth + nameWidth + actionWidth;
-  const dataWidth = visibleCandidateColumns.reduce((sum, column) => sum + baseWidth(column), 0);
-  const tableWidth = layout.hasWidths ? fixedWidth + dataWidth : Math.max(tableFrameWidth, fixedWidth + dataWidth);
+  const naturalDataWidth = visibleCandidateColumns.reduce((sum, column) => sum + baseWidth(column), 0);
+  // The grid fits the screen unless someone has sized its columns: too many
+  // columns are narrowed together, never below what each needs, and spare room
+  // goes to the free-text ones. Widths someone has dragged are kept as set,
+  // and the table still reaches the right-hand edge.
+  const room = tableFrameWidth - fixedWidth;
+  const minimumDataWidth = visibleCandidateColumns.reduce((sum, column) => sum + minimumWidth(column), 0);
+  const squeeze = !layout.hasWidths && room > 0 && naturalDataWidth > room
+    ? Math.max(0, (room - minimumDataWidth) / Math.max(1, naturalDataWidth - minimumDataWidth))
+    : 1;
+  const fittedWidth = (column: CandidateColumn) => minimumWidth(column) + (baseWidth(column) - minimumWidth(column)) * squeeze;
+  const dataWidth = visibleCandidateColumns.reduce((sum, column) => sum + fittedWidth(column), 0);
+  const tableWidth = Math.max(tableFrameWidth, fixedWidth + dataWidth);
   const flexibleIds = visibleCandidateColumns.filter((column) => ["linkedin", "notes", "follow_up_note", "headline", "current_company"].includes(column.id)).map((column) => column.id);
-  const displayedWidth = (column: CandidateColumn) => baseWidth(column) + (flexibleIds.includes(column.id) ? (tableWidth - fixedWidth - dataWidth) / flexibleIds.length : 0);
+  // With no free-text column showing, every column shares the spare room.
+  const growing = flexibleIds.length ? flexibleIds : visibleCandidateColumns.map((column) => column.id);
+  const displayedWidth = (column: CandidateColumn) => fittedWidth(column) + (growing.includes(column.id) ? (tableWidth - fixedWidth - dataWidth) / growing.length : 0);
 
   function resizeColumn(id: string, width: number) {
     const current = Object.fromEntries(visibleCandidateColumns.map((column) => [column.id, displayedWidth(column)]));
@@ -1716,7 +1756,7 @@ export function RolePipeline({
               </button>
             </>
           )}
-          {tab === "all_profiles" && <button type="button" onClick={() => { if (moreToLoad) router.push(stagePageUrl(Math.ceil(total / 50)) + "&bottom=1"); else tableFrame.current?.scrollTo({ top: tableFrame.current.scrollHeight, behavior: "smooth" }); }}><ChevronDown size={15} />Scroll to bottom</button>}
+          {tab === "all_profiles" && <button type="button" disabled={loadingMore} onClick={() => void scrollToBottom()}><ChevronDown size={15} />{loadingMore ? "Loading…" : "Scroll to bottom"}</button>}
           {tab === "all_profiles" && !role.archived && (
             <button onClick={() => setApplying(true)}>
               <SlidersHorizontal size={15} />
@@ -2330,7 +2370,7 @@ export function RolePipeline({
             <div className="row">
               {page > 1 && <Link className="button small" href={stagePageUrl(1).replace(/&bottom=1/, "")}>Back to top</Link>}
               {loadingMore && <span className="muted">Loading…</span>}
-              {moreToLoad && atRenderLimit && <Link className="button small" href={stagePageUrl(Math.floor(nextOffset / 50) + 1)}>Continue to next 200</Link>}
+              {moreToLoad && atRenderLimit && <Link className="button small" href={stagePageUrl(Math.floor(nextOffset / 50) + 1)}>Continue to next {RENDER_LIMIT}</Link>}
               {moreToLoad && !atRenderLimit && !loadingMore && (
                 <button className="small" type="button" onClick={() => void loadMore()}>
                   Load more
