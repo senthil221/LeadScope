@@ -16,16 +16,26 @@ export async function GET(request: Request) {
   try {
     const { db } = await admin();
     const role = z.uuid().parse(new URL(request.url).searchParams.get("role"));
-    const searches = checked(await db.from("role_xray_searches").select("id,query,country,page,results,status,created_at").eq("role_id", role).eq("status", "complete").order("created_at", { ascending: false }).limit(40)) as { results: XrayResult[] }[];
-    return Response.json({ configured: Boolean(process.env.SERPER_API_KEY?.trim() && process.env.SERPER_LIVE_ENABLED === "true"), searches, known: await known(db, role, searches.flatMap((s) => s.results.map((r) => r.url))) }, { headers: { "Cache-Control": "no-store" } });
+    const searches = checked(await db.from("role_xray_searches").select("id,query,country,page,results,status,created_at").eq("role_id", role).eq("status", "complete").order("created_at", { ascending: false }).limit(60)) as { results: XrayResult[] }[];
+    const templates = checked(await db.from("role_xray_templates").select("id,name,inputs,custom_query,country,pages,split,updated_at").eq("role_id", role).order("name"));
+    return Response.json({ configured: Boolean(process.env.SERPER_API_KEY?.trim() && process.env.SERPER_LIVE_ENABLED === "true"), searches, templates, known: await known(db, role, searches.flatMap((s) => s.results.map((r) => r.url))) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return failure(error); }
 }
 export async function POST(request: Request) {
   try {
     const input = await body(request), { db } = await admin();
     if (input.action === "import") {
-      const p = z.object({ role: z.uuid(), searches: z.array(z.uuid()).min(1).max(20), urls: z.array(z.url().max(500)).min(1).max(200) }).parse(input);
+      const p = z.object({ role: z.uuid(), searches: z.array(z.uuid()).min(1).max(60), urls: z.array(z.url().max(500)).min(1).max(200) }).parse(input);
       return Response.json(checked(await db.rpc("import_role_xray_runs", { p_role: p.role, p_searches: [...new Set(p.searches)], p_urls: [...new Set(p.urls)] })));
+    }
+    if (input.action === "saveTemplate") {
+      const inputs = z.object({ titles: z.string().max(200), keywords: z.string().max(200), location: z.string().max(200), company: z.string().max(200), exclude: z.string().max(200) });
+      const p = z.object({ role: z.uuid(), name: z.string().trim().min(1).max(80), inputs, customQuery: z.string().trim().min(1).max(500).nullable(), country: z.string().regex(/^[a-z]{2}$/), pages: z.number().int().min(1).max(10), split: z.enum(["none", "location", "titles"]) }).parse(input);
+      return Response.json({ id: checked(await db.rpc("save_role_xray_template", { p_role: p.role, p_name: p.name, p_inputs: p.inputs, p_custom: p.customQuery, p_country: p.country, p_pages: p.pages, p_split: p.split })) });
+    }
+    if (input.action === "deleteTemplate") {
+      const p = z.object({ id: z.uuid() }).parse(input);
+      return Response.json({ deleted: checked(await db.rpc("delete_role_xray_template", { p_id: p.id })) });
     }
     const p = z.object({ role: z.uuid(), query: z.string().trim().min(1).max(500), country: z.string().regex(/^[a-z]{2}$/), page: z.number().int().min(1).max(10), token: z.uuid() }).parse(input);
     try { p.query = normalizeQuery(p.query); } catch (error) { throw new AppError((error as Error).message); }

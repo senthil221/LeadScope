@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { Database, Briefcase, LogOut, Settings, ShieldCheck, Users } from "lucide-react";
+import { Coins, Database, Briefcase, LogOut, Settings, ShieldCheck, Users } from "lucide-react";
 import type { PageData } from "@/lib/types";
 import logo from "@/assets/brand/leadvance-recruiting.png";
 import { ClientSwitcher } from "./ClientSwitcher";
@@ -40,6 +40,7 @@ export function Sidebar({ data }: { data: PageData }) {
           <Link className={itemClass(view, ["master-db"])} aria-current={view === "master-db" ? "page" : undefined} href="/master-db"><Database size={17} aria-hidden="true" />Master Database</Link>
           <Link className={itemClass(view, ["all-roles", "roles", "role"])} aria-current={["all-roles", "roles", "role"].includes(view) ? "page" : undefined} href="/roles"><Briefcase size={17} aria-hidden="true" />Roles</Link>
           <Link className={itemClass(view, ["blocklist"])} aria-current={view === "blocklist" ? "page" : undefined} href="/blocklist"><ShieldCheck size={17} aria-hidden="true" />Blocklist</Link>
+          <Link className={itemClass(view, ["credits"])} aria-current={view === "credits" ? "page" : undefined} href="/credits"><Coins size={17} aria-hidden="true" />Credits</Link>
           {client && (
             <Link
               className="shell-link"

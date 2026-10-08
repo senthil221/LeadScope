@@ -10,6 +10,7 @@ import { profileSearchTerm } from "@/lib/recruiting/list-filters";
 import { MasterWorkspace } from "@/components/recruiting/master-workspace";
 import { AllRolesWorkspace } from "@/components/recruiting/all-roles-workspace";
 import { BlocklistWorkspace } from "@/components/recruiting/blocklist-workspace";
+import { CreditsWorkspace } from "@/components/recruiting/credits-workspace";
 import { TeamWorkspace } from "@/components/recruiting/team-workspace";
 import { prospectFilters } from "@/lib/prospects";
 import { prospectQuery } from "@/lib/server/prospects";
@@ -654,6 +655,7 @@ export default async function Page({
         "master-db",
         "all-roles",
         "blocklist",
+        "credits",
       ].includes(data.view)
     )
       notFound();
@@ -673,6 +675,7 @@ export default async function Page({
   if (data.view === "master-db") return <MasterWorkspace key={JSON.stringify(filter)} data={data} />;
   if (data.view === "all-roles") return <AllRolesWorkspace key={`${routeKey}:${filter.archived}:${filter.recruiter}:${filter.client}`} data={data} />;
   if (data.view === "blocklist") return <BlocklistWorkspace key={`${routeKey}:${filter.client}`} data={data} />;
+  if (data.view === "credits") return <CreditsWorkspace key={routeKey} data={data} />;
   if (data.view === "team") return <TeamWorkspace key={routeKey} data={data} />;
   if (data.view === "clients") return <ClientsWorkspace key={routeKey} data={data} />;
   if (data.view === "role") return <RoleWorkspace key={roleRouteKey} data={data} />;

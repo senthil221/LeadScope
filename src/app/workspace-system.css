@@ -141,3 +141,35 @@
 .xray-show-known input { width: auto; margin: 0; }
 .enrichment-results tr.xray-known td { color: var(--faint); background: #fafbfc; }
 .xray-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: #eef1f5; color: #5d6d82; font-size: 10.5px; font-weight: 500; vertical-align: 1px; }
+/* Credits: one card per paid tool, the balance first. */
+.credits-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.credits-card { display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); min-height: 190px; }
+.credits-card.is-low { border-color: #f0c48a; background: #fffbf4; }
+.credits-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.credits-card h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.credits-status { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; background: #eef1f5; color: #5d6d82; }
+.credits-status.is-ok, .credits-status.is-restricted { background: #e7f6ee; color: #1f7a4a; }
+.credits-status.is-error { background: #fdecec; color: #a33a27; }
+.is-low .credits-status { background: #fdf0dc; color: #9c5a12; }
+.credits-use { margin: 0; font-size: 12px; color: var(--muted); }
+.credits-figure { display: flex; align-items: baseline; gap: 6px; margin-top: 4px; }
+.credits-figure strong { font-size: 30px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--ink); }
+.credits-figure span { font-size: 12px; color: var(--muted); }
+.credits-figure .credits-none { font-size: 16px; font-weight: 500; color: var(--faint); }
+.credits-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 12px; }
+.credits-lines li { display: flex; justify-content: space-between; gap: 8px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.credits-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--ink-soft); }
+.credits-link { margin-top: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; }
+.credits-warning { display: flex; align-items: center; gap: 8px; }
+.credits-checked { margin-top: 12px; font-size: 12px; }
+.credits-skeleton { height: 14px; width: 40%; border-radius: 4px; background: #eef1f5; }
+.credits-skeleton.is-big { height: 30px; width: 60%; margin-top: 20px; }
+/* The Serper balance where X-Ray spends it. */
+.xray-balance { font-size: 12px; color: var(--muted); }
+.xray-balance.is-low { color: #9c5a12; font-weight: 500; }
+.xray-templates { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin-bottom: 12px; }
+.xray-templates > label { flex: 1 1 220px; margin: 0; }
+.xray-templates input { min-height: 32px; }
+.xray-split { flex-direction: row !important; align-items: center; gap: 8px; margin: 0; font-weight: 500; }
+.xray-split select { width: auto; min-height: 32px; font-size: 12px; }
+.xray-variations { margin: -6px 0 12px; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 11.5px; color: var(--muted); font-family: var(--font-geist-mono), monospace; }

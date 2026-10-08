@@ -30,3 +30,29 @@ describe("X-Ray runs across several pages", () => {
     expect(runs[0].pages.map((p) => p.id).sort()).toEqual(["new1", "p2"]);
   });
 });
+
+import { batchResults, buildXrayQuery, xrayVariations } from "../src/lib/recruiting/xray";
+const blank = { titles: "", keywords: "", location: "", company: "", exclude: "" };
+describe("X-Ray search variations", () => {
+  it("treats several locations as any of them, not all of them", () => {
+    expect(buildXrayQuery({ ...blank, titles: "QA Manager", location: "Chennai, Bangalore" })).toBe('site:linkedin.com/in/ "QA Manager" ("Chennai" OR "Bangalore")');
+  });
+  it("runs one search per location or title when asked, up to five", () => {
+    const input = { ...blank, titles: "QA Manager, Test Lead", location: "Chennai, Pune, Delhi, Mumbai, Hyderabad, Kochi" };
+    const byPlace = xrayVariations(input, "location");
+    expect(byPlace.map((v) => v.label)).toEqual(["Chennai", "Pune", "Delhi", "Mumbai", "Hyderabad"]);
+    expect(byPlace[0].query).toBe('site:linkedin.com/in/ ("QA Manager" OR "Test Lead") "Chennai"');
+    expect(xrayVariations(input, "titles").map((v) => v.query)).toEqual([
+      'site:linkedin.com/in/ "QA Manager" ("Chennai" OR "Pune" OR "Delhi" OR "Mumbai" OR "Hyderabad" OR "Kochi")',
+      'site:linkedin.com/in/ "Test Lead" ("Chennai" OR "Pune" OR "Delhi" OR "Mumbai" OR "Hyderabad" OR "Kochi")',
+    ]);
+  });
+  it("stays one search when there is nothing to split", () => {
+    expect(xrayVariations({ ...blank, titles: "QA", location: "Chennai" }, "location")).toEqual([{ label: "", query: 'site:linkedin.com/in/ "QA" "Chennai"' }]);
+    expect(xrayVariations({ ...blank, titles: "QA", location: "Chennai, Pune" }, "none")).toHaveLength(1);
+  });
+  it("merges variations, keeping each person once", () => {
+    const a = run([[1, ["x", "y"]]]), b = { ...run([[1, ["y", "z"]]]), query: "other" };
+    expect(batchResults([a, b]).map((r) => r.name)).toEqual(["x", "y", "z"]);
+  });
+});

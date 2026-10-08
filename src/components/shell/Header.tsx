@@ -6,7 +6,7 @@ export function ShellHeader({ data }: { data: PageData }) {
   const client = data.client ?? null;
   const workspaceTitle: Record<string, string> = {
     work: "Work queue", clients: "Clients", "all-roles": "Roles", "master-db": "Master Database",
-    blocklist: "Blocklist", team: "Access", settings: "Settings",
+    blocklist: "Blocklist", credits: "Credits", team: "Access", settings: "Settings",
   };
   return (
     <div className="shell-header">

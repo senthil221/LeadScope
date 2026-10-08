@@ -1265,6 +1265,20 @@ describe("durable mobile waterfall and role X-Ray", () => {
     await expect(asUser(actor, () => rpc("import_role_xray_runs", [rid, [one], [url("runs-c")]]))).rejects.toThrow("saved search results");
     await expect(asUser(outsider, () => rpc("role_xray_known", [rid, [url("runs-a")]]))).rejects.toThrow();
   });
+  it("keeps saved X-Ray searches per role by name", async () => {
+    const cid = await client(), rid = await role(cid);
+    const inputs = JSON.stringify({ titles: "QA Manager", keywords: "", location: "Chennai, Pune", company: "", exclude: "" });
+    const id = await asUser(actor, () => rpc("save_role_xray_template", [rid, "South QA", inputs, null, "in", 5, "location"]));
+    const replaced = await asUser(actor, () => rpc("save_role_xray_template", [rid, " south qa ", inputs, null, "in", 10, "none"]));
+    expect(replaced).toBe(id);
+    expect((await sql("select name,pages,split from public.role_xray_templates where role_id=$1", [rid])).rows).toEqual([{ name: "south qa", pages: 10, split: "none" }]);
+    await expect(asUser(actor, () => rpc("save_role_xray_template", [rid, "Bad", inputs, "not a linkedin query", "in", 3, "none"]))).rejects.toThrow("LinkedIn query");
+    await expect(asUser(actor, () => rpc("save_role_xray_template", [rid, "Too deep", inputs, null, "in", 11, "none"]))).rejects.toThrow();
+    await expect(asUser(outsider, () => rpc("save_role_xray_template", [rid, "Outsider", inputs, null, "in", 3, "none"]))).rejects.toThrow();
+    await expect(asUser(outsider, () => rpc("delete_role_xray_template", [id]))).rejects.toThrow();
+    expect(await asUser(actor, () => rpc("delete_role_xray_template", [id]))).toBe(true);
+    expect((await sql("select count(*)::int as n from public.role_xray_templates where role_id=$1", [rid])).rows[0].n).toBe(0);
+  });
 });
 
 describe("role metadata, Later and scoped blocklists", () => {
