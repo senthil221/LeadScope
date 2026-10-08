@@ -5,10 +5,10 @@ import { AppShell } from "@/components/shell/AppShell";
 import { MobileCoverage } from "./mobile-coverage";
 import type { PageData } from "@/lib/types";
 import type { Balance, ProviderId } from "@/lib/server/balances";
-const ORDER: ProviderId[] = ["serper", "signalhire", "apollo", "bettercontact"];
+const ORDER: ProviderId[] = ["serper", "signalhire", "apollo", "bettercontact", "prospectdb"];
 
 const number = new Intl.NumberFormat("en-IN");
-const statusText: Record<Balance["status"], string> = { ok: "Connected", missing: "Not set up", restricted: "Connected", error: "Unavailable" };
+const statusText: Record<Balance["status"], string> = { ok: "Connected", missing: "Not set up", restricted: "Connected", error: "Unavailable", planned: "Planned" };
 
 // What is left on each paid account. Balances are read live from each
 // provider when the page opens and on Refresh; reading them costs nothing.
@@ -49,15 +49,15 @@ export function CreditsWorkspace({ data }: { data: PageData }) {
           </div>
           <p className="credits-use">{b.usedFor}</p>
           <div className="credits-figure">
-            {b.credits !== null ? <><strong>{number.format(b.credits)}</strong><span>credits left</span></> : <span className="credits-none">{b.status === "restricted" ? "Balance hidden" : "—"}</span>}
+            {b.credits !== null ? <><strong>{number.format(b.credits)}</strong><span>credits left</span></> : <span className="credits-none">{b.status === "restricted" ? "Balance hidden" : b.status === "planned" ? "Not connected" : "—"}</span>}
           </div>
           {b.lines.length > 1 && <ul className="credits-lines">{b.lines.map((line) => <li key={line.label}><span>{line.label}</span><span>{number.format(line.left)}{line.limit ? ` of ${number.format(line.limit)}` : ""}</span></li>)}</ul>}
           {b.note && <p className="credits-note">{b.note}</p>}
-          <a className="credits-link" href={b.dashboard} target="_blank" rel="noopener noreferrer">Open {b.name} <ExternalLink size={12} /></a>
+          {b.dashboard && <a className="credits-link" href={b.dashboard} target="_blank" rel="noopener noreferrer">Open {b.name} <ExternalLink size={12} /></a>}
         </section>;
       })}
     </div>
-    {checkedAt && <p className="muted credits-checked">Checked {new Date(checkedAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}. Low means under 200 for Serper, 100 for SignalHire and Apollo, 50 for BetterContact.</p>}
-    <MobileCoverage balances={Object.fromEntries(list.map((b) => [b.id, b.credits]))} />
+    {checkedAt && <p className="muted credits-checked">Checked {new Date(checkedAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })} · Low under 200 for Serper, 100 for SignalHire and Apollo, 50 for BetterContact</p>}
+    <MobileCoverage />
   </AppShell>;
 }

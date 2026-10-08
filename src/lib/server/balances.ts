@@ -2,14 +2,15 @@ import "server-only";
 
 // What is left on each paid account the workspace draws on. Every call here is
 // a provider's own account or balance endpoint, which none of them charge for.
-export type ProviderId = "serper" | "signalhire" | "apollo" | "bettercontact";
+export type ProviderId = "serper" | "signalhire" | "apollo" | "bettercontact" | "prospectdb";
 export type Balance = {
   id: ProviderId;
   name: string;
   usedFor: string;
   dashboard: string;
   // ok: balance read. restricted: the key works but may not read its balance.
-  status: "ok" | "missing" | "restricted" | "error";
+  // planned: a source the workspace will use but is not connected to yet.
+  status: "ok" | "missing" | "restricted" | "error" | "planned";
   credits: number | null;
   lowAt: number;
   lines: { label: string; left: number; limit?: number }[];
@@ -20,6 +21,7 @@ const providers: Record<ProviderId, Omit<Balance, "status" | "credits" | "lines"
   signalhire: { id: "signalhire", name: "SignalHire", usedFor: "Mobile lookup, first in the waterfall", dashboard: "https://www.signalhire.com/", lowAt: 100, env: "SIGNALHIRE_API_KEY" },
   apollo: { id: "apollo", name: "Apollo", usedFor: "Mobile lookup, second in the waterfall", dashboard: "https://app.apollo.io/", lowAt: 100, env: "APOLLO_API_KEY" },
   bettercontact: { id: "bettercontact", name: "BetterContact", usedFor: "Mobile lookup, last in the waterfall", dashboard: "https://app.bettercontact.rocks/", lowAt: 50, env: "BETTERCONTACT_API_KEY" },
+  prospectdb: { id: "prospectdb", name: "Prospect DB", usedFor: "Mobile lookup from our own prospect data", dashboard: "", lowAt: 0, env: "PROSPECT_DB_API_KEY" },
 };
 export const PROVIDER_IDS = Object.keys(providers) as ProviderId[];
 
@@ -38,6 +40,8 @@ const words = (key: string) => key.replace(/_credits?$/, "").replace(/_/g, " ").
 
 type Read = Pick<Balance, "status" | "credits" | "lines" | "note">;
 const readers: Record<ProviderId, (key: string) => Promise<Read>> = {
+  // Not built yet; the card holds its place until it is.
+  async prospectdb() { return planned; },
   async serper(key) {
     const r = await get("https://google.serper.dev/account", { "X-API-KEY": key });
     const credits = count(r.json?.balance);
@@ -79,6 +83,7 @@ const readers: Record<ProviderId, (key: string) => Promise<Read>> = {
     return failed(r.status);
   },
 };
+const planned: Read = { status: "planned", credits: null, lines: [], note: "Planned as the first, free source for mobile lookups." };
 function failed(status: number): Read {
   return { status: "error", credits: null, lines: [], note: status === 401 || status === 403 ? "The provider rejected the API key. Check it in the server settings." : `Could not read the balance (${status || "no response"}). Try again shortly.` };
 }
@@ -91,7 +96,8 @@ export async function providerBalance(id: ProviderId, fresh = false): Promise<Ba
   const { env, ...meta } = providers[id];
   const key = process.env[env]?.trim();
   let read: Read;
-  if (!key) read = { status: "missing", credits: null, lines: [], note: `Add ${env} on the server to use ${meta.name}.` };
+  if (id === "prospectdb") read = planned;
+  else if (!key) read = { status: "missing", credits: null, lines: [], note: `Add ${env} on the server to use ${meta.name}.` };
   else {
     try { read = await readers[id](key); } catch { read = failed(0); }
   }

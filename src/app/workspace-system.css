@@ -141,29 +141,6 @@
 .xray-show-known input { width: auto; margin: 0; }
 .enrichment-results tr.xray-known td { color: var(--faint); background: #fafbfc; }
 .xray-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: #eef1f5; color: #5d6d82; font-size: 10.5px; font-weight: 500; vertical-align: 1px; }
-/* Credits: one card per paid tool, the balance first. */
-.credits-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
-.credits-card { display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); min-height: 190px; }
-.credits-card.is-low { border-color: #f0c48a; background: #fffbf4; }
-.credits-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.credits-card h2 { margin: 0; font-size: 15px; font-weight: 600; }
-.credits-status { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; background: #eef1f5; color: #5d6d82; }
-.credits-status.is-ok, .credits-status.is-restricted { background: #e7f6ee; color: #1f7a4a; }
-.credits-status.is-error { background: #fdecec; color: #a33a27; }
-.is-low .credits-status { background: #fdf0dc; color: #9c5a12; }
-.credits-use { margin: 0; font-size: 12px; color: var(--muted); }
-.credits-figure { display: flex; align-items: baseline; gap: 6px; margin-top: 4px; }
-.credits-figure strong { font-size: 30px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--ink); }
-.credits-figure span { font-size: 12px; color: var(--muted); }
-.credits-figure .credits-none { font-size: 16px; font-weight: 500; color: var(--faint); }
-.credits-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 12px; }
-.credits-lines li { display: flex; justify-content: space-between; gap: 8px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-.credits-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--ink-soft); }
-.credits-link { margin-top: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; }
-.credits-warning { display: flex; align-items: center; gap: 8px; }
-.credits-checked { margin-top: 12px; font-size: 12px; }
-.credits-skeleton { height: 14px; width: 40%; border-radius: 4px; background: #eef1f5; }
-.credits-skeleton.is-big { height: 30px; width: 60%; margin-top: 20px; }
 /* The Serper balance where X-Ray spends it. */
 .xray-balance { font-size: 12px; color: var(--muted); }
 .xray-balance.is-low { color: #9c5a12; font-weight: 500; }
@@ -173,31 +150,61 @@
 .xray-split { flex-direction: row !important; align-items: center; gap: 8px; margin: 0; font-weight: 500; }
 .xray-split select { width: auto; min-height: 32px; font-size: 12px; }
 .xray-variations { margin: -6px 0 12px; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 11.5px; color: var(--muted); font-family: var(--font-geist-mono), monospace; }
-/* Mobile lookup coverage on the Credits page. */
-.coverage { margin-top: 28px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
-.coverage-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
-.coverage h2 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
-.coverage-head p { margin: 0; font-size: 12px; }
-.coverage-periods { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: #f6f8fb; }
-.coverage-periods button { min-height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; box-shadow: none; font-size: 12px; font-weight: 500; color: var(--ink-soft); }
+/* Credits: the balances in one row across the page, then where numbers came from. */
+.credits-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.credits-card { display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); min-height: 150px; }
+.credits-card.is-low { border-color: #f0c48a; background: #fffbf4; }
+.credits-card.is-planned { border-style: dashed; background: transparent; }
+.credits-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.credits-card h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.credits-status { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; background: #eef1f5; color: #5d6d82; white-space: nowrap; }
+.credits-status.is-ok, .credits-status.is-restricted { background: #e7f6ee; color: #1f7a4a; }
+.credits-status.is-error { background: #fdecec; color: #a33a27; }
+.is-low .credits-status { background: #fdf0dc; color: #9c5a12; }
+.credits-use { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.credits-figure { display: flex; align-items: baseline; gap: 6px; margin-top: 2px; }
+.credits-figure strong { font-size: 26px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--ink); }
+.credits-figure span { font-size: 12px; color: var(--muted); }
+.credits-figure .credits-none { font-size: 15px; font-weight: 500; color: var(--faint); }
+.credits-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 12px; }
+.credits-lines li { display: flex; justify-content: space-between; gap: 8px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.credits-note { margin: 0; font-size: 12px; line-height: 1.45; color: var(--ink-soft); }
+.credits-link { margin-top: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; }
+.credits-warning { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.credits-checked { margin: 8px 0 0; font-size: 12px; }
+.credits-skeleton { height: 14px; width: 40%; border-radius: 4px; background: #eef1f5; }
+.credits-skeleton.is-big { height: 28px; width: 60%; margin-top: 18px; }
+
+.coverage { margin-top: 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.coverage-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.coverage h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.coverage-totals { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; font-size: 12px; color: var(--muted); }
+.coverage-totals strong { margin-right: 3px; font-size: 13px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.coverage-periods { display: inline-flex; margin-left: auto; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: #f6f8fb; }
+.coverage-periods button { min-height: 26px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; box-shadow: none; font-size: 12px; font-weight: 500; color: var(--ink-soft); }
 .coverage-periods button.is-on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(15 23 42 / 0.08); }
-.coverage-totals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin-bottom: 16px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--line); }
-.coverage-totals > div { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: var(--surface); }
-.coverage-totals strong { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.coverage-totals span { font-size: 12px; color: var(--muted); }
-.coverage-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
-.coverage-table th, .coverage-table td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: right; }
-.coverage-table thead th { font-size: 12px; font-weight: 500; color: var(--muted); }
+.coverage-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; font-variant-numeric: tabular-nums; }
+.coverage-table col.is-num { width: 110px; }
+.coverage-table col.is-rate { width: 190px; }
+.coverage-table th, .coverage-table td { padding: 8px 16px; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: right; color: var(--ink); text-transform: none; letter-spacing: normal; }
+.coverage-table tr:last-child > * { border-bottom: 0; }
+.coverage-table thead th { padding-top: 7px; padding-bottom: 7px; background: #f8fafc; font-size: 11.5px; font-weight: 500; color: var(--muted); }
 .coverage-table th:first-child { text-align: left; font-weight: 500; }
-.coverage-table tbody th small { margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: #e7f6ee; color: #1f7a4a; font-size: 10.5px; font-weight: 600; }
-.coverage-table tbody th small.coverage-errors { background: #fdecec; color: #a33a27; }
-.coverage-rate { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 120px; }
-.coverage-bar { width: 72px; height: 6px; border-radius: 3px; background: #eef1f5; overflow: hidden; }
+.coverage-table tbody th { font-size: 13px; }
+.coverage-table tr.is-planned > * { color: var(--faint); }
+.coverage-tag { margin-left: 6px; padding: 1px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 600; vertical-align: 1px; }
+.coverage-tag.is-free { background: #e7f6ee; color: #1f7a4a; }
+.coverage-tag.is-planned { background: #eef1f5; color: #5d6d82; }
+.coverage-tag.is-error { background: #fdecec; color: #a33a27; }
+.coverage-rate { display: inline-flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.coverage-rate > span:last-child { min-width: 34px; }
+.coverage-bar { width: 90px; height: 6px; border-radius: 3px; background: #eef1f5; overflow: hidden; }
 .coverage-bar > span { display: block; height: 100%; border-radius: 3px; background: var(--brand); }
-.coverage-notes { margin-top: 16px; padding: 12px 14px; border-radius: 8px; background: #f6f8fb; }
-.coverage-notes h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
-.coverage-notes ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; line-height: 1.5; color: var(--ink-soft); }
-.coverage-foot { margin: 12px 0 0; font-size: 12px; }
-@media (max-width: 700px) { .coverage-totals { grid-template-columns: 1fr 1fr; } .coverage-table { font-size: 12px; } .coverage-bar { display: none; } .coverage-rate { min-width: 0; } }
-.coverage-table tbody th { text-transform: none; letter-spacing: normal; background: none; font-size: 13px; color: var(--ink); }
-.coverage-table thead th { background: none; text-transform: none; letter-spacing: normal; }
+.coverage-loading { height: 160px; width: auto; margin: 16px; }
+@media (max-width: 700px) {
+  .coverage-periods { margin-left: 0; }
+  .coverage-table col.is-num { width: 64px; }
+  .coverage-table col.is-rate { width: 64px; }
+  .coverage-table th, .coverage-table td { padding: 8px 10px; }
+  .coverage-bar { display: none; }
+}
