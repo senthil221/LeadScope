@@ -1242,6 +1242,29 @@ describe("durable mobile waterfall and role X-Ray", () => {
     await expect(asUser(actor, () => rpc("import_role_xray", [rid, reserved.id, ["https://www.linkedin.com/in/forged"]]))).rejects.toThrow("saved search results");
     await expect(asUser(outsider, () => rpc("reserve_role_xray", [rid, query, "in", 1, randomUUID()]))).rejects.toThrow();
   });
+  it("reads up to ten pages, reuses a fetched page, flags who the role has and imports across pages", async () => {
+    const cid = await client(), rid = await role(cid);
+    const query = 'site:linkedin.com/in/ "QA Manager" "Chennai"';
+    const page = async (n: number, slugs: string[]) => {
+      const reserved = await asUser(actor, () => rpc("reserve_role_xray", [rid, query, "in", n, randomUUID()]));
+      await sql("update public.role_xray_searches set status='complete',results=$2 where id=$1", [reserved.id, JSON.stringify(slugs.map((s) => ({ url: `https://www.linkedin.com/in/${s}`, name: s, title: "QA" })))]);
+      return reserved.id as string;
+    };
+    const one = await page(1, ["runs-a", "runs-b"]), ten = await page(10, ["runs-b", "runs-c"]);
+    await expect(asUser(actor, () => rpc("reserve_role_xray", [rid, query, "in", 11, randomUUID()]))).rejects.toThrow("page");
+    const again = await asUser(actor, () => rpc("reserve_role_xray", [rid, query, "in", 1, randomUUID()]));
+    expect(again.id).toBe(one); expect(again.existing).toBe(true); expect(again.status).toBe("complete");
+    const url = (s: string) => `https://www.linkedin.com/in/${s}`;
+    const imported = await asUser(actor, () => rpc("import_role_xray_runs", [rid, [one, ten], [url("runs-a"), url("runs-b"), url("runs-c")]]));
+    expect(imported.created).toBe(3);
+    await asUser(actor, () => rpc("manage_recruiting_blocklist", [cid, [url("runs-blocked")], "Blocked", null]));
+    const known = await asUser(actor, () => rpc("role_xray_known", [rid, [url("RUNS-A"), url("runs-c"), url("runs-new"), url("runs-blocked")]]));
+    expect(known.inRole.sort()).toEqual([url("RUNS-A"), url("runs-c")]);
+    expect(known.blocked).toEqual([url("runs-blocked")]);
+    expect((await asUser(actor, () => rpc("import_role_xray_runs", [rid, [one, ten], [url("runs-b")]]))).created).toBe(0);
+    await expect(asUser(actor, () => rpc("import_role_xray_runs", [rid, [one], [url("runs-c")]]))).rejects.toThrow("saved search results");
+    await expect(asUser(outsider, () => rpc("role_xray_known", [rid, [url("runs-a")]]))).rejects.toThrow();
+  });
 });
 
 describe("role metadata, Later and scoped blocklists", () => {

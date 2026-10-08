@@ -42,7 +42,7 @@ export async function searchSerper(
   if (
     !Number.isInteger(page) ||
     page < 1 ||
-    page > 5 ||
+    page > 10 ||
     !/^[a-z]{2}$/.test(country) ||
     !/^[a-z]{2}$/.test(language)
   )

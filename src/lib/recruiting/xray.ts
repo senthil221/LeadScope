@@ -22,3 +22,36 @@ export function xrayResults(organic: { link: string; title: string; snippet: str
   }
   return [...results.values()];
 }
+
+// One run of an X-Ray search: the Google pages fetched for a query, in order.
+export type XrayPage = { id: string; page: number; results: XrayResult[] };
+export type XrayRun = { query: string; country: string; pages: XrayPage[]; exhausted: boolean };
+// Every person across the run once, in the order Google first showed them.
+export function runResults(run: XrayRun): XrayResult[] {
+  const seen = new Map<string, XrayResult>();
+  for (const page of [...run.pages].sort((a, b) => a.page - b.page))
+    for (const result of page.results) if (!seen.has(result.url)) seen.set(result.url, result);
+  return [...seen.values()];
+}
+// A page that adds nobody new means Google has run out for this query.
+export function addsNobody(run: XrayRun, page: XrayResult[]) {
+  const seen = new Set(runResults(run).map((r) => r.url));
+  return !page.some((r) => !seen.has(r.url));
+}
+export function lastPage(run: XrayRun) {
+  let page = 0;
+  while (run.pages.some((p) => p.page === page + 1)) page += 1;
+  return page;
+}
+// Saved pages grouped back into runs, most recent first. A page fetched twice
+// keeps its latest copy.
+export function savedRuns(searches: (XrayPage & { query: string; country: string; created_at: string })[], limit = 6): XrayRun[] {
+  const runs = new Map<string, XrayRun & { at: string }>();
+  for (const search of [...searches].sort((a, b) => b.created_at.localeCompare(a.created_at))) {
+    const key = `${search.country}\u0000${search.query}`;
+    const run = runs.get(key) ?? { query: search.query, country: search.country, pages: [], exhausted: false, at: search.created_at };
+    if (!run.pages.some((p) => p.page === search.page)) run.pages.push({ id: search.id, page: search.page, results: search.results });
+    runs.set(key, run);
+  }
+  return [...runs.values()].slice(0, limit).map((run) => ({ query: run.query, country: run.country, pages: run.pages, exhausted: run.exhausted }));
+}
