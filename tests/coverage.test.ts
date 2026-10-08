@@ -16,7 +16,7 @@ describe("coverage notes", () => {
     const notes = coverageNotes(base([s("database", 40, 4), s("signalhire", 36, 20), s("apollo", 16, 6), s("bettercontact", 10, 0)]), { bettercontact: 20 });
     expect(notes[0]).toBe("75% of lookups ended with at least one number (30 of 40).");
     expect(notes).toContain("4 lookups were answered from numbers already on file, without spending a credit.");
-    expect(notes).toContain("SignalHire has the best hit rate so far: 56% of the people it was asked about.");
+    expect(notes).toContain("Of the people found, SignalHire found 20, Apollo found 6.");
     expect(notes).toContain("Apollo found 6 people the sources before it missed (38% of what reached it).");
     expect(notes).toContain("BetterContact has found nobody in 10 tries after the earlier sources missed. It may not be worth its credits as a fallback.");
     expect(notes.some((n) => n.startsWith("BetterContact has 20 credits left"))).toBe(true);

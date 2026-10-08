@@ -23,11 +23,13 @@ export function coverageNotes(c: Coverage, balances: Partial<Record<string, numb
   const onFile = by("database");
   if (onFile?.found) notes.push(`${onFile.found} ${onFile.found === 1 ? "lookup was" : "lookups were"} answered from numbers already on file, without spending a credit.`);
   const paid = PAID.map(by).filter((s): s is CoverageSource => Boolean(s && s.checked));
-  const best = [...paid].sort((a, b) => hitRate(b) - hitRate(a))[0];
-  if (best && paid.length > 1 && best.checked >= 5) notes.push(`${sourceName[best.provider]} has the best hit rate so far: ${pct(hitRate(best))} of the people it was asked about.`);
+  // Who supplied the finds is the fair comparison: a fallback only sees the
+  // people the others missed, so its rate cannot be set against theirs.
+  const finders = paid.filter((x) => x.found);
+  if (finders.length) notes.push(`Of the people found, ${finders.map((x) => `${sourceName[x.provider]} found ${x.found}`).join(", ")}.`);
   for (const s of paid.slice(1)) {
     if (s.found) notes.push(`${sourceName[s.provider]} found ${s.found} ${s.found === 1 ? "person" : "people"} the sources before it missed (${pct(hitRate(s))} of what reached it).`);
-    else if (s.checked >= 10) notes.push(`${sourceName[s.provider]} has found nobody in ${s.checked} tries after the earlier sources missed. It may not be worth its credits as a fallback.`);
+    else if (s.checked >= 5) notes.push(`${sourceName[s.provider]} has found nobody in ${s.checked} tries after the earlier sources missed. It may not be worth its credits as a fallback.`);
   }
   for (const p of PAID) {
     const s = by(p);
