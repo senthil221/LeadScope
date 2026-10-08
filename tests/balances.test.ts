@@ -23,7 +23,7 @@ describe("provider balances", () => {
   });
   it("lists Apollo credit types when the key can read them", async () => {
     vi.stubEnv("APOLLO_API_KEY", "a");
-    vi.stubGlobal("fetch", vi.fn(async () => reply(200, { credit_usage_stats: { lead_credit: { limit: 1000, consumed: 10, left_over: 990 }, mobile_credit: { limit: 100, consumed: 40, left_over: 60 }, dialer: { limit: 5, consumed: 0, left_over: 5 } } })));
+    vi.stubGlobal("fetch", vi.fn(async () => reply(200, { credit_usage_stats: { lead_credit: { limit: 1000, consumed: 10, left_over: 990 }, mobile_credit: { limit: 100, consumed: 40, left_over: 60 }, ai_credit: { limit: 9, consumed: 0, left_over: 9 }, dialer: { limit: 5, consumed: 0, left_over: 5 } } })));
     const apollo = await providerBalance("apollo", true);
     expect(apollo).toMatchObject({ status: "ok", credits: 60 });
     expect(apollo.lines.map((l) => l.label)).toEqual(["Lead", "Mobile"]);
@@ -36,5 +36,14 @@ describe("provider balances", () => {
     expect(await providerBalance("serper", true)).toMatchObject({ status: "error", credits: null });
     vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
     expect(await providerBalance("serper", true)).toMatchObject({ status: "error" });
+  });
+});
+describe("Apollo plans without mobile credits", () => {
+  it("leads with lead credits and leaves out allowances lookups never spend", async () => {
+    vi.stubEnv("APOLLO_API_KEY", "a");
+    vi.stubGlobal("fetch", vi.fn(async () => reply(200, { credit_usage_stats: { lead_credit: { limit: 2510, consumed: 20, left_over: 2490 }, ai_credit: { limit: 250000, consumed: 0, left_over: 250000 }, broadcast: { limit: 50000, consumed: 0, left_over: 50000 } } })));
+    const apollo = await providerBalance("apollo", true);
+    expect(apollo).toMatchObject({ status: "ok", credits: 2490, note: "Lead credits of 2,510 this cycle." });
+    expect(apollo.lines.map((l) => l.label)).toEqual(["Lead"]);
   });
 });

@@ -63,11 +63,13 @@ const readers: Record<ProviderId, (key: string) => Promise<Read>> = {
     const stats = r.json?.credit_usage_stats;
     if (r.status === 200 && stats && typeof stats === "object") {
       const lines = Object.entries(stats as Record<string, { limit?: unknown; left_over?: unknown }>)
-        .filter(([type]) => type !== "dialer")
+        // Only the allowances a lookup can spend; AI, dialer and broadcast ones are not used here.
+        .filter(([type]) => /lead|mobile|direct_dial|phone/.test(type))
         .map(([type, s]) => ({ label: words(type), left: count(s?.left_over), limit: count(s?.limit) ?? undefined }))
         .filter((line): line is { label: string; left: number; limit: number | undefined } => line.left !== null);
-      const mobile = lines.find((l) => /mobile|direct dial/i.test(l.label)) ?? lines[0];
-      return { status: "ok", credits: mobile?.left ?? null, lines };
+      const mobile = lines.find((l) => /mobile|direct dial|phone/i.test(l.label));
+      const main = mobile ?? lines.find((l) => /lead/i.test(l.label)) ?? lines[0];
+      return { status: "ok", credits: main?.left ?? null, lines, note: main ? `${main.label} credits${main.limit ? ` of ${main.limit.toLocaleString("en-IN")}` : ""} this cycle.` : undefined };
     }
     if (r.status === 403 || r.status === 401) {
       const health = await get("https://api.apollo.io/api/v1/auth/health", { "x-api-key": key });
