@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, ExternalLink, RefreshCw } from "lucide-react";
 import { AppShell } from "@/components/shell/AppShell";
+import { MobileCoverage } from "./mobile-coverage";
 import type { PageData } from "@/lib/types";
 import type { Balance, ProviderId } from "@/lib/server/balances";
 const ORDER: ProviderId[] = ["serper", "signalhire", "apollo", "bettercontact"];
@@ -57,5 +58,6 @@ export function CreditsWorkspace({ data }: { data: PageData }) {
       })}
     </div>
     {checkedAt && <p className="muted credits-checked">Checked {new Date(checkedAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}. Low means under 200 for Serper, 100 for SignalHire and Apollo, 50 for BetterContact.</p>}
+    <MobileCoverage balances={Object.fromEntries(list.map((b) => [b.id, b.credits]))} />
   </AppShell>;
 }

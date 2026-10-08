@@ -1112,9 +1112,13 @@ export function RolePipeline({
             }}>
               <div className="phone-sheet-cell">
                 <SheetCell col={colIndex} row={rowIndex} kind={column.kind} label={`${column.label}, row ${rowIndex + 1}`} placeholder={column.placeholder} emptyContent={running ? <span className="phone-pending-result">Looking up…</span> : zeroPhones ? <span className="phone-empty-result">0 phones found</span> : undefined} emptyTitle={checkedTitle} readOnly={locked} value={(column.id === "phone" ? rc.candidates.phone : rc.candidates.alternate_phone) ?? ""} display={formatMobile} save={async (next, previous) => { await saveCell("profile", rc.candidate_id, column.id, next, previous); }} />
-                <button type="button" className="phone-lookup-trigger" aria-label={`${open ? "Close mobile enrichment" : "Find mobile numbers"} for ${rc.candidates.full_name}`} aria-expanded={open} title={open ? "Close inline enrichment" : "Enrich mobile numbers in this cell"} disabled={locked} onClick={() => setInlinePhoneCell(open ? null : cellId)}>
-                  {open ? <X size={12} /> : running ? <LoaderCircle className="phone-lookup-spinner" size={12} /> : <Phone size={12} />}
-                </button>
+                {/* Lookups start from Mobile; a second number found lands in
+                    Alternate by itself, so this column has nothing to start. */}
+                {column.id === "phone" && (
+                  <button type="button" className="phone-lookup-trigger" aria-label={`${open ? "Close mobile enrichment" : "Find mobile numbers"} for ${rc.candidates.full_name}`} aria-expanded={open} title={open ? "Close inline enrichment" : "Enrich mobile numbers in this cell"} disabled={locked} onClick={() => setInlinePhoneCell(open ? null : cellId)}>
+                    {open ? <X size={12} /> : running ? <LoaderCircle className="phone-lookup-spinner" size={12} /> : <Phone size={12} />}
+                  </button>
+                )}
               </div>
               {open && <InlineMobileLookup key={cellId} roleId={role.id} candidateId={rc.candidate_id} linkedin={linkedInUrl(rc.candidates)} currentValue={(column.id === "phone" ? rc.candidates.phone : rc.candidates.alternate_phone) ?? ""} zeroShownInCell={zeroPhones} onSaved={refresh} onQueued={() => setMobileActivityVersion((previous) => previous + 1)} />}
             </div>
@@ -2213,7 +2217,7 @@ export function RolePipeline({
                         }
                       />
                     </td>
-                  )}
+                )}
                   <td className="sheet-serial">{(page - 1) * 50 + rowIndex + 1}</td>
                   <td className="candidate-open-cell">
                     <button
@@ -2237,10 +2241,10 @@ export function RolePipeline({
                         value={rc.candidates.full_name}
                       />
                     </td>
-                  )}
+                )}
                   {visibleCandidateColumns.map((column, columnIndex) =>
                     renderCandidateCell(rc, column, rowIndex, columnIndex + firstDataColumn),
-                  )}
+                )}
                   {showRowActions && (
                     <td className="candidate-action-cell">
                       <div className="candidate-row-actions">
@@ -2277,7 +2281,7 @@ export function RolePipeline({
                         )}
                       </div>
                     </td>
-                  )}
+                )}
                 </tr>
                 );
               })}

@@ -1127,6 +1127,26 @@ describe("durable mobile waterfall and role X-Ray", () => {
     const job = await rpc("claim_mobile_waterfall");
     return { ...data, job };
   }
+  it("sums what each mobile source found, for admins only", async () => {
+    const coverage = () => asUser(actor, () => rpc("mobile_coverage", [30]));
+    type Source = { provider: string; checked: number; found: number; numbers: number; errors: number };
+    const source = (c: { providers: Source[] }, p: string): Source => c.providers.find((s) => s.provider === p) ?? { provider: p, checked: 0, found: 0, numbers: 0, errors: 0 };
+    const before = await coverage();
+    const hit = await lookup("coverage-hit"), miss = await lookup("coverage-miss");
+    const step = (provider: string, outcome: string, count: number) => ({ provider, outcome, count });
+    await sql("update public.mobile_waterfall_jobs set status='complete',steps=$2 where id=$1", [hit.job.id, JSON.stringify([step("database", "checked", 0), step("signalhire", "checked", 2)])]);
+    await sql("update public.mobile_waterfall_jobs set status='failed',steps=$2 where id=$1", [miss.job.id, JSON.stringify([step("database", "checked", 0), step("signalhire", "checked", 0), step("apollo", "checked", 0), step("bettercontact", "error", 0)])]);
+    const after = await coverage();
+    expect(after.lookups.total - before.lookups.total).toBe(2);
+    expect(after.lookups.found - before.lookups.found).toBe(1);
+    expect(after.lookups.failed - before.lookups.failed).toBe(1);
+    const delta = (p: string, key: "checked" | "found" | "numbers" | "errors") => source(after, p)[key] - source(before, p)[key];
+    expect([delta("signalhire", "checked"), delta("signalhire", "found"), delta("signalhire", "numbers")]).toEqual([2, 1, 2]);
+    expect([delta("apollo", "checked"), delta("apollo", "found")]).toEqual([1, 0]);
+    expect([delta("bettercontact", "checked"), delta("bettercontact", "errors")]).toEqual([0, 1]);
+    expect(after.providers.map((s: { provider: string }) => s.provider)).toEqual(["database", "signalhire", "apollo", "bettercontact"].filter((p) => after.providers.some((s: { provider: string }) => s.provider === p)));
+    await expect(asUser(outsider, () => rpc("mobile_coverage", [30]))).rejects.toThrow();
+  });
   it("starts only explicitly and deduplicates active lookups across roles", async () => {
     const data = await pipeline("mobile-explicit");
     expect((await sql("select count(*) from public.mobile_waterfall_jobs where candidate_id=$1", [data.candidateId])).rows[0].count).toBe("0");
