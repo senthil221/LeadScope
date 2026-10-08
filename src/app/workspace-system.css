@@ -86,7 +86,7 @@
 }
 .recruiter-popover-list { display: flex; flex-direction: column; gap: 1px; max-height: 260px; margin: 0; padding: 0; overflow-y: auto; overscroll-behavior: contain; list-style: none; }
 .recruiter-option {
-  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0 8px;
+  display: flex; align-items: center; justify-content: flex-start; gap: 8px; width: 100%; min-height: 32px; padding: 0 8px;
   border: 0; border-radius: 6px; background: transparent; box-shadow: none;
   font-size: 13px; font-weight: 500; color: var(--ink); text-align: left; cursor: pointer;
 }
