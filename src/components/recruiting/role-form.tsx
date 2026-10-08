@@ -88,7 +88,7 @@ export function RoleFormDialog({
         <label>
           <span>Recruiter</span>
           {/* Chosen from the kept list, so one person is one name everywhere. */}
-          <RecruiterSelect label="Recruiter" value={recruiter} onChoose={setRecruiter} />
+          <RecruiterSelect label="Recruiter" value={recruiter} onChoose={setRecruiter} className="is-field" />
           <input type="hidden" name="recruiters" value={recruiter} />
         </label>
         <label>

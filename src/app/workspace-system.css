@@ -49,12 +49,58 @@
 .role-directory-table .strong { font-weight: 500; }
 .role-directory-header .eyebrow { display: none; }
 .role-directory-filters { padding: 10px 12px; gap: 8px; }
-/* Recruiter: a dropdown in the row, sized to a first name rather than the
-   column, and quiet until it is used - like the source cell in a stage. */
-.recruiter-select { min-width: 132px; max-width: 180px; min-height: 30px; padding: 3px 8px; font-size: 13px; }
-.role-directory-table .recruiter-select { border-color: transparent; background-color: transparent; }
-.role-directory-table tr:hover .recruiter-select,
-.role-directory-table .recruiter-select:focus { border-color: var(--line-strong, #c9d3e0); background-color: var(--surface, #fff); }
+/* Recruiter. In a row it is a name with a coloured initial, quiet until it is
+   pointed at; the chevron and the outline arrive on hover, so a column of
+   assignments reads as a column of people rather than a column of controls. */
+.recruiter-picker {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-width: 140px; max-width: 200px; min-height: 30px; padding: 0 8px 0 4px;
+  border: 1px solid transparent; border-radius: 8px; background: transparent; box-shadow: none;
+  font-size: 13px; font-weight: 500; color: var(--ink); text-align: left; cursor: pointer;
+  transition: border-color var(--t-base) var(--t-ease), background var(--t-base) var(--t-ease);
+}
+.recruiter-picker:hover:not(:disabled),
+.recruiter-picker[aria-expanded="true"] { border-color: var(--line-strong); background: var(--surface); }
+.recruiter-picker[aria-expanded="true"] { border-color: var(--brand); }
+.recruiter-picker:disabled { cursor: default; opacity: 0.6; }
+.recruiter-picker.is-empty { color: var(--faint); font-weight: 400; }
+.recruiter-picker-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recruiter-picker > svg { flex: 0 0 auto; color: var(--faint); opacity: 0; transition: opacity var(--t-base) var(--t-ease), transform var(--t-base) var(--t-ease); }
+.recruiter-picker:hover:not(:disabled) > svg,
+.recruiter-picker:focus-visible > svg,
+.recruiter-picker[aria-expanded="true"] > svg { opacity: 1; }
+.recruiter-picker[aria-expanded="true"] > svg { transform: rotate(180deg); }
+/* In a form it is a field, so it looks like one from the start. */
+.recruiter-picker.is-field { width: 100%; max-width: none; min-height: 36px; border-color: var(--line-strong); background: var(--surface); padding-left: 6px; }
+.recruiter-picker.is-field > svg { opacity: 1; }
+.recruiter-avatar {
+  display: inline-grid; place-items: center; flex: 0 0 auto;
+  width: 22px; height: 22px; border-radius: 50%;
+  font-size: 10.5px; font-weight: 650; letter-spacing: 0.02em;
+}
+.recruiter-avatar.is-empty { border: 1px dashed var(--line-strong); color: var(--faint); background: transparent; }
+.recruiter-popover {
+  position: fixed; z-index: 60; padding: 4px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.06), 0 12px 28px -8px rgb(15 23 42 / 0.22);
+}
+.recruiter-popover-list { display: flex; flex-direction: column; gap: 1px; max-height: 260px; margin: 0; padding: 0; overflow-y: auto; overscroll-behavior: contain; list-style: none; }
+.recruiter-option {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0 8px;
+  border: 0; border-radius: 6px; background: transparent; box-shadow: none;
+  font-size: 13px; font-weight: 500; color: var(--ink); text-align: left; cursor: pointer;
+}
+.recruiter-option[data-active="true"] { background: var(--brand-soft); color: var(--brand-ink); }
+.recruiter-option[aria-selected="true"] { font-weight: 650; }
+.recruiter-option > svg:last-child:not(:first-child) { margin-left: auto; color: var(--brand); flex: 0 0 auto; }
+.recruiter-option-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recruiter-option em { flex: 0 0 auto; font-style: normal; font-size: 11px; color: var(--faint); }
+.recruiter-option.is-none { color: var(--ink-soft); font-weight: 400; }
+.recruiter-option.is-loading { color: var(--faint); cursor: default; font-weight: 400; }
+/* Editing the list is not one of the names, so it sits below a rule. */
+.recruiter-popover-footer { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--line); }
+.recruiter-option.is-manage { color: var(--ink-soft); font-weight: 500; gap: 9px; padding-left: 12px; }
+.recruiter-option.is-manage > svg { color: var(--muted); }
 .recruiters-dialog { width: min(420px, calc(100vw - 32px)); }
 .recruiters-list { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 4px; }
 .recruiters-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; }
