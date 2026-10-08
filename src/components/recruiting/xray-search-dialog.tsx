@@ -70,7 +70,8 @@ export function XraySearchDialog({ roleId, roleName, onClose, onImported }: { ro
           setProgress(`${runs.length > 1 ? `${run.label || `Search ${index + 1}`}: ` : ""}page ${page} of ${until}…`);
           const result = await post<{ id: string; results: XrayResult[]; reused: boolean; known: Known }>({ role: roleId, query: run.query, country: run.country, page, token: crypto.randomUUID() });
           remember(result.known);
-          if (!result.reused) setCredits((n) => n + 1);
+          // Serper takes a moment to show a spend, so count it here first.
+          if (!result.reused) { setCredits((n) => n + 1); setBalance((b) => (b && b.credits !== null ? { ...b, credits: b.credits - 1 } : b)); }
           const exhausted = result.results.length === 0 || addsNobody(run, result.results);
           runs[index] = { ...run, pages: [...run.pages.filter((p) => p.page !== page), { id: result.id, page, results: result.results }], exhausted };
           setBatch([...runs]);
@@ -81,7 +82,7 @@ export function XraySearchDialog({ roleId, roleName, onClose, onImported }: { ro
         }
       }
       setHistory((previous) => [...runs, ...previous.filter((r) => !runs.some((run) => run.query === r.query && run.country === r.country))].slice(0, 6));
-    } catch (e) { setError((e as Error).message); } finally { setBusy(false); setProgress(""); void checkBalance(true); }
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); setProgress(""); window.setTimeout(() => void checkBalance(true), 5000); }
   }
   function search() {
     setSelected(new Set());
