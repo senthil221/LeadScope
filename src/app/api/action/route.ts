@@ -122,7 +122,7 @@ export async function POST(request: Request) {
             // Lakhs per annum; either end may be left open.
             ctcMin: z.number().min(0).max(10000).nullable().default(null),
             ctcMax: z.number().min(0).max(10000).nullable().default(null),
-            openedOn: z.string().regex(/^d{4}-d{2}-d{2}$/).nullable().default(null),
+            openedOn: z.iso.date().nullable().default(null),
             roleBrief: z.string().max(50000).optional(),
             ratingThreshold: z
               .number()
