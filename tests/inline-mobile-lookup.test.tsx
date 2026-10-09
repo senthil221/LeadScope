@@ -16,7 +16,8 @@ async function mount(overrides: Partial<typeof props> = {}) {
 }
 
 describe("mobile enrichment inside a phone cell", () => {
-  it("only reads history on opening; Enrich explicitly queues the profile once", async () => {
+  // Opening the cell is the request: one read of the history, then one queued lookup.
+  it("reads history first, then queues the profile once without a second click", async () => {
     let release!: (value: Response) => void;
     const fetcher = vi.fn((_url, init) => init?.method === "POST"
       ? new Promise<Response>((resolve) => { release = resolve; })
@@ -24,12 +25,9 @@ describe("mobile enrichment inside a phone cell", () => {
     vi.stubGlobal("fetch", fetcher);
     const onQueued = vi.fn();
     await mount({ onQueued });
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    await act(async () => {});
     expect(fetcher.mock.calls[0][0]).toContain("candidate=profile");
     expect(fetcher.mock.calls[0][1]?.method).toBeUndefined();
-    const enrich = screen.getByRole("button", { name: "Enrich" });
-    fireEvent.click(enrich);
-    fireEvent.click(enrich);
     expect(screen.queryByRole("button", { name: "Enrich" })).toBeNull();
     const posts = fetcher.mock.calls.filter(([, init]) => init?.method === "POST");
     expect(posts).toHaveLength(1);
@@ -81,7 +79,7 @@ describe("mobile enrichment inside a phone cell", () => {
     vi.stubGlobal("fetch", fetcher);
     const view = await mount();
     expect(screen.queryByRole("checkbox")).toBeNull();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Enrich" })); });
+    await act(async () => {});
     const post = fetcher.mock.calls.find(([, init]) => init?.method === "POST")!;
     expect(JSON.parse(post[1].body).collectAll).toBe(false);
     view.unmount();
@@ -106,7 +104,7 @@ describe("mobile enrichment inside a phone cell", () => {
       .mockResolvedValueOnce(json(status([job])));
     vi.stubGlobal("fetch", fetcher);
     await mount();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Enrich" })); });
+    await act(async () => {});
     expect(screen.getByText("Connection lost")).toBeTruthy();
     expect(screen.getByText("Checking SignalHire")).toBeTruthy();
     expect(fetcher.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
@@ -142,7 +140,7 @@ describe("mobile enrichment inside a phone cell", () => {
     vi.stubGlobal("fetch", fetcher);
     const onSaved = vi.fn();
     await mount({ onSaved });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Enrich" })); });
+    await act(async () => {});
     expect(onSaved).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("button", { name: /Enrich/ })).toBeNull();
     expect(screen.getByRole("button", { name: "Copy 9158198424" })).toBeTruthy();

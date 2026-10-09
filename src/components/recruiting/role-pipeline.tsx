@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Fragment, useEffect, useMemo, useRef, useCallback, useState, useSyncExternalStore } from "react";
 import {
-  Archive,
   ArrowLeft,
   ChevronDown,
   ChevronRight,
@@ -77,6 +76,7 @@ import styles from "./role-workspace.module.css";
 import { formatMobile } from "@/lib/recruiting/contact";
 import { DialogLoading, TableDialog } from "./table-dialog";
 import { roleStageUrl } from "@/lib/recruiting/navigation";
+import { ctcMaxLabel, roleStatusLabel } from "@/lib/recruiting/roles";
 import { RoleToolsMenu } from "./role-tools-menu";
 import { formatRecruitingDate } from "@/lib/recruiting/display";
 import { hasZeroMobileResult, type MobileLookupCell } from "@/lib/recruiting/mobile-waterfall";
@@ -257,11 +257,11 @@ export function RolePipeline({
           ["INPUT", "TEXTAREA", "SELECT"].includes(active.tagName))
       )
         return;
-      router.push(`/clients/${client.id}/roles?list=1`);
+      router.push("/roles");
     }
     document.addEventListener("keydown", leave);
     return () => document.removeEventListener("keydown", leave);
-  }, [client.id, router]);
+  }, [router]);
   const [masterSelection, setMasterSelection] = useState({
     scope: "",
     ids: [] as string[],
@@ -452,6 +452,8 @@ export function RolePipeline({
   // Cheap and pure; the compiler memoizes it without a manual dependency list.
   const tabColumns = isStage(tab) ? candidateColumns(tab, roleFields) : [];
 
+  // The two shortlist tabs move people on by shortlisting them.
+  const advanceWord = tab === "profile_shortlisted" || tab === "recruiter_shortlisted" ? "Shortlist" : "Advance";
   const advanceTo =
     isPipelineTab && tab !== "all_profiles"
       ? nextStage(tab as PipelineStage)
@@ -1234,19 +1236,6 @@ export function RolePipeline({
     setMessage((parts.length ? parts.join(", ") + "." : "Nothing to import.") + notice);
     refresh();
   }
-  async function toggleArchive() {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      await act("archiveRole", { id: role.id, archived: !role.archived });
-      refresh();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
   async function moveSelectedToNextStage() {
     if (busy || movingCandidateId || !advanceTo || !selected.length) return;
     setBusy(true);
@@ -1403,17 +1392,16 @@ export function RolePipeline({
       <header className="page-header role-workspace-header">
         <div>
           <div className="role-title-row">
-            {/* A client with one open role opens straight into it, so this is
-                the only way back out. list=1 asks for the roles list itself
-                rather than being forwarded back in here. */}
-            <Link className="role-back" href={`/clients/${client.id}/roles?list=1`}>
+            {/* Roles is where every role is worked from, so back goes there. */}
+            <Link className="role-back" href="/roles">
               <ArrowLeft size={15} aria-hidden="true" />
-              <span>{client.name}</span>
+              <span>Roles</span>
             </Link>
+            <Link className="badge role-client" href={`/clients/${client.id}/roles?list=1`}>{client.name}</Link>
             <h1>{role.name}</h1>
-            <span className={`badge ${role.status}`}>{role.status.replace("_", " ")}</span>
+            <span className={`badge role-${role.status}`}>{roleStatusLabel(role.status)}</span>
             {(role.recruiter_names ?? []).map((name) => <span className="badge" key={name}>{name}</span>)}
-            {role.ctc && <span className="muted">CTC {role.ctc}</span>}
+            {ctcMaxLabel(role) && <span className="muted">CTC {role.ctc || ctcMaxLabel(role)}</span>}
             {/* The whole-role picture belongs with the whole-role list. On a
                 stage tab it describes something other than what is on screen,
                 and the tab counts already say where everyone is.
@@ -1439,10 +1427,6 @@ export function RolePipeline({
             </button>
           )}
           <button onClick={() => setEditing(true)}>Edit role</button>
-          <button disabled={busy} onClick={() => void toggleArchive()}>
-            <Archive size={16} />
-            {role.archived ? "Restore" : "Archive"}
-          </button>
         </div>
       </header>
       <input
@@ -1555,7 +1539,7 @@ export function RolePipeline({
           />
           {advanceTo && (
             <button disabled={selectingAll || busy || Boolean(movingCandidateId) || role.archived} onClick={() => void moveSelectedToNextStage()}>
-              Move to {stageLabels[advanceTo]}
+              {tab === "profile_shortlisted" || tab === "recruiter_shortlisted" ? `Shortlist to ${stageLabels[advanceTo]}` : `Move to ${stageLabels[advanceTo]}`}
             </button>
           )}
           {canRejectFromTab && (
@@ -2255,7 +2239,7 @@ export function RolePipeline({
                             onClick={() => void moveCandidateToNextStage(rc)}
                             title={`Move to ${stageLabels[advanceTo]}`}
                           >
-                            {movingCandidateId === rc.id ? "Moving…" : "Advance"}
+                            {movingCandidateId === rc.id ? "Moving…" : advanceWord}
                           </button>
                         )}
                         {canRejectFromTab && (

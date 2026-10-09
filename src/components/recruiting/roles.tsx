@@ -1,21 +1,12 @@
 "use client";
 import Link from "next/link";
+import { ctcMaxLabel, roleStatusLabel } from "@/lib/recruiting/roles";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowRight, Plus } from "lucide-react";
 import type { Client, Role, RoleDashboardCount } from "@/lib/types";
 import { RoleFormDialog } from "./role-form";
-import { act as sharedAct } from "@/lib/client/act";
 
-function act<T = { id: string }>(action: string, payload: unknown = {}): Promise<T> {
-  return sharedAct<T>(action, payload);
-}
-
-const statusLabels: Record<string, string> = {
-  open: "Open",
-  on_hold: "On hold",
-  closed: "Closed",
-};
 
 export function RolesPage({
   client,
@@ -29,11 +20,9 @@ export function RolesPage({
   const router = useRouter();
   const [form, setForm] = useState<Role | "new" | null>(null);
   const [query, setQuery] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const active = roles.filter((r) => !r.archived && r.status !== "closed");
-  const closed = roles.filter((r) => !r.archived && r.status === "closed");
-  const archived = roles.filter((r) => r.archived);
+  // Archiving became the Closed status, so finished roles are Hired or Closed.
+  const active = roles.filter((r) => r.status === "open");
+  const closed = roles.filter((r) => r.status !== "open");
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const matchesQuery = (role: Role) =>
     !normalizedQuery ||
@@ -41,7 +30,6 @@ export function RolesPage({
     role.description.toLocaleLowerCase().includes(normalizedQuery);
   const visibleActive = active.filter(matchesQuery);
   const visibleClosed = closed.filter(matchesQuery);
-  const visibleArchived = archived.filter(matchesQuery);
   const dashboardByRole = new Map(
     dashboardCounts.map((count) => [count.role_id, count]),
   );
@@ -56,20 +44,6 @@ export function RolesPage({
     }),
     { allProfiles: 0, recruiter: 0, client: 0, followUps: 0, offers: 0 },
   );
-
-  async function toggleArchive(role: Role) {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      await act("archiveRole", { id: role.id, archived: !role.archived });
-      router.refresh();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <>
@@ -87,11 +61,6 @@ export function RolesPage({
           </button>
         </div>
       </header>
-      {error && (
-        <p className="toast error" role="alert">
-          {error}
-        </p>
-      )}
       <section className="role-dashboard-summary" aria-label="Role work summary">
         <div>
           <strong>{active.length}</strong>
@@ -178,7 +147,7 @@ export function RolesPage({
                       {role.description && (
                         <small>{role.description.slice(0, 100)}</small>
                       )}
-                      <div className="role-tags">{(role.recruiter_names ?? []).map((name) => <span className="badge" key={name}>{name}</span>)}{role.ctc && <span className="muted">CTC {role.ctc}</span>}</div>
+                      <div className="role-tags">{(role.recruiter_names ?? []).map((name) => <span className="badge" key={name}>{name}</span>)}{ctcMaxLabel(role) && <span className="muted">CTC {ctcMaxLabel(role)}</span>}</div>
                     </td>
                     <td>
                       {(() => {
@@ -224,25 +193,18 @@ export function RolesPage({
                       })()}
                     </td>
                     <td>
-                      <span className={`badge ${role.status}`}>
-                        {statusLabels[role.status] ?? role.status}
+                      <span className={`badge role-${role.status}`}>
+                        {roleStatusLabel(role.status)}
                       </span>
                     </td>
                     <td>
                       <div className="row">
                         <button
                           className="small"
-                          disabled={busy}
+                         
                           onClick={() => setForm(role)}
                         >
                           Edit
-                        </button>
-                        <button
-                          className="small"
-                          disabled={busy}
-                          onClick={() => void toggleArchive(role)}
-                        >
-                          Archive
                         </button>
                         <Link
                           aria-label={`Open ${role.name}`}
@@ -263,7 +225,7 @@ export function RolesPage({
         <>
           <div className="section-heading">
             <h2>
-              Closed roles <span className="count">{visibleClosed.length}</span>
+              Hired and closed <span className="count">{visibleClosed.length}</span>
             </h2>
           </div>
           <div className="card table-wrap">
@@ -284,51 +246,10 @@ export function RolesPage({
                       </Link>
                       {role.description && <small>{role.description.slice(0, 100)}</small>}
                     </td>
-                    <td><span className="badge closed">Closed</span></td>
+                    <td><span className={`badge role-${role.status}`}>{roleStatusLabel(role.status)}</span></td>
                     <td>
-                      <button className="small" disabled={busy} onClick={() => setForm(role)}>
+                      <button className="small" onClick={() => setForm(role)}>
                         Edit
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-      {visibleArchived.length > 0 && (
-        <>
-          <div className="section-heading">
-            <h2>
-              Archived roles <span className="count">{visibleArchived.length}</span>
-            </h2>
-          </div>
-          <div className="card table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Role</th>
-                  <th>Rating threshold</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {visibleArchived.map((role) => (
-                  <tr key={role.id}>
-                    <td>
-                      <Link className="strong" href={`/roles/${role.id}`}>
-                        {role.name}
-                      </Link>
-                    </td>
-                    <td>{role.rating_threshold} / 5</td>
-                    <td>
-                      <button
-                        className="small"
-                        disabled={busy}
-                        onClick={() => void toggleArchive(role)}
-                      >
-                        Restore
                       </button>
                     </td>
                   </tr>

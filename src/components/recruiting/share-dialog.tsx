@@ -11,8 +11,8 @@ export function ShareDialog({ clientId, roleId, onClose }: {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     let active = true;
-    act<{ token: string }>("getRoleShareLink", { clientId, roleId })
-      .then((result) => { if (active) setUrl(window.location.origin + "/share/" + result.token); })
+    act<{ token: string; path: string }>("getRoleShareLink", { clientId, roleId })
+      .then((result) => { if (active) setUrl(window.location.origin + result.path); })
       .catch((reason) => { if (active) setError((reason as Error).message); });
     return () => { active = false; };
   }, [clientId, roleId]);
@@ -22,8 +22,8 @@ export function ShareDialog({ clientId, roleId, onClose }: {
   }
   return <TableDialog titleId="share-title" className="share-dialog" onClose={onClose}>
     <div className="modal-heading"><h2 id="share-title">Share with client</h2><button aria-label="Close" onClick={onClose}><X size={18} /></button></div>
-    <p className="muted">One permanent link for this role. Recruiter shortlisted, client shortlisted and offer sent profiles stay in the live sheet. All candidate and custom columns are visible. Internal notes remain private.</p>
-    <p className="muted">Clients can add feedback. Profile details, ratings and new custom columns update automatically.</p>
+    <p className="muted">One permanent link for this role. Recruiter shortlisted, client shortlisted and offer sent profiles appear in it, with the Recruiter shortlisted columns and custom columns. Ratings, sources and internal notes stay private.</p>
+    <p className="muted">Clients can add feedback, and the page updates on its own. Links sent before still work.</p>
     {error && <p className="error" role="alert">{error}</p>}
     {url ? <><label>Role&apos;s client link<input readOnly value={url} onFocus={(event) => event.currentTarget.select()} /></label>
       <div className="row"><button className="primary" onClick={() => void copy()}><Copy size={15} />{copied ? "Copied" : "Copy link"}</button>

@@ -1,6 +1,7 @@
 import { collectPages } from "@/lib/server/collect-pages";
 import { z } from "zod";
-import { randomBytes, createHash } from "node:crypto";
+import { randomBytes, randomInt, createHash } from "node:crypto";
+import { shareLinkPath } from "@/lib/recruiting/roles";
 import { admin, checked, integrationDb, AppError } from "@/lib/server/db";
 import { body, failure } from "@/lib/server/http";
 import { setup } from "@/lib/server/config";
@@ -24,6 +25,12 @@ import { qualify, mergeAssessment } from "@/lib/qualification";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 const note = z.string().max(4000).default("");
+// Six characters from 31 that cannot be misread (no 0/o, 1/l/i): about 887
+// million codes, so a link cannot be found by trying names and numbers.
+const CODE_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
+function shareCode() {
+  return Array.from({ length: 6 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join("");
+}
 export async function POST(request: Request) {
   const started = performance.now();
   let actionName = "invalid";
@@ -112,20 +119,23 @@ export async function POST(request: Request) {
             name: z.string().trim().min(1).max(120),
             description: z.string().max(4000).default(""),
             recruiterNames: z.array(z.string().trim().min(1).max(120)).max(20).default([]),
-            ctc: z.string().trim().max(200).default(""),
+            // Lakhs per annum; either end may be left open.
+            ctcMin: z.number().min(0).max(10000).nullable().default(null),
+            ctcMax: z.number().min(0).max(10000).nullable().default(null),
+            openedOn: z.string().regex(/^d{4}-d{2}-d{2}$/).nullable().default(null),
             roleBrief: z.string().max(50000).optional(),
             ratingThreshold: z
               .number()
               .min(0)
               .max(5)
               .refine((value) => Math.round(value * 10) === value * 10),
-            status: z.enum(["open", "on_hold", "closed"]),
+            status: z.enum(["open", "hired", "closed"]),
             expectedRevision: z.number().int().min(1).optional(),
           })
           .parse(payload);
         result = {
           id: checked(
-            await db.rpc("save_role_details", {
+            await db.rpc("save_role_v2", {
               p_id: p.id ?? null,
               p_client: p.clientId,
               p_name: p.name,
@@ -134,8 +144,10 @@ export async function POST(request: Request) {
               p_status: p.status,
               p_revision: p.expectedRevision ?? null,
               p_recruiters: [...new Set(p.recruiterNames)],
-              p_ctc: p.ctc,
               p_brief: p.roleBrief ?? null,
+              p_ctc_min: p.ctcMin,
+              p_ctc_max: p.ctcMax,
+              p_opened_on: p.openedOn,
             }),
           ),
         };
@@ -867,10 +879,13 @@ export async function POST(request: Request) {
       case "createShareLink": {
         const p = z.object({ clientId: uuid, roleId: uuid }).parse(payload);
         const token = randomBytes(32).toString("hex");
-        result = checked(await db.rpc("get_role_share_link", {
+        const link = checked(await db.rpc("get_role_share_link", {
           p_client: p.clientId, p_role: p.roleId, p_token: token,
           p_hash: createHash("sha256").update(token).digest("hex"),
-        }));
+          p_code: shareCode(),
+        })) as { id: string; token: string; code: string };
+        const names = checked(await db.from("roles").select("name,clients!inner(name)").eq("id", p.roleId).single()) as unknown as { name: string; clients: { name: string } };
+        result = { ...link, path: shareLinkPath(names.clients.name, names.name, link.code) };
         break;
       }
       case "profilePushTargets": {

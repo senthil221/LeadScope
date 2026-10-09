@@ -16,7 +16,7 @@ export function RoleBrief({ role, onSaved }: { role: Role; onSaved: () => void }
         const data = new FormData(event.currentTarget);
         setBusy(true); setError(""); setMessage("");
         try {
-          await act("role", { id: role.id, clientId: role.client_id, name: role.name, description: role.description, ratingThreshold: role.rating_threshold, status: role.status, expectedRevision: role.revision, recruiterNames: role.recruiter_names ?? [], ctc: role.ctc ?? "", roleBrief: String(data.get("brief")) });
+          await act("role", { id: role.id, clientId: role.client_id, name: role.name, description: role.description, ratingThreshold: role.rating_threshold, status: role.status, expectedRevision: role.revision, recruiterNames: role.recruiter_names ?? [], ctcMin: role.ctc_min ?? null, ctcMax: role.ctc_max ?? null, openedOn: role.opened_on ?? null, roleBrief: String(data.get("brief")) });
           setMessage("Role brief saved."); onSaved();
         } catch (e) { setError((e as Error).message); }
         finally { setBusy(false); }

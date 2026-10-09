@@ -5,6 +5,7 @@ import type { Role } from "@/lib/types";
 import { act as sharedAct } from "@/lib/client/act";
 import { TableDialog } from "./table-dialog";
 import { RecruiterSelect } from "./recruiter-select";
+import { ROLE_STATUSES, todayInIndia } from "@/lib/recruiting/roles";
 
 function act<T = { id: string }>(action: string, payload: unknown = {}): Promise<T> {
   return sharedAct<T>(action, payload);
@@ -35,6 +36,9 @@ export function RoleFormDialog({
     setBusy(true);
     setError("");
     const data = new FormData(e.currentTarget);
+    const lakhs = (key: string) => { const raw = String(data.get(key) ?? "").trim(); return raw === "" ? null : Number(raw); };
+    const ctcMin = lakhs("ctcMin"), ctcMax = lakhs("ctcMax");
+    if (ctcMin != null && ctcMax != null && ctcMin > ctcMax) { setError("Put the lower CTC first."); setBusy(false); return; }
     try {
       const result = await act("role", {
         id: role === "new" ? undefined : role.id,
@@ -42,7 +46,9 @@ export function RoleFormDialog({
         name: data.get("name"),
         description: data.get("description"),
         recruiterNames: String(data.get("recruiters") ?? "").split(",").map((name) => name.trim()).filter(Boolean),
-        ctc: data.get("ctc"),
+        ctcMin,
+        ctcMax,
+        openedOn: String(data.get("openedOn") || "") || null,
         roleBrief: data.has("roleBrief") ? String(data.get("roleBrief")) : role === "new" ? "" : role.role_brief,
         ratingThreshold: Number(data.get("ratingThreshold")),
         status: String(data.get("status")),
@@ -91,10 +97,22 @@ export function RoleFormDialog({
           <RecruiterSelect label="Recruiter" value={recruiter} onChoose={setRecruiter} className="is-field" />
           <input type="hidden" name="recruiters" value={recruiter} />
         </label>
-        <label>
-          <span>Role CTC <span className="optional">budget or range</span></span>
-          <input name="ctc" maxLength={200} defaultValue={role === "new" ? "" : role.ctc ?? ""} placeholder="e.g. ₹18–24 LPA, fixed + variable" />
-        </label>
+        <div className="form-grid role-form-pair">
+          <fieldset className="ctc-range">
+            <legend>CTC range <span className="optional">lakhs per annum</span></legend>
+            <div className="ctc-range-inputs">
+              <input name="ctcMin" type="number" inputMode="decimal" min={0} max={10000} step="0.5" aria-label="CTC from, in LPA" placeholder="From" defaultValue={role === "new" ? "" : role.ctc_min ?? ""} />
+              <span aria-hidden="true">–</span>
+              <input name="ctcMax" type="number" inputMode="decimal" min={0} max={10000} step="0.5" aria-label="CTC up to, in LPA" placeholder="To" defaultValue={role === "new" ? "" : role.ctc_max ?? ""} />
+              <span className="ctc-unit">LPA</span>
+            </div>
+            {role !== "new" && role.ctc && role.ctc_min == null && role.ctc_max == null && <small className="muted">Was entered as “{role.ctc}”.</small>}
+          </fieldset>
+          <label>
+            Date of opening
+            <input name="openedOn" type="date" defaultValue={role === "new" ? todayInIndia() : role.opened_on ?? ""} />
+          </label>
+        </div>
         {(role === "new" || role.role_brief !== undefined) && <label><span>Role brief <span className="optional">hiring context and must-have skills</span></span><textarea name="roleBrief" rows={3} maxLength={30000} defaultValue={role === "new" ? "" : role.role_brief} placeholder="Responsibilities, essential experience and what makes a strong match" /></label>}
         {role === "new" && <p className="role-setup-hint">Add the recruiter, CTC and brief now. Attach the JD inside the role after saving.</p>}
         <div className="form-grid role-form-pair"><label>
@@ -111,9 +129,7 @@ export function RoleFormDialog({
         <label>
           Role status
           <select name="status" defaultValue={role === "new" ? "open" : role.status}>
-            <option value="open">Open</option>
-            <option value="on_hold">On hold</option>
-            <option value="closed">Closed</option>
+            {ROLE_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
         </label></div>
         <p className="muted">

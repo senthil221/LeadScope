@@ -33,12 +33,12 @@ export function Sidebar({ data }: { data: PageData }) {
       <nav className="shell-nav" aria-label="Primary">
         <div className="shell-group">
           <span className="shell-label">Workspace</span>
+          <Link className={itemClass(view, ["all-roles", "roles", "role"])} aria-current={["all-roles", "roles", "role"].includes(view) ? "page" : undefined} href="/roles"><Briefcase size={17} aria-hidden="true" />Roles</Link>
           <Link className={itemClass(view, ["clients"])} aria-current={view === "clients" ? "page" : undefined} href="/clients">
             <Users size={17} aria-hidden="true" />
             Clients
           </Link>
           <Link className={itemClass(view, ["master-db"])} aria-current={view === "master-db" ? "page" : undefined} href="/master-db"><Database size={17} aria-hidden="true" />Master Database</Link>
-          <Link className={itemClass(view, ["all-roles", "roles", "role"])} aria-current={["all-roles", "roles", "role"].includes(view) ? "page" : undefined} href="/roles"><Briefcase size={17} aria-hidden="true" />Roles</Link>
           <Link className={itemClass(view, ["blocklist"])} aria-current={view === "blocklist" ? "page" : undefined} href="/blocklist"><ShieldCheck size={17} aria-hidden="true" />Blocklist</Link>
           <Link className={itemClass(view, ["credits"])} aria-current={view === "credits" ? "page" : undefined} href="/credits"><Coins size={17} aria-hidden="true" />Credits</Link>
           {client && (

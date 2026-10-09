@@ -25,6 +25,11 @@ export function InlineMobileLookup({ roleId, candidateId, linkedin, currentValue
   const seen = useRef<string | null | undefined>(undefined);
   const callbacks = useRef({ onQueued, onSaved });
   useEffect(() => { callbacks.current = { onQueued, onSaved }; }, [onQueued, onSaved]);
+  // Opening the cell is the request: the lookup starts as soon as the first
+  // status read shows nobody has looked this person up, with no second click.
+  // A person already looked up shows that result instead of paying again.
+  const autoStart = useRef(true);
+  const start = useRef<() => void>(() => {});
 
   useEffect(() => {
     const controller = new AbortController();
@@ -90,6 +95,12 @@ export function InlineMobileLookup({ roleId, candidateId, linkedin, currentValue
     }
   }
 
+  useEffect(() => { start.current = () => void enrich(); });
+  useEffect(() => {
+    if (!autoStart.current || checking || !status) return;
+    autoStart.current = false;
+    if (!status.jobs.length && linkedin) queueMicrotask(() => start.current());
+  }, [checking, status, linkedin]);
   const job = status?.jobs[0];
   const pending = Boolean(job && pendingStatuses.has(job.status));
   const moving = Boolean(job && ["queued", "running", "waiting"].includes(job.status));

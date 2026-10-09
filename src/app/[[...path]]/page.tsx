@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { redirect, notFound } from "next/navigation";
 import { admin, AppError, checked } from "@/lib/server/db";
 import { setup } from "@/lib/server/config";
@@ -147,7 +148,7 @@ export default async function Page({
   }
   const { db, user, isOwner } = auth;
   const { path = [] } = await params;
-  if (!path.length || path[0] === "work") redirect("/clients");
+  if (!path.length || path[0] === "work") redirect("/roles");
   const filter = await searchParams;
   const needsActiveRuns =
     path[0] === "campaigns" ||
@@ -526,8 +527,10 @@ export default async function Page({
     }
     if (data.view === "all-roles") {
       data.page = Math.max(1, Math.min(100000, Math.floor(Number(filter.page) || 1)));
-      let query = db.from("roles").select("id,client_id,name,description,rating_threshold,status,archived,revision,created_at,updated_at,recruiter_names,ctc,jd_name", { count: "exact" });
-      if (filter.archived !== "1") query = query.eq("archived", false);
+      let query = db.from("roles").select("id,client_id,name,description,rating_threshold,status,archived,revision,created_at,updated_at,recruiter_names,ctc,ctc_min,ctc_max,opened_on,jd_name", { count: "exact" });
+      // Active unless another status is asked for; archiving became Closed.
+      const status = filter.status ?? "open";
+      if (status !== "all") query = query.eq("status", z.enum(["open", "hired", "closed"]).parse(status));
       if (filter.client) query = query.eq("client_id", uuid.parse(filter.client));
       if (filter.q?.trim()) {
         const term = filter.q.trim().slice(0, 120).replace(/[^\p{L}\p{N} @.+-]/gu, " ");
@@ -553,7 +556,7 @@ export default async function Page({
         const [roles, dashboardCounts] = await Promise.all([
           db
             .from("roles")
-            .select("id,client_id,name,description,rating_threshold,status,archived,revision,created_at,updated_at,recruiter_names,ctc,jd_name")
+            .select("id,client_id,name,description,rating_threshold,status,archived,revision,created_at,updated_at,recruiter_names,ctc,ctc_min,ctc_max,opened_on,jd_name")
             .eq("client_id", clientId!)
             .order("created_at", { ascending: false }),
           db.rpc("role_dashboard_counts", { p_client: clientId! }),
@@ -673,7 +676,7 @@ export default async function Page({
   const routeKey = `${path.join("/")}:${filter.page ?? ""}:${filter.status ?? ""}:${filter.campaign ?? ""}:${filter.q ?? ""}:${filter.contact ?? ""}:${filter.stage ?? ""}`;
   const roleRouteKey = `${filter.candidate ?? ""}:${filter.contact ?? ""}:${filter.stale ?? ""}:${path.join("/")}:${filter.page ?? ""}:${filter.q ?? ""}:${filter.source ?? ""}:${filter.source_detail ?? ""}:${filter.rating ?? ""}:${filter.entered_from ?? ""}:${filter.entered_to ?? ""}:${filter.sort ?? ""}`;
   if (data.view === "master-db") return <MasterWorkspace key={JSON.stringify(filter)} data={data} />;
-  if (data.view === "all-roles") return <AllRolesWorkspace key={`${routeKey}:${filter.archived}:${filter.recruiter}:${filter.client}`} data={data} />;
+  if (data.view === "all-roles") return <AllRolesWorkspace key={`${routeKey}:${filter.recruiter}:${filter.client}`} data={data} />;
   if (data.view === "blocklist") return <BlocklistWorkspace key={`${routeKey}:${filter.client}`} data={data} />;
   if (data.view === "credits") return <CreditsWorkspace key={routeKey} data={data} />;
   if (data.view === "team") return <TeamWorkspace key={routeKey} data={data} />;

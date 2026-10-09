@@ -130,11 +130,16 @@ export type Role = {
   description: string;
   recruiter_names?: string[];
   ctc?: string;
+  // Lakhs per annum. Either end may be open.
+  ctc_min?: number | null;
+  ctc_max?: number | null;
+  opened_on?: string;
   role_brief?: string;
   jd_path?: string | null;
   jd_name?: string;
   rating_threshold: number;
-  status: "open" | "on_hold" | "closed";
+  // "open" is stored for Active.
+  status: "open" | "hired" | "closed";
   archived: boolean;
   revision: number;
   created_at: string;

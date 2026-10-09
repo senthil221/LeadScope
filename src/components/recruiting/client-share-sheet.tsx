@@ -1,30 +1,93 @@
 "use client";
-import { DropdownDetails } from "./dropdown-details";
 import { useMemo, useState } from "react";
+import { ArrowUpRight, FileText, Search } from "lucide-react";
 import { SharedFieldCell } from "./shared-field-cell";
 import { ShareRefresh } from "./share-refresh";
-import styles from "@/app/share/[token]/share-page.module.css";
-export type ReviewRow = { id: string; name: string; subtitle: string; linkedin?: string; note?: string; stage: string; values: Record<string,string>; resume: boolean };
-export function ClientShareSheet({ token, rows, columns, canEditNotes, roleName }: { token: string; rows: ReviewRow[]; columns: { key: string; label: string }[]; canEditNotes: boolean; roleName: string }) {
-  const [query, setQuery] = useState(""); const [stage, setStage] = useState(""); const [sort, setSort] = useState("added"); const [page, setPage] = useState(0); const [hidden, setHidden] = useState<string[]>([]);
-  const [navigationError, setNavigationError] = useState("");
+import styles from "./client-share.module.css";
+
+export type ShareCandidate = {
+  id: string; name: string; designation: string; company: string; linkedin?: string; resume: boolean; stage: string;
+  experience: string; ctc: string; location: string; qualification: string; phones: string[]; email: string; added: string;
+  note?: string; custom: Record<string, string>;
+};
+// What each shared stage means to the client reading it.
+const STAGES = [
+  { id: "recruiter_shortlisted", label: "For review" },
+  { id: "client_shortlisted", label: "Shortlisted" },
+  { id: "offer_sent", label: "Offer sent" },
+];
+const stageLabel = (id: string) => STAGES.find((s) => s.id === id)?.label ?? "For review";
+const PAGE = 25;
+
+export function ClientShareSheet({ token, candidates, fields, canEditNotes, roleName }: {
+  token: string; candidates: ShareCandidate[]; fields: { key: string; label: string }[]; canEditNotes: boolean; roleName: string;
+}) {
+  const [query, setQuery] = useState(""), [stage, setStage] = useState(""), [page, setPage] = useState(0), [blocked, setBlocked] = useState("");
+  // A filter change re-renders the rows; feedback still being typed must be saved first.
   function changeView(change: () => void) {
-    if (document.querySelector('[data-unsaved="true"]')) { setNavigationError("Save your feedback before changing this view. If saving failed, your draft is still in its cell."); return; }
-    setNavigationError(""); change();
+    if (document.querySelector('[data-unsaved="true"]')) { setBlocked("Save your feedback before changing the view."); return; }
+    setBlocked(""); change();
   }
-  const visible = columns.filter((c) => !hidden.includes(c.key));
-  const filtered = useMemo(() => {
-    const found = rows.filter((r) => (!stage || r.stage === stage) && (!query.trim() || [r.name,r.subtitle,r.linkedin,r.note,...Object.values(r.values)].join(" ").toLowerCase().includes(query.trim().toLowerCase())));
-    if (sort === "name") found.sort((a,b) => a.name.localeCompare(b.name));
-    if (sort === "rating") found.sort((a,b) => (Number.isNaN(parseFloat(b.values.rating)) ? -1 : parseFloat(b.values.rating)) - (Number.isNaN(parseFloat(a.values.rating)) ? -1 : parseFloat(a.values.rating)));
-    return found;
-  }, [rows, query, stage, sort]);
-  const currentPage = Math.min(page, Math.max(0, Math.ceil(filtered.length / 25) - 1));
-  return <section className={styles.sheet} aria-label="Candidate review sheet">
-    <div className={`${styles.toolbar} share-controls`}><input type="search" aria-label="Search shared candidates" placeholder="Search candidates or details" value={query} onChange={(e) => { const value = e.target.value; changeView(() => { setQuery(value); setPage(0); }); }} /><select aria-label="Review stage" value={stage} onChange={(e) => { const value = e.target.value; changeView(() => { setStage(value); setPage(0); }); }}><option value="">All shared stages</option>{[...new Set(rows.map((r) => r.stage))].map((s) => <option key={s}>{s}</option>)}</select><select aria-label="Sort shared candidates" value={sort} onChange={(e) => { const value = e.target.value; changeView(() => setSort(value)); }}><option value="added">Recently added</option><option value="name">Candidate name</option><option value="rating">Highest rating</option></select><DropdownDetails><summary>Columns ({visible.length})</summary><div className="share-column-menu"><button type="button" onClick={() => setHidden([])}>Show all columns</button>{columns.map((c) => <label key={c.key}><input type="checkbox" checked={!hidden.includes(c.key)} onChange={() => setHidden((h) => h.includes(c.key) ? h.filter((x) => x !== c.key) : [...h,c.key])} />{c.label}</label>)}</div></DropdownDetails></div>
-    {navigationError && <p className="error share-navigation-error" role="alert">{navigationError}</p>}
-    <div className="share-context"><span>{filtered.length} candidates</span><span>All candidate columns are available. Feedback is saved when you leave the cell.</span></div>
-    <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="Candidate details. Scroll horizontally to see all columns."><table className={styles.table}><caption className={styles.srOnly}>Candidates shared for {roleName}</caption><colgroup><col style={{width:40}} /><col className={styles.identityColumn} /><col style={{width:280}} />{visible.map((c) => <col key={c.key} style={{width:c.key === "email" ? 230 : ["headline","current_company","offer_notes"].includes(c.key) ? 220 : c.key === "rating" ? 90 : 140}} />)}</colgroup><thead><tr><th scope="col">#</th><th scope="col" className={styles.identity}>Candidate</th><th scope="col">Your feedback</th>{visible.map((c) => <th scope="col" key={c.key}>{c.label}</th>)}</tr></thead><tbody>{filtered.slice(currentPage*25,currentPage*25+25).map((r,index) => <tr key={r.id}><td className={styles.rowNumber}>{currentPage*25+index+1}</td><th scope="row" className={styles.identity}><strong className={styles.name}>{r.name}</strong>{r.subtitle && <span className={styles.subtitle}>{r.subtitle}</span>}{r.linkedin && <a className={styles.profileLink} href={r.linkedin} rel="noreferrer" target="_blank">LinkedIn ↗</a>}</th><td className={styles.feedback}>{canEditNotes ? <SharedFieldCell token={token} roleCandidateId={r.id} column="client_notes" value={r.note} kind="text" multiline label={`Feedback for ${r.name}`} /> : r.note}</td>{visible.map((c) => <td key={c.key}>{c.key === "resume" && r.resume ? <a href={`/api/share/${token}?resume=${r.id}`} target="_blank" rel="noreferrer">Open resume</a> : <span className={styles.value} title={r.values[c.key] || undefined} aria-label={r.values[c.key] ? undefined : "Not provided"}>{r.values[c.key]}</span>}</td>)}</tr>)}</tbody></table>{!filtered.length && <div className={styles.empty}><h2>No matching candidates</h2><p>{rows.length ? "Try another search or stage." : "Your recruiter will add profiles here shortly."}</p></div>}</div>
-    <div className={styles.sheetFooter}><span>{filtered.length ? `${currentPage*25+1}–${Math.min((currentPage+1)*25,filtered.length)} of ${filtered.length}` : "0 profiles"}</span><div className="row"><button disabled={!currentPage} onClick={() => changeView(() => setPage(currentPage-1))}>Previous</button><button disabled={(currentPage+1)*25>=filtered.length} onClick={() => changeView(() => setPage(currentPage+1))}>Next</button></div><ShareRefresh /></div>
+  const counts = useMemo(() => Object.fromEntries(STAGES.map((s) => [s.id, candidates.filter((c) => c.stage === s.id).length])), [candidates]);
+  const shown = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    return candidates.filter((c) => (!stage || c.stage === stage) && (!term || [c.name, c.designation, c.company, c.location, c.qualification, c.email, ...c.phones, ...Object.values(c.custom)].join(" ").toLowerCase().includes(term)));
+  }, [candidates, query, stage]);
+  const current = Math.min(page, Math.max(0, Math.ceil(shown.length / PAGE) - 1));
+  const rows = shown.slice(current * PAGE, current * PAGE + PAGE);
+
+  return <section className={styles.sheet} aria-label="Shortlisted candidates">
+    <div className={styles.toolbar}>
+      <div className={styles.stages} role="group" aria-label="Filter by stage">
+        <button type="button" aria-pressed={!stage} onClick={() => changeView(() => { setStage(""); setPage(0); })}>All <span>{candidates.length}</span></button>
+        {STAGES.filter((s) => counts[s.id]).map((s) => <button key={s.id} type="button" aria-pressed={stage === s.id} onClick={() => changeView(() => { setStage(s.id); setPage(0); })}>{s.label} <span>{counts[s.id]}</span></button>)}
+      </div>
+      <label className={styles.search}><Search size={14} aria-hidden="true" /><input type="search" aria-label="Search candidates" placeholder="Search name, company, location" value={query} onChange={(e) => { const value = e.target.value; changeView(() => { setQuery(value); setPage(0); }); }} /></label>
+    </div>
+    {blocked && <p className={styles.blocked} role="alert">{blocked}</p>}
+    <div className={styles.scroll} tabIndex={0} role="region" aria-label="Candidates. Scroll sideways for more details.">
+      <table className={styles.table}>
+        <caption className={styles.srOnly}>Candidates shortlisted for {roleName}</caption>
+        <colgroup>
+          <col className={styles.colCandidate} /><col className={styles.colShort} /><col className={styles.colShort} /><col className={styles.colMid} />
+          <col className={styles.colMid} /><col className={styles.colContact} /><col className={styles.colShort} />
+          {fields.map((f) => <col key={f.key} className={styles.colMid} />)}
+          <col className={styles.colFeedback} />
+        </colgroup>
+        <thead><tr>
+          <th scope="col">Candidate</th><th scope="col">Experience</th><th scope="col">Current CTC</th><th scope="col">Location</th>
+          <th scope="col">Qualification</th><th scope="col">Contact</th><th scope="col">Added</th>
+          {fields.map((f) => <th scope="col" key={f.key}>{f.label}</th>)}
+          <th scope="col">Your feedback</th>
+        </tr></thead>
+        <tbody>{rows.map((c) => <tr key={c.id}>
+          <th scope="row" className={styles.candidate}>
+            <span className={styles.nameLine}><strong>{c.name}</strong><span className={styles.pill} data-stage={c.stage}>{stageLabel(c.stage)}</span></span>
+            {(c.designation || c.company) && <span className={styles.role}>{[c.designation, c.company].filter(Boolean).join(" · ")}</span>}
+            {(c.linkedin || c.resume) && <span className={styles.links}>
+              {c.linkedin && <a href={c.linkedin} target="_blank" rel="noreferrer">LinkedIn <ArrowUpRight size={11} aria-hidden="true" /></a>}
+              {c.resume && <a href={`/api/share/${token}?resume=${c.id}`} target="_blank" rel="noreferrer"><FileText size={11} aria-hidden="true" /> Resume</a>}
+            </span>}
+          </th>
+          <td>{c.experience || <Dash />}</td>
+          <td>{c.ctc || <Dash />}</td>
+          <td>{c.location || <Dash />}</td>
+          <td>{c.qualification || <Dash />}</td>
+          <td className={styles.contact}>{c.phones.length || c.email ? <>{c.phones.map((p) => <span key={p}>{p}</span>)}{c.email && <a href={`mailto:${c.email}`} title={c.email}>{c.email}</a>}</> : <Dash />}</td>
+          <td className={styles.muted}>{c.added}</td>
+          {fields.map((f) => <td key={f.key}>{c.custom[f.key] || <Dash />}</td>)}
+          <td className={styles.feedback}>{canEditNotes ? <SharedFieldCell token={token} roleCandidateId={c.id} column="client_notes" value={c.note} kind="text" multiline label={`Feedback on ${c.name}`} /> : c.note}</td>
+        </tr>)}</tbody>
+      </table>
+      {!shown.length && <div className={styles.empty}><h2>{candidates.length ? "No one matches" : "Candidates will appear here"}</h2><p>{candidates.length ? "Try another search or stage." : "Your recruiter is preparing the shortlist."}</p></div>}
+    </div>
+    <div className={styles.sheetFooter}>
+      <span>{shown.length ? `${current * PAGE + 1}–${Math.min((current + 1) * PAGE, shown.length)} of ${shown.length}` : "0 candidates"}</span>
+      {shown.length > PAGE && <div className={styles.pager}><button type="button" disabled={!current} onClick={() => changeView(() => setPage(current - 1))}>Previous</button><button type="button" disabled={(current + 1) * PAGE >= shown.length} onClick={() => changeView(() => setPage(current + 1))}>Next</button></div>}
+      <ShareRefresh />
+    </div>
   </section>;
+}
+function Dash() {
+  return <span className={styles.dash} aria-label="Not provided">—</span>;
 }

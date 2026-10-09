@@ -1363,7 +1363,7 @@ describe("role metadata, Later and scoped blocklists", () => {
     await asUser(actor, () => rpc("move_stage", [p.cid, [p.rcId], "recruiter_shortlisted", ""]));
     await asUser(actor, () => rpc("save_follow_up_note", [p.cid, p.rcId, "Private recruiter detail"]));
     const token = freshToken();
-    await asUser(actor, () => rpc("get_role_share_link", [p.cid, p.rid, token.token, token.hash]));
+    await asUser(actor, () => rpc("get_role_share_link", [p.cid, p.rid, token.token, token.hash, token.code]));
     const shared = await rpc("read_shared_stage", [token.hash]);
     expect(JSON.stringify(shared)).not.toContain("Private recruiter detail");
     expect(JSON.stringify(shared)).not.toContain("follow_up_note");
@@ -1995,20 +1995,21 @@ describe("recruiting foundation: roles, master candidates and pipeline history",
     ).rejects.toThrow("0.0 to 5.0");
     await expect(
       asUser(actor, () => rpc("save_role", [null, cid, "Bad state", "", 3, "paused", null])),
-    ).rejects.toThrow("valid role status");
+    ).rejects.toThrow("Active, Hired or Closed");
     await asUser(actor, () => rpc("archive_entity", ["client", cid, true]));
     await expect(
       asUser(actor, () => rpc("save_role", [null, cid, "Archived", "", 3, "open", null])),
     ).rejects.toThrow("Restore this client");
   });
-  it("keeps on-hold and closed roles out of active client summaries", async () => {
+  it("keeps hired and closed roles out of active client summaries", async () => {
     const cid = await client();
     await role(cid, 3, "Open role");
-    const onHold = await role(cid, 3, "On hold role");
+    const hired = await role(cid, 3, "Hired role");
     const closed = await role(cid, 3, "Closed role");
     await asUser(actor, () =>
-      rpc("save_role", [onHold, cid, "On hold role", "", 3, "on_hold", 1]),
+      rpc("save_role", [hired, cid, "Hired role", "", 3, "hired", 1]),
     );
+    await expect(asUser(actor, () => rpc("save_role", [closed, cid, "Closed role", "", 3, "on_hold", 1]))).rejects.toThrow("Active, Hired or Closed");
     await asUser(actor, () =>
       rpc("save_role", [closed, cid, "Closed role", "", 3, "closed", 1]),
     );
@@ -3751,13 +3752,18 @@ function hashOf(token: string) {
 }
 function freshToken() {
   const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
-  return { token, hash: hashOf(token), prefix: token.slice(0, 8) };
+  return { token, hash: hashOf(token), prefix: token.slice(0, 8), code: shortCode() };
+}
+// A six-character link code, as the app makes them.
+function shortCode() {
+  const alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
+  return Array.from(randomUUID().replace(/-/g, "").slice(0, 6), (c) => alphabet[parseInt(c, 16) % alphabet.length]).join("");
 }
 
 describe("persistent role sharing and profile transfers", () => {
   async function roleLink(cid: string, rid: string) {
     const token = freshToken();
-    return asUser(actor, () => rpc("get_role_share_link", [cid, rid, token.token, token.hash]));
+    return asUser(actor, () => rpc("get_role_share_link", [cid, rid, token.token, token.hash, token.code]));
   }
   it("returns one permanent token per role", async () => {
     const { cid, rid } = await pipeline("permanent-role-link");
@@ -3767,8 +3773,34 @@ describe("persistent role sharing and profile transfers", () => {
     expect(expiry.rows[0].expires_at).toBeNull();
     const otherRole = await role(cid);
     expect((await roleLink(cid, otherRole)).token).not.toBe(first.token);
-    await expect(asUser(outsider, () => rpc("get_role_share_link", [cid, rid, freshToken().token, freshToken().hash]))).rejects.toThrow();
+    await expect(asUser(outsider, () => rpc("get_role_share_link", [cid, rid, freshToken().token, freshToken().hash, shortCode()]))).rejects.toThrow();
     await expect(asUser(actor, () => sql("select * from private.role_client_links"))).rejects.toThrow("permission denied");
+  });
+  it("keeps one short code per role link, readable only by the server", async () => {
+    const { cid, rid } = await pipeline("short-role-link");
+    const first = await roleLink(cid, rid), again = await roleLink(cid, rid);
+    expect(first.code).toMatch(/^[a-z2-9]{6}$/);
+    expect(again.code).toBe(first.code);
+    expect(await rpc("share_token_for_code", [first.code])).toBe(first.token);
+    expect(await rpc("share_token_for_code", ["zzzzzz"])).toBeNull();
+    await expect(asUser(actor, () => rpc("share_token_for_code", [first.code]))).rejects.toThrow();
+    await expect(asUser(actor, () => rpc("get_role_share_link", [cid, rid, freshToken().token, freshToken().hash, "TOO-LONG"]))).rejects.toThrow("share code");
+  });
+  it("saves a role with its CTC range and opening date, writing the CTC text from them", async () => {
+    const cid = await client();
+    const save = (id: string | null, revision: number | null, min: number | null, max: number | null, opened: string | null, status = "open") =>
+      asUser(actor, () => rpc("save_role_v2", [id, cid, "Ranged role", "", 3, status, revision, ["Tisha"], null, min, max, opened]));
+    const rid = await save(null, null, 12, 18, "2026-09-01");
+    let row = (await sql("select ctc,ctc_min,ctc_max,opened_on::text,status,recruiter_names from public.roles where id=$1", [rid])).rows[0];
+    expect(row).toMatchObject({ ctc: "12–18 LPA", ctc_min: "12.00", ctc_max: "18.00", opened_on: "2026-09-01", status: "open", recruiter_names: ["Tisha"] });
+    await save(rid, 1, null, 22.5, null, "hired");
+    row = (await sql("select ctc,ctc_min,opened_on::text,status from public.roles where id=$1", [rid])).rows[0];
+    expect(row).toMatchObject({ ctc: "Up to 22.5 LPA", ctc_min: null, opened_on: "2026-09-01", status: "hired" });
+    await expect(save(rid, 2, 30, 20, null)).rejects.toThrow("lowest first");
+    await expect(save(rid, 2, null, null, "1990-01-01")).rejects.toThrow("date of opening");
+    const fresh = await save(null, null, null, null, null);
+    expect((await sql("select opened_on=current_date as today, ctc from public.roles where id=$1", [fresh])).rows[0]).toEqual({ today: true, ctc: "" });
+    await expect(asUser(outsider, () => rpc("save_role_v2", [null, cid, "X", "", 3, "open", null, [], null, null, null, null]))).rejects.toThrow();
   });
   it("shares all current columns and new custom fields without internal notes, including advanced stages", async () => {
     const { cid, rid, rcId, candidateId } = await pipeline("live-role-sheet");
@@ -3781,8 +3813,10 @@ describe("persistent role sharing and profile transfers", () => {
     await sql("update public.role_candidates set custom=jsonb_build_object($2::text,'Immediate') where id=$1", [rcId, key]);
     let sheet = await rpc("read_shared_stage", [hashOf(link.token)]);
     expect(sheet.visibleColumns).toEqual(expect.arrayContaining(["phone", "alternate_phone", "email", "current_ctc", "highest_qualification", "resume", key]));
-    expect(sheet.rows[0]).toMatchObject({ phone: "9158198424", alternate_phone: "9158198425", rating: 4.7, custom: { [key]: "Immediate" } });
-    expect(sheet.rows[0]).not.toHaveProperty("internal_notes");
+    expect(sheet.rows[0]).toMatchObject({ phone: "9158198424", alternate_phone: "9158198425", custom: { [key]: "Immediate" } });
+    // The client sees the Recruiter shortlisted columns, not ratings or sources.
+    for (const internal of ["internal_notes", "rating", "source", "headline", "offer_notes"]) expect(sheet.rows[0]).not.toHaveProperty(internal);
+    expect(sheet.visibleColumns).not.toContain("rating");
     expect(sheet.visibleColumns).not.toContain("internal_notes");
     await asUser(actor, () => rpc("move_stage", [cid, [rcId], "client_shortlisted", ""]));
     await rpc("write_shared_cell", [hashOf(link.token), rcId, "client_notes", JSON.stringify("Client feedback")]);
@@ -4975,7 +5009,7 @@ describe("workspace reliability and profile reuse", () => {
   it("protects client feedback against stale drafts and cross-role writes", async () => {
     const f=await pipeline('checked-share');
     await asUser(actor,()=>rpc("move_stage",[f.cid,[f.rcId],"recruiter_shortlisted",""]));
-    const token=freshToken();const link=await asUser(actor,()=>rpc("get_role_share_link",[f.cid,f.rid,token.token,token.hash]));
+    const token=freshToken();const link=await asUser(actor,()=>rpc("get_role_share_link",[f.cid,f.rid,token.token,token.hash,token.code]));
     await rpc("write_shared_cell_checked",[hashOf(link.token),f.rcId,'client_notes',JSON.stringify('First review'),'']);
     await expect(rpc("write_shared_cell_checked",[hashOf(link.token),f.rcId,'client_notes',JSON.stringify('Stale review'),''])).rejects.toThrow('Feedback changed');
     const other=await pipeline('checked-share-other');

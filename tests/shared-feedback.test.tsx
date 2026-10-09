@@ -20,19 +20,28 @@ describe("client feedback drafts",()=>{
   });
   it("prevents pagination from discarding unsaved feedback",async()=>{
     vi.stubGlobal("fetch",vi.fn().mockRejectedValue(new Error("Connection lost")));
-    const rows=Array.from({length:26},(_,i)=>({id:String(i),name:`Person ${i}`,subtitle:"",stage:"Recruiter shortlisted",values:{email:`p${i}@example.com`},resume:false}));
-    render(<ClientShareSheet token="token" rows={rows} columns={[{key:"email",label:"Email"}]} canEditNotes roleName="Test role"/>);
-    fireEvent.change(screen.getByRole("textbox",{name:"Feedback for Person 0"}),{target:{value:"Keep this"}});
+    render(<ClientShareSheet token="token" candidates={Array.from({length:26},(_,i)=>person(String(i),`Person ${i}`))} fields={[]} canEditNotes roleName="Test role"/>);
+    fireEvent.change(screen.getByRole("textbox",{name:"Feedback on Person 0"}),{target:{value:"Keep this"}});
     fireEvent.click(screen.getByRole("button",{name:"Next"}));
     expect(screen.getByRole("alert").textContent).toContain("Save your feedback");
-    expect((screen.getByRole("textbox",{name:"Feedback for Person 0"}) as HTMLTextAreaElement).value).toBe("Keep this");
-    expect(screen.queryByRole("textbox",{name:"Feedback for Person 25"})).toBeNull();
+    expect((screen.getByRole("textbox",{name:"Feedback on Person 0"}) as HTMLTextAreaElement).value).toBe("Keep this");
+    expect(screen.queryByRole("textbox",{name:"Feedback on Person 25"})).toBeNull();
   });
 });
 
-it("sorts a zero rating above an unrated client profile",()=>{
-  const rows=[{id:"blank",name:"Unrated",rating:""},{id:"zero",name:"Zero",rating:"0"},{id:"rated",name:"Rated",rating:"4.5"}].map(r=>({...r,subtitle:"",stage:"Recruiter shortlisted",values:{rating:r.rating},resume:false}));
-  render(<ClientShareSheet token="token" rows={rows} columns={[{key:"rating",label:"Rating"}]} canEditNotes={false} roleName="Test role"/>);
-  fireEvent.change(screen.getByRole("combobox",{name:"Sort shared candidates"}),{target:{value:"rating"}});
-  expect([...document.querySelectorAll('tbody th')].map(x=>x.textContent)).toEqual(["Rated","Zero","Unrated"]);
+const person=(id:string,name:string,stage="recruiter_shortlisted")=>({id,name,designation:"QA Lead",company:"Acme",resume:false,stage,experience:"8 yrs",ctc:"18 LPA",location:"Chennai",qualification:"B.E.",phones:["98765 43210"],email:`${id}@example.com`,added:"Oct 1, 2026",custom:{}});
+describe("the client shortlist",()=>{
+  it("shows the Recruiter shortlisted columns and no internal ones",()=>{
+    render(<ClientShareSheet token="token" candidates={[person("a","Asha")]} fields={[{key:"notice",label:"Notice period"}]} canEditNotes={false} roleName="Test role"/>);
+    expect([...document.querySelectorAll("thead th")].map((th)=>th.textContent)).toEqual(["Candidate","Experience","Current CTC","Location","Qualification","Contact","Added","Notice period","Your feedback"]);
+    expect(screen.queryByText(/rating|source/i)).toBeNull();
+  });
+  it("filters by stage, counting each, and searches across details",()=>{
+    render(<ClientShareSheet token="token" candidates={[person("a","Asha"),person("b","Bala","client_shortlisted"),person("c","Chitra","offer_sent")]} fields={[]} canEditNotes={false} roleName="Test role"/>);
+    fireEvent.click(screen.getByRole("button",{name:/Shortlisted 1/}));
+    expect([...document.querySelectorAll("tbody th strong")].map((x)=>x.textContent)).toEqual(["Bala"]);
+    fireEvent.click(screen.getByRole("button",{name:/All 3/}));
+    fireEvent.change(screen.getByRole("searchbox",{name:"Search candidates"}),{target:{value:"chitra"}});
+    expect([...document.querySelectorAll("tbody th strong")].map((x)=>x.textContent)).toEqual(["Chitra"]);
+  });
 });
