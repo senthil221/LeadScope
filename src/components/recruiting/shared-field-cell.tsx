@@ -98,7 +98,7 @@ export function SharedFieldCell({
             event.target.style.height = "auto";
             event.target.style.height = `${event.target.scrollHeight}px`;
           }}
-          placeholder="Add your feedback for this candidate…"
+          placeholder="Add feedback…"
           rows={2}
           value={(current as string) ?? ""}
         />
