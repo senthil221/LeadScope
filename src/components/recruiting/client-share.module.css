@@ -17,19 +17,17 @@
 .stages button span { min-width: 18px; padding: 0 5px; border-radius: 999px; background: #e3e7ee; color: #4f5d72; font-size: 11px; font-weight: 600; text-align: center; }
 .stages button[aria-pressed="true"] { background: #fff; color: #0f1b2d; box-shadow: 0 1px 2px rgb(15 27 45 / 10%); }
 .stages button[aria-pressed="true"] span { background: #0f1b2d; color: #fff; }
-.search { display: flex; align-items: center; gap: 8px; width: min(320px, 100%); min-height: 36px; margin: 0; padding: 0 12px; border: 1px solid #e3e7ee; border-radius: 9px; background: #fff; color: #8a96a8; font-weight: 400; }
+.search { display: flex; flex-direction: row; align-items: center; gap: 8px; width: min(320px, 100%); min-height: 36px; margin: 0; padding: 0 12px; border: 1px solid #e3e7ee; border-radius: 9px; background: #fff; color: #8a96a8; font-weight: 400; }
 .search:focus-within { border-color: #9db4d8; box-shadow: 0 0 0 3px rgb(59 110 196 / 12%); }
 .search input { flex: 1; min-width: 0; min-height: 34px; padding: 0; border: 0; outline: 0; background: transparent; box-shadow: none; font-size: 13px; color: #0f1b2d; }
 .blocked { margin: 0; padding: 8px 18px; background: #fff7ed; color: #9a4b12; font-size: 12.5px; }
 
 .scroll { overflow: auto; max-height: calc(100dvh - 250px); min-height: 120px; }
 .scroll:focus-visible { outline: 2px solid #3b6ec4; outline-offset: -2px; }
-.table { width: 100%; min-width: 1180px; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 13px; }
-.colCandidate { width: 280px; }
-.colShort { width: 110px; }
-.colMid { width: 140px; }
-.colContact { width: 200px; }
-.colFeedback { width: 280px; }
+/* Columns size to what they hold, so the sheet fits a laptop screen. */
+.table { width: 100%; min-width: 980px; border-collapse: separate; border-spacing: 0; table-layout: auto; font-size: 13px; }
+.table thead th:first-child, .candidate { min-width: 230px; max-width: 300px; }
+.table thead th:last-child, .feedback { min-width: 240px; width: 26%; }
 .table th, .table td { padding: 12px 14px; border: 0; border-bottom: 1px solid #f0f2f5; background: #fff; text-align: left; vertical-align: top; line-height: 1.45; color: #1d2b3f; text-transform: none; letter-spacing: normal; overflow-wrap: anywhere; }
 .table thead th { position: sticky; top: 0; z-index: 2; padding-top: 10px; padding-bottom: 10px; background: #fafbfc; border-bottom: 1px solid #eef0f4; color: #7b889b; font-size: 11.5px; font-weight: 500; white-space: nowrap; }
 .table tbody tr:hover > * { background: #fafcff; }
@@ -42,10 +40,11 @@
 .pill[data-stage="client_shortlisted"] { background: #e8f6ee; color: #1d7047; }
 .pill[data-stage="offer_sent"] { background: #f3edfd; color: #6a3fb5; }
 .role { display: block; margin-top: 2px; color: #66748a; font-size: 12px; }
-.links { display: flex; gap: 12px; margin-top: 6px; }
+.links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 6px; }
+.added { color: #9aa5b5; font-size: 11.5px; }
 .links a { display: inline-flex; align-items: center; gap: 3px; color: #2f5fae; font-size: 12px; font-weight: 500; text-decoration: none; }
 .links a:hover { text-decoration: underline; }
-.contact span, .contact a { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.contact span, .contact a { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
 .contact a { color: #2f5fae; font-size: 12px; text-decoration: none; }
 .muted { color: #66748a; white-space: nowrap; }
 .dash { color: #c3cad5; }

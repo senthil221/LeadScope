@@ -33,7 +33,7 @@ const person=(id:string,name:string,stage="recruiter_shortlisted")=>({id,name,de
 describe("the client shortlist",()=>{
   it("shows the Recruiter shortlisted columns and no internal ones",()=>{
     render(<ClientShareSheet token="token" candidates={[person("a","Asha")]} fields={[{key:"notice",label:"Notice period"}]} canEditNotes={false} roleName="Test role"/>);
-    expect([...document.querySelectorAll("thead th")].map((th)=>th.textContent)).toEqual(["Candidate","Experience","Current CTC","Location","Qualification","Contact","Added","Notice period","Your feedback"]);
+    expect([...document.querySelectorAll("thead th")].map((th)=>th.textContent)).toEqual(["Candidate","Experience","Current CTC","Location","Qualification","Contact","Notice period","Your feedback"]);
     expect(screen.queryByText(/rating|source/i)).toBeNull();
   });
   it("filters by stage, counting each, and searches across details",()=>{

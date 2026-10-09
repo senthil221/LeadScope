@@ -48,15 +48,9 @@ export function ClientShareSheet({ token, candidates, fields, canEditNotes, role
     <div className={styles.scroll} tabIndex={0} role="region" aria-label="Candidates. Scroll sideways for more details.">
       <table className={styles.table}>
         <caption className={styles.srOnly}>Candidates shortlisted for {roleName}</caption>
-        <colgroup>
-          <col className={styles.colCandidate} /><col className={styles.colShort} /><col className={styles.colShort} /><col className={styles.colMid} />
-          <col className={styles.colMid} /><col className={styles.colContact} /><col className={styles.colShort} />
-          {fields.map((f) => <col key={f.key} className={styles.colMid} />)}
-          <col className={styles.colFeedback} />
-        </colgroup>
         <thead><tr>
           <th scope="col">Candidate</th><th scope="col">Experience</th><th scope="col">Current CTC</th><th scope="col">Location</th>
-          <th scope="col">Qualification</th><th scope="col">Contact</th><th scope="col">Added</th>
+          <th scope="col">Qualification</th><th scope="col">Contact</th>
           {fields.map((f) => <th scope="col" key={f.key}>{f.label}</th>)}
           <th scope="col">Your feedback</th>
         </tr></thead>
@@ -64,17 +58,17 @@ export function ClientShareSheet({ token, candidates, fields, canEditNotes, role
           <th scope="row" className={styles.candidate}>
             <span className={styles.nameLine}><strong>{c.name}</strong><span className={styles.pill} data-stage={c.stage}>{stageLabel(c.stage)}</span></span>
             {(c.designation || c.company) && <span className={styles.role}>{[c.designation, c.company].filter(Boolean).join(" · ")}</span>}
-            {(c.linkedin || c.resume) && <span className={styles.links}>
+            <span className={styles.links}>
               {c.linkedin && <a href={c.linkedin} target="_blank" rel="noreferrer">LinkedIn <ArrowUpRight size={11} aria-hidden="true" /></a>}
               {c.resume && <a href={`/api/share/${token}?resume=${c.id}`} target="_blank" rel="noreferrer"><FileText size={11} aria-hidden="true" /> Resume</a>}
-            </span>}
+              {c.added && <span className={styles.added}>Added {c.added}</span>}
+            </span>
           </th>
           <td>{c.experience || <Dash />}</td>
           <td>{c.ctc || <Dash />}</td>
           <td>{c.location || <Dash />}</td>
           <td>{c.qualification || <Dash />}</td>
           <td className={styles.contact}>{c.phones.length || c.email ? <>{c.phones.map((p) => <span key={p}>{p}</span>)}{c.email && <a href={`mailto:${c.email}`} title={c.email}>{c.email}</a>}</> : <Dash />}</td>
-          <td className={styles.muted}>{c.added}</td>
           {fields.map((f) => <td key={f.key}>{c.custom[f.key] || <Dash />}</td>)}
           <td className={styles.feedback}>{canEditNotes ? <SharedFieldCell token={token} roleCandidateId={c.id} column="client_notes" value={c.note} kind="text" multiline label={`Feedback on ${c.name}`} /> : c.note}</td>
         </tr>)}</tbody>
