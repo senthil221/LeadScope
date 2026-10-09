@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, ExternalLink, LoaderCircle, Play, Plus, Save, Search, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, Copy, Download, ExternalLink, LoaderCircle, Play, Plus, Save, Search, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/shell/AppShell";
 import type { PageData } from "@/lib/types";
 import { normalizeQuery } from "@/lib/query-rules";
@@ -198,6 +198,20 @@ export function XrayDashboard({ data }: { data: PageData }) {
   const historyRows = history ?? [];
   const historyShown = historyAll ? historyRows : historyRows.slice(0, 25);
   const pickedHistory = historyRows.filter((h) => historyPicked.has(historyKey(h)));
+  // The ticked queries, or every one when none is ticked.
+  const exportRows = pickedHistory.length ? pickedHistory : historyRows;
+  async function copyQueries() {
+    try { await navigator.clipboard.writeText(exportRows.map((h) => h.query).join("\n")); setMessage(`Copied ${plural(exportRows.length, "query", "queries")}.`); }
+    catch { setError("Copy failed. Use Export CSV instead."); }
+  }
+  function exportCsv() {
+    const cell = (v: string | number) => { const t = String(v); return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+    const lines = [["Query", "Country", "Pages", "Profiles", "New", "Last run"], ...exportRows.map((h) => [h.query, countryName(h.country), h.pages, h.profiles, h.fresh, new Date(h.lastRun).toISOString().slice(0, 10)])];
+    // The byte-order mark lets Excel read the file as UTF-8.
+    const blob = new Blob(["﻿" + lines.map((row) => row.map(cell).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const link = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `xray-queries-${role.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv` });
+    link.click(); URL.revokeObjectURL(link.href);
+  }
   const done = tasks.filter((t) => t.status === "done" || t.status === "failed").length;
   const lowBalance = balance != null && (balance < cost || balance < 200);
 
@@ -291,6 +305,8 @@ export function XrayDashboard({ data }: { data: PageData }) {
         <h2 id="xray-history">History <span className="count">{historyRows.length}</span></h2>
         <span className="muted">Every query run for this role. New counts people the role does not have yet.</span>
         <div className="xray-head-actions">
+          <button type="button" className="small" disabled={!historyRows.length} onClick={() => void copyQueries()} title="One query per line, to paste anywhere"><Copy size={13} />Copy {pickedHistory.length ? pickedHistory.length : "all"} queries</button>
+          <button type="button" className="small" disabled={!historyRows.length} onClick={exportCsv}><Download size={13} />Export CSV</button>
           <button type="button" className="small" disabled={!pickedHistory.length || Boolean(busy) || running} onClick={() => void load(pickedHistory)}><Search size={13} />Load {pickedHistory.length || ""} selected</button>
           <button type="button" className="small" disabled={!pickedHistory.length || Boolean(busy) || running || configured === false} onClick={() => void load(pickedHistory, true)}><Play size={13} />Fetch {pages} more {pages === 1 ? "page" : "pages"}</button>
         </div>
