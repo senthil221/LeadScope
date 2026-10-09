@@ -7,7 +7,14 @@ import type { PageData, Role } from "@/lib/types";
 import { RoleFormDialog } from "./role-form";
 import { RecruiterTag, useRecruiters } from "./recruiter-select";
 import { ROLE_STATUSES, ctcMaxLabel, roleAgeDays, roleStatusLabel } from "@/lib/recruiting/roles";
-import { formatRecruitingDate } from "@/lib/recruiting/display";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+
+function SortHeader({ label, field, sort, href, title }: { label: string; field: "ctc" | "age"; sort: string; href: string; title?: string }) {
+  const direction = sort === `${field}_desc` ? "descending" : sort === `${field}_asc` ? "ascending" : "none";
+  return <th aria-sort={direction} title={title}><Link className={`sort-header${direction !== "none" ? " is-on" : ""}`} href={href} scroll={false}>
+    {label}{direction === "descending" ? <ArrowDown size={13} aria-hidden="true" /> : direction === "ascending" ? <ArrowUp size={13} aria-hidden="true" /> : <ArrowUpDown size={13} aria-hidden="true" />}
+  </Link></th>;
+}
 
 export function AllRolesWorkspace({ data }: { data: PageData }) {
   const router = useRouter();
@@ -16,6 +23,14 @@ export function AllRolesWorkspace({ data }: { data: PageData }) {
   const [newClient, setNewClient] = useState(params.get("client") ?? data.clients.find((c) => !c.archived)?.id ?? "");
   const clients = new Map(data.clients.map((c) => [c.id, c]));
   const recruiters = useRecruiters();
+  // A header click sorts high to low first, then flips; the URL holds it.
+  const sort = params.get("sort") ?? "";
+  function sortUrl(field: "ctc" | "age") {
+    const p = new URLSearchParams(params);
+    p.set("sort", sort === `${field}_desc` ? `${field}_asc` : `${field}_desc`);
+    p.delete("page");
+    return `/roles?${p}`;
+  }
   function pageUrl(page: number) { const p = new URLSearchParams(params); p.set("page", String(page)); return `/roles?${p}`; }
   return <AppShell data={data}>
     <header className="page-header role-directory-header"><div><div className="eyebrow">Agency workspace</div><h1>Roles <span className="count">{data.total ?? 0}</span></h1><p className="muted">Every role across your clients, with recruiter ownership and hiring budget.</p></div>
@@ -35,19 +50,18 @@ export function AllRolesWorkspace({ data }: { data: PageData }) {
       </select>
       <button>Apply</button><Link href="/roles">Clear</Link>
     </form>
-    <div className="card table-wrap role-directory-table"><table><thead><tr><th>Role</th><th>Client</th><th>Recruiter</th><th>CTC</th><th>Opened</th><th title="Days since the role opened">Age</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
+    <div className="card table-wrap role-directory-table"><table><thead><tr><th>Role</th><th>Client</th><th>Recruiter</th><SortHeader label="CTC" field="ctc" sort={sort} href={sortUrl("ctc")} /><SortHeader label="Age" field="age" sort={sort} href={sortUrl("age")} title="Days since the role opened" /><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
       {(data.roles ?? []).map((role) => <tr key={role.id}>
         <td><Link className="strong" href={`/roles/${role.id}`}>{role.name}</Link>{role.description && <small>{role.description.slice(0, 100)}</small>}</td>
         <td><Link className="badge" href={`/clients/${role.client_id}/roles`}>{clients.get(role.client_id)?.name ?? "Client"}</Link>{clients.get(role.client_id)?.archived && <small>Client archived</small>}</td>
         {/* Changed in Edit role; the list only shows who has it. */}
         <td><RecruiterTag name={role.recruiter_names?.[0] ?? ""} /></td>
         <td>{ctcMaxLabel(role) || <span className="muted">—</span>}</td>
-        <td className="nowrap">{role.opened_on ? formatRecruitingDate(role.opened_on) : <span className="muted">—</span>}</td>
         <td className="nowrap">{(() => { const days = roleAgeDays(role.opened_on); return days == null ? <span className="muted">—</span> : `${days} ${days === 1 ? "day" : "days"}`; })()}</td>
         <td><span className={`badge role-${role.status}`}>{roleStatusLabel(role.status)}</span></td>
         <td><button className="small" disabled={clients.get(role.client_id)?.archived} onClick={() => setForm(role)}>Edit</button></td>
       </tr>)}
-      {!data.roles?.length && <tr><td colSpan={8}><div className="empty">No roles match this view.</div></td></tr>}
+      {!data.roles?.length && <tr><td colSpan={7}><div className="empty">No roles match this view.</div></td></tr>}
     </tbody></table></div>
     <div className="pagination"><span>{data.total ?? 0} roles</span><div className="row">{(data.page ?? 1) > 1 && <Link className="button small" href={pageUrl(data.page! - 1)}>Previous</Link>}{(data.page ?? 1) * 50 < (data.total ?? 0) && <Link className="button small" href={pageUrl((data.page ?? 1) + 1)}>Next</Link>}</div></div>
     {form && <RoleFormDialog role={form} clientId={form === "new" ? newClient : form.client_id} onClose={() => setForm(null)} onSaved={(id) => { const created = form === "new"; setForm(null); if (created) router.push(`/roles/${id}`); else router.refresh(); }} />}

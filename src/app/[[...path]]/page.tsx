@@ -546,6 +546,11 @@ export default async function Page({
       }
       if (filter.recruiter === "__unassigned") query = query.eq("recruiter_names", "{}");
       else if (filter.recruiter?.trim()) query = query.contains("recruiter_names", [filter.recruiter.trim().slice(0, 120)]);
+      // Sorted by the top of the CTC range or by age (oldest opening first
+      // is the highest age); roles with no CTC go last either way.
+      const sort = filter.sort;
+      if (sort === "ctc_desc" || sort === "ctc_asc") query = query.order("ctc_max", { ascending: sort === "ctc_asc", nullsFirst: false }).order("ctc_min", { ascending: sort === "ctc_asc", nullsFirst: false });
+      else if (sort === "age_desc" || sort === "age_asc") query = query.order("opened_on", { ascending: sort === "age_desc" });
       const response = await query.order("created_at", { ascending: false }).order("id").range((data.page - 1) * 50, data.page * 50 - 1);
       data.roles = checked(response);
       data.total = response.count ?? 0;
@@ -685,7 +690,7 @@ export default async function Page({
   const routeKey = `${path.join("/")}:${filter.page ?? ""}:${filter.status ?? ""}:${filter.campaign ?? ""}:${filter.q ?? ""}:${filter.contact ?? ""}:${filter.stage ?? ""}`;
   const roleRouteKey = `${filter.candidate ?? ""}:${filter.contact ?? ""}:${filter.stale ?? ""}:${path.join("/")}:${filter.page ?? ""}:${filter.q ?? ""}:${filter.source ?? ""}:${filter.source_detail ?? ""}:${filter.rating ?? ""}:${filter.entered_from ?? ""}:${filter.entered_to ?? ""}:${filter.sort ?? ""}`;
   if (data.view === "master-db") return <MasterWorkspace key={JSON.stringify(filter)} data={data} />;
-  if (data.view === "all-roles") return <AllRolesWorkspace key={`${routeKey}:${filter.recruiter}:${filter.client}`} data={data} />;
+  if (data.view === "all-roles") return <AllRolesWorkspace key={`${routeKey}:${filter.recruiter}:${filter.client}:${filter.sort}`} data={data} />;
   if (data.view === "blocklist") return <BlocklistWorkspace key={`${routeKey}:${filter.client}`} data={data} />;
   if (data.view === "xray") return <XrayDashboard key={data.role!.id} data={data} />;
   if (data.view === "credits") return <CreditsWorkspace key={routeKey} data={data} />;
