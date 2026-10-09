@@ -88,6 +88,15 @@ describe("the recruiter dropdown", () => {
     expect(onChoose).toHaveBeenCalledTimes(1);
   });
 
+  // The role form is a modal dialog, which shuts out anything drawn outside it.
+  it("opens its list inside the dialog it sits in, where it can be clicked", async () => {
+    const onChoose = vi.fn();
+    render(<dialog open><RecruiterSelect label="Recruiter" value="" onChoose={onChoose} /></dialog>);
+    const listbox = await openList();
+    expect(listbox.closest("dialog")).not.toBeNull();
+    fireEvent.click(await screen.findByRole("option", { name: /Tisha/ }));
+    expect(onChoose).toHaveBeenCalledWith("Tisha");
+  });
   it("opens the list editor without assigning anybody", async () => {
     const onChoose = vi.fn();
     render(<RecruiterSelect label="Recruiter for Role" value="Tisha" onChoose={onChoose} />);

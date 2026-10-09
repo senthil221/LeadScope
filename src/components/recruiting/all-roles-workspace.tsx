@@ -6,7 +6,7 @@ import { AppShell } from "@/components/shell/AppShell";
 import { act } from "@/lib/client/act";
 import type { PageData, Role } from "@/lib/types";
 import { RoleFormDialog } from "./role-form";
-import { RecruiterSelect, useRecruiters } from "./recruiter-select";
+import { RecruiterTag, useRecruiters } from "./recruiter-select";
 
 export function AllRolesWorkspace({ data }: { data: PageData }) {
   const router = useRouter();
@@ -17,13 +17,6 @@ export function AllRolesWorkspace({ data }: { data: PageData }) {
   const [error, setError] = useState("");
   const clients = new Map(data.clients.map((c) => [c.id, c]));
   const recruiters = useRecruiters();
-  // One click, one role: the same shape as a candidate's source.
-  async function assignRecruiter(role: Role, name: string) {
-    setBusy(true); setError("");
-    try { await act("setRoleRecruiters", { roleId: role.id, names: name ? [name] : [] }); router.refresh(); }
-    catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
-  }
   function pageUrl(page: number) { const p = new URLSearchParams(params); p.set("page", String(page)); return `/roles?${p}`; }
   return <AppShell data={data}>
     <header className="page-header role-directory-header"><div><div className="eyebrow">Agency workspace</div><h1>Roles <span className="count">{data.total ?? 0}</span></h1><p className="muted">Every role across your clients, with recruiter ownership and hiring budget.</p></div>
@@ -45,9 +38,10 @@ export function AllRolesWorkspace({ data }: { data: PageData }) {
       {(data.roles ?? []).map((role) => <tr key={role.id}>
         <td><Link className="strong" href={`/roles/${role.id}`}>{role.name}</Link>{role.description && <small>{role.description.slice(0, 100)}</small>}</td>
         <td><Link className="badge" href={`/clients/${role.client_id}/roles`}>{clients.get(role.client_id)?.name ?? "Client"}</Link>{clients.get(role.client_id)?.archived && <small>Client archived</small>}</td>
-        <td><RecruiterSelect label={`Recruiter for ${role.name}`} value={role.recruiter_names?.[0] ?? ""} disabled={busy || role.archived || clients.get(role.client_id)?.archived} onChoose={(name) => void assignRecruiter(role, name)} /></td>
+        {/* Changed in Edit role; the list only shows who has it. */}
+        <td><RecruiterTag name={role.recruiter_names?.[0] ?? ""} /></td>
         <td>{role.ctc || <span className="muted">Not specified</span>}</td>
-        <td><span className={`badge ${role.status}`}>{role.archived ? "Archived" : ({ open: "Open", on_hold: "On hold", closed: "Closed" })[role.status]}</span></td>
+        <td><span className={`badge ${role.archived ? "archived" : role.status}`}>{role.archived ? "Archived" : ({ open: "Open", on_hold: "On hold", closed: "Closed" })[role.status]}</span></td>
         <td><div className="row"><button className="small" disabled={busy || clients.get(role.client_id)?.archived} onClick={() => setForm(role)}>Edit</button><button className="small" disabled={busy} onClick={async () => {
           setBusy(true); setError("");
           try { await act("archiveRole", { id: role.id, archived: !role.archived }); router.refresh(); }

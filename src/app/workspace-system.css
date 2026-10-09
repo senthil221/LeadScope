@@ -208,3 +208,6 @@
   .coverage-table th, .coverage-table td { padding: 8px 10px; }
   .coverage-bar { display: none; }
 }
+.recruiter-tag { display: inline-flex; align-items: center; gap: 8px; max-width: 200px; font-size: 13px; font-weight: 500; color: var(--ink); }
+.recruiter-tag.is-empty { color: var(--faint); font-weight: 400; }
+.badge.archived { border-color: #d6dde7; background: #f1f4f8; color: #5d6d82; }

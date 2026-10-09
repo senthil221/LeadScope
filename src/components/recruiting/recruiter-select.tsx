@@ -52,6 +52,15 @@ const tints = [
   ["#fff3d6", "#94620a"],
   ["#e2f4f7", "#0f6e7c"],
 ] as const;
+// A role's recruiter shown, not chosen: the same badge and name as the dropdown.
+export function RecruiterTag({ name }: { name: string }) {
+  return (
+    <span className={`recruiter-tag${name ? "" : " is-empty"}`}>
+      {name ? <RecruiterAvatar name={name} /> : <span className="recruiter-avatar is-empty" aria-hidden="true"><UserRound size={12} /></span>}
+      <span className="recruiter-picker-name">{name || "Unassigned"}</span>
+    </span>
+  );
+}
 function RecruiterAvatar({ name }: { name: string }) {
   let hash = 0;
   for (const letter of name.toLowerCase()) hash = (hash * 31 + letter.charCodeAt(0)) >>> 0;
@@ -101,6 +110,7 @@ export function RecruiterSelect({
   const list = useRecruiters();
   const [open, setOpen] = useState(false);
   const [place, setPlace] = useState<Place | null>(null);
+  const [host, setHost] = useState<HTMLElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [managing, setManaging] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -136,6 +146,9 @@ export function RecruiterSelect({
         : { left, width, top: rect.bottom + 6 },
     );
     setActiveIndex(Math.max(0, selectedIndex));
+    // A modal dialog (the role form) shuts out everything drawn outside it,
+    // so the list goes inside the dialog the button is in, if there is one.
+    setHost(button.closest("dialog") ?? document.body);
     setOpen(true);
   }
   function hide(refocus = true) {
@@ -314,14 +327,14 @@ export function RecruiterSelect({
               </button>
             </div>
           </div>,
-          document.body,
+          host ?? document.body,
         )}
       {/* Out of whatever the dropdown sits in - a label inside the role form,
           a table cell - so the dialog is not nested in either. */}
       {managing &&
         createPortal(
           <ManageRecruitersDialog onClose={() => setManaging(false)} />,
-          document.body,
+          host ?? document.body,
         )}
     </>
   );
