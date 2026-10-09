@@ -265,8 +265,11 @@ export function RolesPage({
           role={form}
           onClose={() => setForm(null)}
           onSaved={(id) => {
+            // A new role is opened to start work in it; an edit stays on this list.
+            const created = form === "new";
             setForm(null);
-            router.push(`/roles/${id}`);
+            if (created) router.push(`/roles/${id}`);
+            else router.refresh();
           }}
         />
       )}

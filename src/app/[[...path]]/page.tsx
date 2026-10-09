@@ -12,6 +12,7 @@ import { MasterWorkspace } from "@/components/recruiting/master-workspace";
 import { AllRolesWorkspace } from "@/components/recruiting/all-roles-workspace";
 import { BlocklistWorkspace } from "@/components/recruiting/blocklist-workspace";
 import { CreditsWorkspace } from "@/components/recruiting/credits-workspace";
+import { XrayDashboard } from "@/components/recruiting/xray-dashboard";
 import { TeamWorkspace } from "@/components/recruiting/team-workspace";
 import { prospectFilters } from "@/lib/prospects";
 import { prospectQuery } from "@/lib/server/prospects";
@@ -292,7 +293,14 @@ export default async function Page({
       data.campaign = checked(campaign);
     }
     if (path[0] === "roles" && path[1] && filter.stage === "master_db") redirect("/master-db");
-    if (path[0] === "roles" && path[1]) {
+    // The X-Ray page needs the role and its client, none of the pipeline.
+    if (path[0] === "roles" && path[1] && path[2] === "xray") {
+      data.view = "xray";
+      const roleWithClient = checked(initialRole!) as Role & { clients: Client };
+      data.role = roleWithClient;
+      data.client = roleWithClient.clients;
+      clientId = data.role!.client_id;
+    } else if (path[0] === "roles" && path[1]) {
       data.view = "role";
       const roleWithClient = checked(initialRole!) as Role & { clients: Client };
       data.role = roleWithClient;
@@ -659,6 +667,7 @@ export default async function Page({
         "all-roles",
         "blocklist",
         "credits",
+        "xray",
       ].includes(data.view)
     )
       notFound();
@@ -678,6 +687,7 @@ export default async function Page({
   if (data.view === "master-db") return <MasterWorkspace key={JSON.stringify(filter)} data={data} />;
   if (data.view === "all-roles") return <AllRolesWorkspace key={`${routeKey}:${filter.recruiter}:${filter.client}`} data={data} />;
   if (data.view === "blocklist") return <BlocklistWorkspace key={`${routeKey}:${filter.client}`} data={data} />;
+  if (data.view === "xray") return <XrayDashboard key={data.role!.id} data={data} />;
   if (data.view === "credits") return <CreditsWorkspace key={routeKey} data={data} />;
   if (data.view === "team") return <TeamWorkspace key={routeKey} data={data} />;
   if (data.view === "clients") return <ClientsWorkspace key={routeKey} data={data} />;

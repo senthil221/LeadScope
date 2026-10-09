@@ -10,12 +10,16 @@ type Db = Awaited<ReturnType<typeof admin>>["db"];
 // Who in these results the role already has, and who the blocklist keeps out.
 async function known(db: Db, role: string, urls: string[]) {
   if (!urls.length) return { inRole: [] as string[], blocked: [] as string[] };
-  return checked(await db.rpc("role_xray_known", { p_role: role, p_urls: [...new Set(urls)].slice(0, 500) })) as { inRole: string[]; blocked: string[] };
+  return checked(await db.rpc("role_xray_known", { p_role: role, p_urls: [...new Set(urls)].slice(0, 5000) })) as { inRole: string[]; blocked: string[] };
 }
 export async function GET(request: Request) {
   try {
     const { db } = await admin();
-    const role = z.uuid().parse(new URL(request.url).searchParams.get("role"));
+    const params = new URL(request.url).searchParams;
+    const role = z.uuid().parse(params.get("role"));
+    // The dashboard's history: one row per query run for this role.
+    if (params.get("history") === "1")
+      return Response.json({ configured: Boolean(process.env.SERPER_API_KEY?.trim() && process.env.SERPER_LIVE_ENABLED === "true"), history: checked(await db.rpc("role_xray_history", { p_role: role })), templates: checked(await db.from("role_xray_templates").select("id,name,inputs,custom_query,country,pages,split,updated_at").eq("role_id", role).order("name")) }, { headers: { "Cache-Control": "no-store" } });
     const searches = checked(await db.from("role_xray_searches").select("id,query,country,page,results,status,created_at").eq("role_id", role).eq("status", "complete").order("created_at", { ascending: false }).limit(60)) as { results: XrayResult[] }[];
     const templates = checked(await db.from("role_xray_templates").select("id,name,inputs,custom_query,country,pages,split,updated_at").eq("role_id", role).order("name"));
     return Response.json({ configured: Boolean(process.env.SERPER_API_KEY?.trim() && process.env.SERPER_LIVE_ENABLED === "true"), searches, templates, known: await known(db, role, searches.flatMap((s) => s.results.map((r) => r.url))) }, { headers: { "Cache-Control": "no-store" } });
@@ -25,8 +29,14 @@ export async function POST(request: Request) {
   try {
     const input = await body(request), { db } = await admin();
     if (input.action === "import") {
-      const p = z.object({ role: z.uuid(), searches: z.array(z.uuid()).min(1).max(60), urls: z.array(z.url().max(500)).min(1).max(200) }).parse(input);
+      const p = z.object({ role: z.uuid(), searches: z.array(z.uuid()).min(1).max(500), urls: z.array(z.url().max(500)).min(1).max(200) }).parse(input);
       return Response.json(checked(await db.rpc("import_role_xray_runs", { p_role: p.role, p_searches: [...new Set(p.searches)], p_urls: [...new Set(p.urls)] })));
+    }
+    // Saved pages read back for the results table, with who the role already has.
+    if (input.action === "load") {
+      const p = z.object({ role: z.uuid(), searches: z.array(z.uuid()).min(1).max(500) }).parse(input);
+      const pages = checked(await db.from("role_xray_searches").select("id,query,country,page,results").eq("role_id", p.role).eq("status", "complete").in("id", [...new Set(p.searches)])) as { results: XrayResult[] }[];
+      return Response.json({ pages, known: await known(db, p.role, pages.flatMap((page) => page.results.map((r) => r.url))) });
     }
     if (input.action === "saveTemplate") {
       const inputs = z.object({ titles: z.string().max(200), keywords: z.string().max(200), location: z.string().max(200), company: z.string().max(200), exclude: z.string().max(200) });

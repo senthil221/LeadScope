@@ -99,7 +99,6 @@ const DeleteCandidatesDialog = dynamic(() => import("./delete-candidates-dialog"
 const BulkEditDialog = dynamic(() => import("./bulk-edit-dialog").then((m) => m.BulkEditDialog), { loading: DialogLoading });
 const EditHistoryDialog = dynamic(() => import("./edit-history").then((m) => m.EditHistoryDialog), { loading: DialogLoading });
 const DuplicateReview = dynamic(() => import("./duplicate-review").then((m) => m.DuplicateReview), { loading: DialogLoading });
-const XraySearchDialog = dynamic(() => import("./xray-search-dialog").then((m) => m.XraySearchDialog), { loading: DialogLoading });
 const MobileWaterfallDialog = dynamic(() => import("./mobile-waterfall-dialog").then((m) => m.MobileWaterfallDialog), { loading: DialogLoading });
 const MobileLookupActivity = dynamic(() => import("./mobile-lookup-activity").then((m) => m.MobileLookupActivity), { loading: () => null });
 const InlineMobileLookup = dynamic(() => import("./inline-mobile-lookup").then((m) => m.InlineMobileLookup), { loading: () => <div className="phone-inline-lookup" role="status">Loading…</div> });
@@ -231,7 +230,6 @@ export function RolePipeline({
   const [selectingAll, setSelectingAll] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showDuplicates, setShowDuplicates] = useState(false);
-  const [showXray, setShowXray] = useState(false);
   const [mobileLookup, setMobileLookup] = useState<{ candidateId?: string; memberships?: string[] } | null>(null);
   const [inlinePhoneCell, setInlinePhoneCell] = useState<string | null>(null);
   const [mobileActivityVersion, setMobileActivityVersion] = useState(0);
@@ -341,14 +339,19 @@ export function RolePipeline({
   const [loadingMore, setLoadingMore] = useState(false);
   const loadingMoreRef = useRef(false);
   const [nextOffset, setNextOffset] = useState((page - 1) * 50 + firstRows.length);
-  const roleCandidates = useMemo<RoleCandidate[]>(
-    () => (laterRows.length ? [...firstRows, ...laterRows] : firstRows),
-    [firstRows, laterRows],
-  );
+  const roleCandidates = useMemo<RoleCandidate[]>(() => {
+    if (!laterRows.length) return firstRows;
+    // After an edit the first slice is read again and can now hold a row that
+    // was further down; it is shown once, where the first slice puts it.
+    const first = new Set(firstRows.map((row) => row.id));
+    return [...firstRows, ...laterRows.filter((row) => !first.has(row.id))];
+  }, [firstRows, laterRows]);
   // A different tab, filter or sort is a different list, so what was loaded
   // for the old one is dropped rather than shown under the new heading.
   const [dataVersion, setDataVersion] = useState(0);
-  const listKey = `${role.id}:${tab}:${params.toString()}:${dataVersion}`;
+  // Not the data version: an edit refreshes the rows on screen in place
+  // rather than starting the list again from the top.
+  const listKey = `${role.id}:${tab}:${params.toString()}`;
   const [loadedListKey, setLoadedListKey] = useState(listKey);
   const listKeyRef = useRef(listKey);
   useEffect(() => {
@@ -648,12 +651,39 @@ export function RolePipeline({
     act<RoleCandidate>("roleCandidateDetail", { id, roleId: role.id }).then((row) => { if (!cancelled) setLinkedCandidate(row); }).catch((e) => { if (!cancelled) { setError((e as Error).message); setPanelId(null); } });
     return () => { cancelled = true; };
   }, [panelId, role.id, dataVersion]);
+  // An edit near the bottom of a long list used to drop every row past the
+  // first fifty and read those again, so the page shrank under the recruiter
+  // and left them halfway up. The rows already loaded are read again instead,
+  // and swapped in once they arrive.
+  const reloadLater = useRef<() => void>(() => {});
+  useEffect(() => {
+    reloadLater.current = () => {
+      const count = laterRows.length;
+      if (!count || !isStage(tab)) return;
+      const requestedList = listKeyRef.current;
+      const start = (page - 1) * 50 + firstRows.length;
+      void (async () => {
+        const fresh: RoleCandidate[] = [];
+        try {
+          const filters = serializeRoleFilters(params);
+          while (fresh.length < count) {
+            const want = Math.min(250, count - fresh.length);
+            const next = await act<RoleCandidate[]>("roleCandidatePage", { clientId: client.id, roleId: role.id, stage: tab, filters, offset: start + fresh.length, limit: want });
+            fresh.push(...next);
+            if (next.length < want) break;
+          }
+        } catch { return; }
+        if (listKeyRef.current !== requestedList) return;
+        setLaterRows(fresh);
+        setNextOffset(start + fresh.length);
+      })();
+    };
+  });
   const { beginBatch, endBatch, refresh } = useBatchedRefresh(useCallback(() => {
-    setLaterRows([]);
-    setNextOffset((page - 1) * 50 + firstRows.length);
     setDataVersion((version) => version + 1);
     router.refresh();
-  }, [page, firstRows.length, router]));
+    reloadLater.current();
+  }, [router]));
   const tabUrl = (key: Tab) => roleStageUrl(path, params.toString(), tab, key, dataVersion);
   function startTabNavigation(key: Tab) {
     if (key !== tab) {
@@ -1500,7 +1530,7 @@ export function RolePipeline({
         </Link>
         </RoleToolsMenu>
         <RoleToolsMenu label="Actions">
-        {tab === "all_profiles" && !role.archived && <button type="button" onClick={() => setShowXray(true)}><Search size={14} /> Google X-Ray search</button>}
+        <Link href={`/roles/${role.id}/xray`}><Search size={14} /> Google X-Ray search</Link>
         <button type="button" onClick={() => setMobileLookup({ memberships: [...selected] })}><Phone size={14} /> Mobile waterfall</button>
         <button type="button" onClick={() => setPushingProfiles({})}>Push profiles to role</button>
         <button type="button" onClick={() => setSharing("client")}>Share with client</button>
@@ -2371,7 +2401,6 @@ export function RolePipeline({
       </section>
       {bulkEditing && <BulkEditDialog clientId={client.id} roleId={role.id} roleName={role.name} ids={bulkEditing} stage={isStage(tab) && tab !== "all_profiles" ? tab : null} fields={roleFields} onClose={() => setBulkEditing(null)} onSaved={(count) => { setBulkEditing(null); setSelected([]); setMessage(`Updated ${count} rows. Changes are recorded in Edit history.`); refresh(); }} />}
       {showHistory && <EditHistoryDialog clientId={client.id} roleId={role.id} onClose={() => setShowHistory(false)} />}
-      {showXray && <XraySearchDialog roleId={role.id} roleName={role.name} onClose={() => setShowXray(false)} onImported={refresh} />}
       {mobileLookup && <MobileWaterfallDialog roleId={role.id} candidateId={mobileLookup.candidateId} memberships={mobileLookup.memberships} onClose={() => { setMobileLookup(null); refresh(); }} onSaved={refresh} onQueued={() => setMobileActivityVersion((previous) => previous + 1)} />}
       {showDuplicates && <DuplicateReview clientId={client.id} roleId={role.id} onClose={() => setShowDuplicates(false)} />}
       {showDeleted && <DeletedCandidates clientId={client.id} roleId={role.id} archived={role.archived} onClose={() => setShowDeleted(false)} onRestored={() => refresh()} />}

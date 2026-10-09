@@ -56,3 +56,28 @@ describe("X-Ray search variations", () => {
     expect(batchResults([a, b]).map((r) => r.name)).toEqual(["x", "y", "z"]);
   });
 });
+
+import { parsePastedQueries } from "../src/lib/recruiting/xray";
+import { normalizeQuery } from "../src/lib/queries";
+describe("pasted X-Ray queries", () => {
+  it("reads a numbered, fenced list from a chat into clean queries, once each", () => {
+    const pasted = [
+      "```",
+      '1. site:linkedin.com/in "QA Manager" "Chennai"',
+      '2) `site:in.linkedin.com/in/ "Test Lead" "Pune"`',
+      '- "SDET" "Bangalore"',
+      '3. site:linkedin.com/in/ "QA Manager" "Chennai"',
+      "",
+      "```",
+    ].join("\n");
+    expect(parsePastedQueries(pasted, normalizeQuery)).toEqual([
+      { query: 'site:linkedin.com/in/ "QA Manager" "Chennai"' },
+      { query: 'site:linkedin.com/in/ "Test Lead" "Pune"' },
+      { query: 'site:linkedin.com/in/ "SDET" "Bangalore"' },
+    ]);
+  });
+  it("keeps a line it cannot run, with the reason", () => {
+    const [bad] = parsePastedQueries('site:naukri.com "QA"', normalizeQuery);
+    expect(bad.error).toMatch(/site:linkedin.com\/in\//);
+  });
+});

@@ -50,6 +50,6 @@ export function AllRolesWorkspace({ data }: { data: PageData }) {
       {!data.roles?.length && <tr><td colSpan={8}><div className="empty">No roles match this view.</div></td></tr>}
     </tbody></table></div>
     <div className="pagination"><span>{data.total ?? 0} roles</span><div className="row">{(data.page ?? 1) > 1 && <Link className="button small" href={pageUrl(data.page! - 1)}>Previous</Link>}{(data.page ?? 1) * 50 < (data.total ?? 0) && <Link className="button small" href={pageUrl((data.page ?? 1) + 1)}>Next</Link>}</div></div>
-    {form && <RoleFormDialog role={form} clientId={form === "new" ? newClient : form.client_id} onClose={() => setForm(null)} onSaved={(id) => { setForm(null); router.push(`/roles/${id}`); }} />}
+    {form && <RoleFormDialog role={form} clientId={form === "new" ? newClient : form.client_id} onClose={() => setForm(null)} onSaved={(id) => { const created = form === "new"; setForm(null); if (created) router.push(`/roles/${id}`); else router.refresh(); }} />}
   </AppShell>;
 }

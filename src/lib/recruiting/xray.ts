@@ -72,3 +72,31 @@ export function batchResults(runs: XrayRun[]): XrayResult[] {
   for (const run of runs) for (const result of runResults(run)) if (!seen.has(result.url)) seen.set(result.url, result);
   return [...seen.values()];
 }
+
+// Queries pasted in bulk, often straight from a chat: numbered or bulleted,
+// in backticks or a code block, with LinkedIn written a few ways. Each line
+// becomes one query in the form the server accepts, or says why it cannot.
+export const MAX_BATCH = 25;
+export type PastedQuery = { query: string; error?: string };
+export function parsePastedQueries(text: string, check: (query: string) => string): PastedQuery[] {
+  const seen = new Set<string>();
+  const out: PastedQuery[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    let line = raw.trim();
+    if (!line || /^```/.test(line)) continue;
+    line = line
+      .replace(/^(?:[-*•]|\d+[.)]|query\s*\d*\s*[:.-])\s*/i, "")
+      .replace(/^`+|`+$/g, "")
+      .replace(/site:\s*(?:https?:\/\/)?(?:www\.|[a-z]{2}\.)?linkedin\.com\/in\/?(?=\s|$)/gi, "site:linkedin.com/in/")
+      .trim();
+    if (!line) continue;
+    if (!/site:/i.test(line)) line = `site:linkedin.com/in/ ${line}`;
+    let query = line, error: string | undefined;
+    try { query = check(line); } catch (e) { error = (e as Error).message; }
+    const key = query.toLowerCase();
+    if (!error && seen.has(key)) continue;
+    seen.add(key);
+    out.push(error ? { query: line, error } : { query });
+  }
+  return out;
+}

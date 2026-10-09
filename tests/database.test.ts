@@ -1285,6 +1285,28 @@ describe("durable mobile waterfall and role X-Ray", () => {
     await expect(asUser(actor, () => rpc("import_role_xray_runs", [rid, [one], [url("runs-c")]]))).rejects.toThrow("saved search results");
     await expect(asUser(outsider, () => rpc("role_xray_known", [rid, [url("runs-a")]]))).rejects.toThrow();
   });
+  it("lists each query run for a role with how many people the role still lacks", async () => {
+    const cid = await client(), rid = await role(cid);
+    const url = (s: string) => `https://www.linkedin.com/in/${s}`;
+    const page = async (query: string, n: number, slugs: string[]) => {
+      const reserved = await asUser(actor, () => rpc("reserve_role_xray", [rid, query, "in", n, randomUUID()]));
+      await sql("update public.role_xray_searches set status='complete',results=$2 where id=$1", [reserved.id, JSON.stringify(slugs.map((s) => ({ url: url(s), name: s, title: "QA" })))]);
+      return reserved.id as string;
+    };
+    const qa = 'site:linkedin.com/in/ "QA" "Chennai"', sdet = 'site:linkedin.com/in/ "SDET" "Pune"';
+    const a1 = await page(qa, 1, ["hist-a", "hist-b"]), a2 = await page(qa, 2, ["hist-b", "hist-c"]);
+    await page(sdet, 1, ["hist-c", "hist-d"]);
+    let history = await asUser(actor, () => rpc("role_xray_history", [rid]));
+    const row = (q: string) => history.find((h: { query: string }) => h.query === q);
+    expect(row(qa)).toMatchObject({ pages: 2, lastPage: 2, profiles: 3, fresh: 3, country: "in" });
+    expect(row(qa).searchIds).toEqual([a1, a2]);
+    expect(row(sdet)).toMatchObject({ pages: 1, profiles: 2, fresh: 2 });
+    await asUser(actor, () => rpc("import_role_xray_runs", [rid, [a1, a2], [url("hist-a"), url("hist-c")]]));
+    history = await asUser(actor, () => rpc("role_xray_history", [rid]));
+    expect(row(qa).fresh).toBe(1);
+    expect(row(sdet).fresh).toBe(1);
+    await expect(asUser(outsider, () => rpc("role_xray_history", [rid]))).rejects.toThrow();
+  });
   it("keeps saved X-Ray searches per role by name", async () => {
     const cid = await client(), rid = await role(cid);
     const inputs = JSON.stringify({ titles: "QA Manager", keywords: "", location: "Chennai, Pune", company: "", exclude: "" });
