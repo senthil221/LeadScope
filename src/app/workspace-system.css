@@ -281,3 +281,5 @@
 .sort-header svg { color: var(--faint); }
 .sort-header:hover svg, .sort-header.is-on svg { color: var(--brand); }
 .sort-header.is-on { color: var(--ink); }
+.link-button { min-height: 0; padding: 0 4px; border: 0; background: none; box-shadow: none; color: var(--brand); font-size: 13px; font-weight: 500; cursor: pointer; }
+.link-button:hover { text-decoration: underline; }

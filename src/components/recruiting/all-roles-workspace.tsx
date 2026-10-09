@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AppShell } from "@/components/shell/AppShell";
 import type { PageData, Role } from "@/lib/types";
 import { RoleFormDialog } from "./role-form";
@@ -31,24 +31,38 @@ export function AllRolesWorkspace({ data }: { data: PageData }) {
     p.delete("page");
     return `/roles?${p}`;
   }
+  // The filters go into the address without leaving the page, so the search
+  // box keeps its focus and the sort stays as it was.
+  const typing = useRef<number | undefined>(undefined);
+  function apply(form: HTMLFormElement) {
+    const next = new URLSearchParams();
+    new FormData(form).forEach((value, key) => { const text = String(value).trim(); if (text) next.set(key, text); });
+    const sortBy = params.get("sort"); if (sortBy) next.set("sort", sortBy);
+    router.replace(next.size ? `/roles?${next}` : "/roles", { scroll: false });
+  }
   function pageUrl(page: number) { const p = new URLSearchParams(params); p.set("page", String(page)); return `/roles?${p}`; }
   return <AppShell data={data}>
     <header className="page-header role-directory-header"><div><div className="eyebrow">Agency workspace</div><h1>Roles <span className="count">{data.total ?? 0}</span></h1><p className="muted">Every role across your clients, with recruiter ownership and hiring budget.</p></div>
       <div className="header-actions"><select aria-label="Client for new role" value={newClient} onChange={(e) => setNewClient(e.target.value)}>{data.clients.filter((c) => !c.archived).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select><button className="primary" disabled={!newClient} onClick={() => setForm("new")}>New role</button></div>
     </header>
-    <form className="directory-controls role-directory-filters" method="get" action="/roles">
-      <input name="q" type="search" aria-label="Search all roles" placeholder="Search roles or CTC" defaultValue={params.get("q") ?? ""} />
-      <select name="client" aria-label="Filter roles by client" defaultValue={params.get("client") ?? ""}><option value="">All clients</option>{data.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-      <select name="recruiter" aria-label="Filter roles by recruiter" defaultValue={params.get("recruiter") ?? ""} onChange={(e) => e.currentTarget.form?.requestSubmit()}>
+    {/* Every filter applies as it changes; the search a moment after typing stops. */}
+    <form className="directory-controls role-directory-filters" method="get" action="/roles" onSubmit={(e) => { e.preventDefault(); apply(e.currentTarget); }}>
+      <input name="q" type="search" aria-label="Search all roles" placeholder="Search roles or CTC" defaultValue={params.get("q") ?? ""} onChange={(e) => { const form = e.currentTarget.form; window.clearTimeout(typing.current); typing.current = window.setTimeout(() => { if (form) apply(form); }, 350); }} />
+      <select name="client" aria-label="Filter roles by client" defaultValue={params.get("client") ?? ""} onChange={(e) => { if (e.currentTarget.form) apply(e.currentTarget.form); }}><option value="">All clients</option>{data.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+      <select name="recruiter" aria-label="Filter roles by recruiter" defaultValue={params.get("recruiter") ?? ""} onChange={(e) => { if (e.currentTarget.form) apply(e.currentTarget.form); }}>
         <option value="">All recruiters</option>
         {(recruiters ?? []).filter((r) => !r.archived).map((r) => <option key={r.id} value={r.name}>{r.name}</option>)}
         <option value="__unassigned">Unassigned</option>
       </select>
-      <select name="status" aria-label="Filter roles by status" defaultValue={params.get("status") ?? "open"} onChange={(e) => e.currentTarget.form?.requestSubmit()}>
+      <select name="status" aria-label="Filter roles by status" defaultValue={params.get("status") ?? "open"} onChange={(e) => { if (e.currentTarget.form) apply(e.currentTarget.form); }}>
         {ROLE_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
         <option value="all">All statuses</option>
       </select>
-      <button>Apply</button><Link href="/roles">Clear</Link>
+      <button type="button" className="link-button" onClick={(e) => {
+        const form = e.currentTarget.form; if (!form) return;
+        for (const field of Array.from(form.elements) as HTMLInputElement[]) if (field.name) field.value = field.name === "status" ? "open" : "";
+        router.replace("/roles", { scroll: false });
+      }}>Clear</button>
     </form>
     <div className="card table-wrap role-directory-table"><table><thead><tr><th>Role</th><th>Client</th><th>Recruiter</th><SortHeader label="CTC" field="ctc" sort={sort} href={sortUrl("ctc")} /><SortHeader label="Age" field="age" sort={sort} href={sortUrl("age")} title="Days since the role opened" /><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
       {(data.roles ?? []).map((role) => <tr key={role.id}>

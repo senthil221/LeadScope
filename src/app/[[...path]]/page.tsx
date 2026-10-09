@@ -690,7 +690,7 @@ export default async function Page({
   const routeKey = `${path.join("/")}:${filter.page ?? ""}:${filter.status ?? ""}:${filter.campaign ?? ""}:${filter.q ?? ""}:${filter.contact ?? ""}:${filter.stage ?? ""}`;
   const roleRouteKey = `${filter.candidate ?? ""}:${filter.contact ?? ""}:${filter.stale ?? ""}:${path.join("/")}:${filter.page ?? ""}:${filter.q ?? ""}:${filter.source ?? ""}:${filter.source_detail ?? ""}:${filter.rating ?? ""}:${filter.entered_from ?? ""}:${filter.entered_to ?? ""}:${filter.sort ?? ""}`;
   if (data.view === "master-db") return <MasterWorkspace key={JSON.stringify(filter)} data={data} />;
-  if (data.view === "all-roles") return <AllRolesWorkspace key={`${routeKey}:${filter.recruiter}:${filter.client}:${filter.sort}`} data={data} />;
+  if (data.view === "all-roles") return <AllRolesWorkspace key="all-roles" data={data} />;
   if (data.view === "blocklist") return <BlocklistWorkspace key={`${routeKey}:${filter.client}`} data={data} />;
   if (data.view === "xray") return <XrayDashboard key={data.role!.id} data={data} />;
   if (data.view === "credits") return <CreditsWorkspace key={routeKey} data={data} />;
